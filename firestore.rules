@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to get user record
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Helper to check if user is a teacher
+    function isTeacher() {
+      return isAuthenticated() && (
+        getUserData().role == 'teacher' || 
+        // Fallback or initialization
+        request.auth.token.email.endsWith('@educonnect.com') && getUserData().role == 'teacher'
+      );
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (request.auth.uid == userId || isTeacher());
+    }
+
+    // Assignments collection
+    match /assignments/{assignmentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Teachers can create, or general during setup
+    }
+
+    // Submissions collection
+    match /submissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Students can write their own, teachers can grade
+    }
+
+    // Class sessions collection
+    match /class_sessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Simulations collection
+    match /simulations/{simulationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Student progress collection
+    match /student_progress/{progressId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}

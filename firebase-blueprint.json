@@ -1,0 +1,89 @@
+{
+  "collections": {
+    "users": {
+      "description": "User profiles for teachers and students",
+      "fields": {
+        "id": "string",
+        "name": "string",
+        "role": "string ('teacher' | 'student')",
+        "username": "string",
+        "phoneStudent": "string (optional)",
+        "phoneParent": "string (optional)",
+        "className": "string (optional)",
+        "avatar": "string",
+        "createdAt": "string"
+      }
+    },
+    "assignments": {
+      "description": "Assignments created by teachers",
+      "fields": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "dueDate": "string",
+        "classSessionId": "string (optional)",
+        "classSessionTitle": "string (optional)",
+        "type": "string ('online_test' | 'file_upload' | 'simulation')",
+        "pdfUrl": "string (optional)",
+        "questions": "array (optional)",
+        "simulationUrl": "string (optional)",
+        "createdAt": "string"
+      }
+    },
+    "submissions": {
+      "description": "Submissions by students",
+      "fields": {
+        "id": "string",
+        "assignmentId": "string",
+        "studentId": "string",
+        "studentName": "string",
+        "content": "string",
+        "submittedAt": "string",
+        "grade": "number (optional)",
+        "feedback": "string (optional)",
+        "fileUrl": "string (optional)",
+        "quizAnswers": "map (optional)",
+        "isPenalty": "boolean (optional)"
+      }
+    },
+    "class_sessions": {
+      "description": "Class schedules/buổi học",
+      "fields": {
+        "id": "string",
+        "title": "string",
+        "subject": "string (optional)",
+        "startTime": "string",
+        "endTime": "string",
+        "link": "string",
+        "note": "string (optional)"
+      }
+    },
+    "simulations": {
+      "description": "Custom interactive simulations",
+      "fields": {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "url": "string",
+        "thumbnail": "string",
+        "category": "string (optional)",
+        "hasQuiz": "boolean (optional)",
+        "htmlContent": "string (optional)"
+      }
+    },
+    "student_progress": {
+      "description": "Student academic performance reports",
+      "fields": {
+        "studentId": "string",
+        "studentName": "string",
+        "phoneParent": "string (optional)",
+        "phoneStudent": "string (optional)",
+        "className": "string (optional)",
+        "completionRate": "number",
+        "averageGrade": "number",
+        "attendanceRate": "number",
+        "monthlyProgress": "array (optional)"
+      }
+    }
+  }
+}
