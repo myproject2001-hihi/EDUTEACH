@@ -43,6 +43,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
   
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
@@ -62,6 +63,12 @@ export function AuthView({ onLogin }: AuthViewProps) {
   const [recoveryTab, setRecoveryTab] = useState<'request' | 'lookup'>('request');
   const [copied, setCopied] = useState(false);
   const [pasteWarning, setPasteWarning] = useState(false);
+  
+  const handleToggleSignUp = (val: boolean) => {
+    setIsSignUp(val);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
   
   const showAdminContact = () => {
     setResetUsername('');
@@ -373,7 +380,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
         <div className="md:hidden flex border-b border-slate-100 bg-slate-50/80 p-1.5 gap-1">
           <button
             type="button"
-            onClick={() => setIsSignUp(false)}
+            onClick={() => handleToggleSignUp(false)}
             className={`flex-1 py-3 text-sm font-bold rounded-2xl flex items-center justify-center gap-2 transition-all ${
               !isSignUp ? 'bg-white text-indigo-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -383,7 +390,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
           </button>
           <button
             type="button"
-            onClick={() => setIsSignUp(true)}
+            onClick={() => handleToggleSignUp(true)}
             className={`flex-1 py-3 text-sm font-bold rounded-2xl flex items-center justify-center gap-2 transition-all ${
               isSignUp ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -406,6 +413,13 @@ export function AuthView({ onLogin }: AuthViewProps) {
           {errorMessage && (
             <div className="mb-4 p-3.5 bg-red-50 border border-red-100 text-red-700 text-xs rounded-2xl font-bold">
               ⚠️ {errorMessage}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="mb-4 p-3.5 bg-green-50 border border-green-100 text-green-700 text-xs rounded-2xl font-bold flex items-center gap-2">
+              <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+              <span>{successMessage}</span>
             </div>
           )}
 
@@ -614,8 +628,16 @@ export function AuthView({ onLogin }: AuthViewProps) {
                 handleFirestoreError(setErr, OperationType.CREATE, `users/${uid}`);
               }
               
+              try {
+                await auth.signOut();
+              } catch (signOutErr) {
+                console.error('Error signing out after registration:', signOutErr);
+              }
+
               setIsSignUp(false);
-              onLogin(signupRole);
+              setLoginUsername(signupUsername);
+              setLoginPassword(signupPassword);
+              setSuccessMessage('Đăng ký tài khoản thành công! Vui lòng kiểm tra lại thông tin và nhấn "ĐĂNG NHẬP" để bắt đầu.');
             } catch (err: any) {
               console.error(err);
               let friendlyMessage = 'Đăng ký tài khoản thất bại. Vui lòng thử lại.';
@@ -864,7 +886,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
               <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl hover:opacity-95 transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50">
                 {loading ? 'ĐANG XỬ LÝ...' : 'TẠO TÀI KHOẢN'}
               </button>
-              <button type="button" onClick={() => setIsSignUp(false)} className="mt-3 text-slate-500 hover:text-slate-900 text-xs sm:text-sm transition-colors font-medium">
+              <button type="button" onClick={() => handleToggleSignUp(false)} className="mt-3 text-slate-500 hover:text-slate-900 text-xs sm:text-sm transition-colors font-medium">
                 Đã có tài khoản? Đăng nhập
               </button>
             </div>
@@ -915,7 +937,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                      <div className="flex flex-col items-end gap-2">
                        <p className="text-slate-400 text-xs">Bạn là người mới?</p>
                        <button 
-                        onClick={() => setIsSignUp(true)}
+                        onClick={() => handleToggleSignUp(true)}
                         className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 text-xs text-white"
                       >
                         Tạo tài khoản
