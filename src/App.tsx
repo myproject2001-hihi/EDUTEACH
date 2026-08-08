@@ -85,6 +85,8 @@ export default function App() {
   useEffect(() => {
     if (currentUser && currentUser.role === 'student' && !currentUser.zaloChatId && !sessionStorage.getItem('zaloOnboardingDismissed')) {
       setShowZaloOnboarding(true);
+    } else {
+      setShowZaloOnboarding(false);
     }
   }, [currentUser]);
 

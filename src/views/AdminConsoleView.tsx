@@ -84,6 +84,11 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
   };
 
   const handleClaimSuperAdmin = async () => {
+    const existingSuper = usersList.find(u => u.isSuperAdmin);
+    if (existingSuper && existingSuper.id !== user.id) {
+      showNotify('error', `Hệ thống đã có Quản trị viên chính là ${existingSuper.name}. Bạn không thể tự kích hoạt quyền này.`);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'users', user.id), {
         role: 'admin',
