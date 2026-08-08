@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings } from 'lucide-react';
 import { Role, User } from '../types';
+import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 
 export function getAvatarInitial(name?: string): string {
   if (!name || !name.trim()) return 'U';
@@ -43,6 +44,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileName, setProfileName] = useState(user.name);
+  const [profileLastName, setProfileLastName] = useState(getLastName(user.name, user.lastName));
+  const [profileFirstName, setProfileFirstName] = useState(getFirstName(user.name, user.firstName));
   const [profileDob, setProfileDob] = useState(user.dob || '');
   const [profilePhoneStudent, setProfilePhoneStudent] = useState(user.phoneStudent || '');
   const [profilePhoneParent, setProfilePhoneParent] = useState(user.phoneParent || '');
@@ -54,6 +57,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
   React.useEffect(() => {
     setProfileName(user.name);
+    setProfileLastName(getLastName(user.name, user.lastName));
+    setProfileFirstName(getFirstName(user.name, user.firstName));
     setProfileDob(user.dob || '');
     setProfilePhoneStudent(user.phoneStudent || '');
     setProfilePhoneParent(user.phoneParent || '');
@@ -72,18 +77,14 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const avatarOptions = [
-    { name: 'An (3D)', url: 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=256&h=256' },
-    { name: 'Bình (3D)', url: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?auto=format&fit=crop&q=80&w=256&h=256' },
-    { name: 'Sáng (3D)', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=256&h=256' },
-    { name: 'Hoa (3D)', url: 'https://images.unsplash.com/photo-1624561172888-ac93c696e10c?auto=format&fit=crop&q=80&w=256&h=256' },
-  ];
-
   const handleSaveProfile = () => {
+    const finalFullName = combineName(profileLastName, profileFirstName) || profileName;
     if (onUpdateUser) {
       onUpdateUser({
         ...user,
-        name: profileName,
+        name: finalFullName,
+        lastName: profileLastName,
+        firstName: profileFirstName,
         dob: profileDob,
         phoneStudent: profilePhoneStudent,
         phoneParent: profilePhoneParent,
@@ -312,9 +313,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                   {user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học viên'}
                 </p>
               </div>
-              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-600 text-white rounded-full font-extrabold flex items-center justify-center text-sm sm:text-base border border-indigo-400 shadow-sm shrink-0">
-                {getAvatarInitial(user.name)}
-              </div>
+              <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
             </div>
           </div>
         </header>
@@ -379,9 +378,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               {/* Profile Card Summary */}
               <div className="flex flex-col items-center text-center space-y-3 bg-slate-50 p-5 rounded-2xl border border-slate-100">
                 <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-indigo-600 text-white font-black flex items-center justify-center text-3xl border-2 border-indigo-400 shadow-md">
-                    {getAvatarInitial(profileName || user.name)}
-                  </div>
+                  <UserAvatar name={profileName} firstName={profileFirstName} avatar={selectedAvatar} size="xl" />
                   {isEditing && (
                     <div className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-full border border-white shadow-sm">
                       <Sparkles className="w-3 h-3" />
@@ -417,31 +414,55 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 </div>
               </div>
 
-              {/* Avatar Selector (Only visible during edit mode) */}
+              {/* Avatar Info (Only visible during edit mode) */}
               {isEditing && (
                 <div className="p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-center">
-                  <p className="text-xs font-bold text-indigo-900">Ảnh đại diện được tự động cập nhật theo chữ cái đầu tiên của tên bạn</p>
+                  <p className="text-xs font-bold text-indigo-900">Ảnh đại diện được tự động hiển thị theo chữ cái đầu tiên của TÊN bạn ({profileFirstName || 'Tên'})</p>
                 </div>
               )}
 
               {/* Fields */}
               <div className="space-y-4">
-                {/* Họ tên */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Họ và tên</label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={profileName}
-                      onChange={(e) => setProfileName(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
-                    />
-                  ) : (
+                {/* Họ tên chia 2 khung */}
+                {isEditing ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Họ và tên đệm</label>
+                      <input
+                        type="text"
+                        value={profileLastName}
+                        onChange={(e) => {
+                          const newLast = e.target.value;
+                          setProfileLastName(newLast);
+                          setProfileName(combineName(newLast, profileFirstName));
+                        }}
+                        placeholder="Nguyễn Văn"
+                        className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">Tên</label>
+                      <input
+                        type="text"
+                        value={profileFirstName}
+                        onChange={(e) => {
+                          const newFirst = e.target.value;
+                          setProfileFirstName(newFirst);
+                          setProfileName(combineName(profileLastName, newFirst));
+                        }}
+                        placeholder="An"
+                        className="w-full px-3.5 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Họ và tên</label>
                     <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100 text-sm font-semibold text-slate-800">
                       {profileName}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Ngày sinh */}
                 <div>

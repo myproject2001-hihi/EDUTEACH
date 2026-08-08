@@ -3,6 +3,8 @@ import { User, Role, Assignment, ClassSession, HTMLSimulation } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 
 interface AdminConsoleViewProps {
   user: User;
@@ -22,9 +24,15 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
 
   // Modal / Form state for user role change or password reset
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editLastName, setEditLastName] = useState('');
+  const [editFirstName, setEditFirstName] = useState('');
   const [newRole, setNewRole] = useState<Role>('student');
   const [makeSuperAdmin, setMakeSuperAdmin] = useState(false);
   const [updatingRole, setUpdatingRole] = useState(false);
+
+  // Delete confirm modal state
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<{ id: string; name: string } | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   // Reset request handling
   const [handlingResetId, setHandlingResetId] = useState<string | null>(null);
@@ -94,16 +102,29 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
       return;
     }
     setUpdatingRole(true);
+    const updatedFullName = combineName(editLastName, editFirstName) || targetUser.name;
     try {
       await updateDoc(doc(db, 'users', targetUser.id), {
         role: roleToSet,
-        isSuperAdmin: roleToSet === 'admin' ? !!setSuperAdminFlag : false
+        isSuperAdmin: roleToSet === 'admin' ? !!setSuperAdminFlag : false,
+        name: updatedFullName,
+        lastName: editLastName,
+        firstName: editFirstName
       });
-      showNotify('success', `Đã cập nhật vai trò của ${targetUser.name} thành "${roleToSet === 'admin' ? (setSuperAdminFlag ? 'Quản trị viên chính' : 'Quản trị viên') : roleToSet === 'teacher' ? 'Giáo viên' : 'Học sinh'}"`);
+      setUsersList(prev => prev.map(u => u.id === targetUser.id ? {
+        ...u,
+        role: roleToSet,
+        isSuperAdmin: roleToSet === 'admin' ? !!setSuperAdminFlag : false,
+        name: updatedFullName,
+        lastName: editLastName,
+        firstName: editFirstName
+      } : u));
+      showNotify('success', `Đã cập nhật thông tin và vai trò của ${updatedFullName} thành công!`);
       setEditingUser(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showNotify('error', 'Lỗi khi cập nhật vai trò người dùng.');
+      handleFirestoreError(err, OperationType.UPDATE, `users/${targetUser.id}`);
+      showNotify('error', 'Lỗi khi cập nhật thông tin người dùng.');
     } finally {
       setUpdatingRole(false);
     }
@@ -154,14 +175,20 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
     }
   };
 
-  const handleDeleteUser = async (targetUserId: string, targetName: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa người dùng "${targetName}" khỏi hệ thống?`)) return;
+  const confirmDeleteUser = async () => {
+    if (!deleteConfirmUser) return;
+    setDeletingUser(true);
     try {
-      await deleteDoc(doc(db, 'users', targetUserId));
-      showNotify('success', `Đã xóa tài khoản ${targetName}`);
-    } catch (err) {
+      await deleteDoc(doc(db, 'users', deleteConfirmUser.id));
+      setUsersList(prev => prev.filter(u => u.id !== deleteConfirmUser.id));
+      showNotify('success', `Đã xóa thành công tài khoản ${deleteConfirmUser.name}`);
+      setDeleteConfirmUser(null);
+    } catch (err: any) {
       console.error(err);
-      showNotify('error', 'Không thể xóa tài khoản người dùng.');
+      handleFirestoreError(err, OperationType.DELETE, `users/${deleteConfirmUser.id}`);
+      showNotify('error', `Không thể xóa tài khoản người dùng: ${err.message || 'Lỗi hệ thống'}`);
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -384,11 +411,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                     {filteredUsers.map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3.5 px-4 flex items-center gap-3">
-                          <img
-                            src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256&h=256'}
-                            alt={u.name}
-                            className="w-9 h-9 rounded-full object-cover border border-slate-200"
-                          />
+                          <UserAvatar name={u.name} firstName={u.firstName} avatar={u.avatar} size="md" />
                           <div>
                             <p className="font-bold text-slate-900 text-sm">{u.name}</p>
                             <p className="text-[11px] text-slate-400 font-mono">ID: {u.id.substring(0, 8)}...</p>
@@ -437,6 +460,8 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                                 setEditingUser(u);
                                 setNewRole(u.role);
                                 setMakeSuperAdmin(!!u.isSuperAdmin);
+                                setEditLastName(getLastName(u.name, u.lastName));
+                                setEditFirstName(getFirstName(u.name, u.firstName));
                               }}
                               className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded-xl transition-colors flex items-center gap-1"
                             >
@@ -446,7 +471,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
 
                             {u.id !== user.id && (
                               <button
-                                onClick={() => handleDeleteUser(u.id, u.name)}
+                                onClick={() => setDeleteConfirmUser({ id: u.id, name: u.name })}
                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                                 title="Xóa tài khoản"
                               >
@@ -685,11 +710,35 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             </div>
 
             <div className="space-y-4">
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
-                <img src={editingUser.avatar} alt={editingUser.name} className="w-10 h-10 rounded-full object-cover" />
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
+                <UserAvatar name={combineName(editLastName, editFirstName) || editingUser.name} firstName={editFirstName} avatar={editingUser.avatar} size="md" />
                 <div>
-                  <p className="font-bold text-slate-900 text-sm">{editingUser.name}</p>
-                  <p className="text-xs text-slate-500">Mã lớp hiện tại: {editingUser.className || '—'}</p>
+                  <p className="font-bold text-slate-900 text-sm">{combineName(editLastName, editFirstName) || editingUser.name}</p>
+                  <p className="text-xs text-slate-500">Mã lớp: {editingUser.className || '—'}</p>
+                </div>
+              </div>
+
+              {/* Chỉnh sửa Họ & Tên */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Họ và tên đệm</label>
+                  <input
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    placeholder="Nguyễn Văn"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tên</label>
+                  <input
+                    type="text"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    placeholder="An"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
                 </div>
               </div>
 
@@ -777,6 +826,19 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
           </div>
         </div>
       )}
+
+      {/* Custom Center-Zoom Confirmation Modal for User Deletion */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmUser}
+        onClose={() => setDeleteConfirmUser(null)}
+        onConfirm={confirmDeleteUser}
+        title="Xác nhận xóa tài khoản"
+        message={`Bạn có chắc chắn muốn xóa người dùng "${deleteConfirmUser?.name}" khỏi hệ thống? Thao tác này sẽ gỡ bỏ hoàn toàn thông tin người dùng khỏi Firestore.`}
+        confirmText="Xóa tài khoản"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        loading={deletingUser}
+      />
     </div>
   );
 }

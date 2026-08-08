@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
 import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 interface AssignmentsProps {
   user: User;
@@ -404,6 +405,8 @@ export function AssignmentsView({
   const [showCheatWarning, setShowCheatWarning] = useState(false);
   const [examTimeRemaining, setExamTimeRemaining] = useState(900); // 15 mins (900s)
   const [isNotFullscreen, setIsNotFullscreen] = useState(false);
+  const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false);
+  const [showDisqualifiedModal, setShowDisqualifiedModal] = useState(false);
 
   const lastViolationTimeRef = React.useRef(0);
 
@@ -434,10 +437,7 @@ export function AssignmentsView({
       });
 
       setTabSwitchCount(0);
-
-      setTimeout(() => {
-        alert("🚨 CẢNH BÁO GIÁM SÁT THI:\n\nBạn đã vi phạm quy chế thi quá 3 lần (chuyển tab hoặc rời toàn màn hình).\nBài thi của bạn đã bị ĐÌNH CHỈ và NỘP BÀI TỰ ĐỘNG lên hệ thống!");
-      }, 500);
+      setShowDisqualifiedModal(true);
     }
   }, [tabSwitchCount, isExamStarted, selectedAssignment, studentQuizAnswers, user, onSubmitWork]);
 
@@ -783,11 +783,7 @@ export function AssignmentsView({
             
             <button 
               type="button"
-              onClick={() => {
-                if (confirm("Bạn có chắc chắn muốn nộp bài thi ngay bây giờ?")) {
-                  handleManualSubmitExam();
-                }
-              }}
+              onClick={() => setShowSubmitConfirmModal(true)}
               className="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-md transition-all uppercase"
             >
               Nộp bài
@@ -989,6 +985,20 @@ export function AssignmentsView({
             </div>
           </div>
         )}
+        {/* Center-Zoom Confirm Modal for Submitting Exam */}
+        <ConfirmModal
+          isOpen={showSubmitConfirmModal}
+          onClose={() => setShowSubmitConfirmModal(false)}
+          onConfirm={() => {
+            handleManualSubmitExam();
+            setShowSubmitConfirmModal(false);
+          }}
+          title="Xác nhận nộp bài thi"
+          message="Bạn có chắc chắn muốn nộp bài thi ngay bây giờ? Sau khi nộp bài, câu trả lời sẽ được gửi trực tiếp cho giáo viên và không thể sửa đổi."
+          confirmText="Nộp bài ngay"
+          cancelText="Tiếp tục làm bài"
+          variant="info"
+        />
       </div>
     );
   }
@@ -2308,6 +2318,18 @@ export function AssignmentsView({
           </div>
         </div>
       )}
+
+      {/* Disqualification Center-Zoom Modal */}
+      <ConfirmModal
+        isOpen={showDisqualifiedModal}
+        onClose={() => setShowDisqualifiedModal(false)}
+        onConfirm={() => setShowDisqualifiedModal(false)}
+        title="🚨 CẢNH BÁO GIÁM SÁT THI"
+        message="Bạn đã vi phạm quy chế thi quá 3 lần (chuyển tab hoặc rời màn hình). Bài thi của bạn đã bị ĐÌNH CHỈ và NỘP BÀI TỰ ĐỘNG lên hệ thống!"
+        confirmText="Đã hiểu"
+        cancelText="Đóng"
+        variant="danger"
+      />
 
     </div>
   );

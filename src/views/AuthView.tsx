@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Mail, Lock, User, Phone, BookOpen, UserPlus, LogIn, Eye, EyeOff, X, HelpCircle, Calendar, AlertCircle, Check, Award, Key } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Role } from '../types';
+import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
@@ -17,6 +18,8 @@ export function AuthView({ onLogin }: AuthViewProps) {
   const [loginPassword, setLoginPassword] = useState('');
   
   const [signupName, setSignupName] = useState('');
+  const [signupLastName, setSignupLastName] = useState('');
+  const [signupFirstName, setSignupFirstName] = useState('');
   const [signupDob, setSignupDob] = useState('');
   const [signupUsername, setSignupUsername] = useState('');
   const [signupPhoneParent, setSignupPhoneParent] = useState('');
@@ -618,9 +621,13 @@ export function AuthView({ onLogin }: AuthViewProps) {
                 ? 'https://images.unsplash.com/photo-1624561172888-ac93c696e10c?auto=format&fit=crop&q=80&w=256&h=256'
                 : 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=256&h=256';
 
+              const fullName = combineName(signupLastName, signupFirstName) || signupName;
+
               const newUserProfile = {
                 id: uid,
-                name: signupName,
+                name: fullName,
+                lastName: signupLastName,
+                firstName: signupFirstName,
                 dob: signupDob,
                 role: signupRole,
                 avatar: avatarUrl,
@@ -694,21 +701,50 @@ export function AuthView({ onLogin }: AuthViewProps) {
             }
           }}>
             <div className="space-y-3 pb-2">
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">Họ và tên</label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="h-4 w-4 text-slate-400" />
+              {/* Khung Họ & Tên đệm + Khung Tên */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-700">Họ và tên đệm</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="Nguyễn Văn" 
+                      className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-9 pr-3 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                      required 
+                      disabled={loading}
+                      value={signupLastName}
+                      onChange={(e) => {
+                        const newLast = e.target.value;
+                        setSignupLastName(newLast);
+                        setSignupName(combineName(newLast, signupFirstName));
+                      }}
+                    />
                   </div>
-                  <input 
-                    type="text" 
-                    placeholder="Nguyễn Văn A" 
-                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
-                    required 
-                    disabled={loading}
-                    value={signupName}
-                    onChange={(e) => setSignupName(e.target.value)}
-                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-700">Tên</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <input 
+                      type="text" 
+                      placeholder="An" 
+                      className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-9 pr-3 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                      required 
+                      disabled={loading}
+                      value={signupFirstName}
+                      onChange={(e) => {
+                        const newFirst = e.target.value;
+                        setSignupFirstName(newFirst);
+                        setSignupName(combineName(signupLastName, newFirst));
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 

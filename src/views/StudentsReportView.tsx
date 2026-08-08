@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { StudentProgress } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle } from 'lucide-react';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 interface StudentsReportProps {
   progressData: StudentProgress[];
@@ -19,6 +20,8 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'roster' | 'requests'>('roster');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'reset_requests'), (snapshot) => {
@@ -60,20 +63,26 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     }
   };
 
-  const handleRejectRequest = async (requestId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn từ chối và xóa yêu cầu này không?')) return;
+  const confirmRejectRequest = async () => {
+    if (!rejectConfirmId) return;
+    setRejecting(true);
     try {
-      await deleteDoc(doc(db, 'reset_requests', requestId));
+      await deleteDoc(doc(db, 'reset_requests', rejectConfirmId));
+      setResetRequests(prev => prev.filter(r => r.id !== rejectConfirmId));
       setNotification({
-        message: 'Đã bác bỏ và xóa yêu cầu khôi phục mật khẩu.',
+        message: 'Đã bác bỏ và xóa thành công yêu cầu khôi phục mật khẩu.',
         type: 'success'
       });
-    } catch (err) {
+      setRejectConfirmId(null);
+    } catch (err: any) {
       console.error(err);
+      handleFirestoreError(err, OperationType.DELETE, `reset_requests/${rejectConfirmId}`);
       setNotification({
-        message: 'Có lỗi xảy ra khi từ chối yêu cầu.',
+        message: `Có lỗi xảy ra khi từ chối yêu cầu: ${err.message || 'Lỗi hệ thống'}`,
         type: 'error'
       });
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -376,7 +385,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleRejectRequest(req.id)}
+                                onClick={() => setRejectConfirmId(req.id)}
                                 className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2 px-3 rounded-xl transition-all flex items-center gap-1"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Bác bỏ
@@ -392,7 +401,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                                 <button
                                   onClick={() => {
                                     navigator.clipboard.writeText(req.tempPassword);
-                                    alert('Đã sao chép mật khẩu tạm vào bộ nhớ tạm!');
+                                    setNotification({ message: 'Đã sao chép mật khẩu tạm vào bộ nhớ tạm!', type: 'success' });
                                   }}
                                   className="text-[10px] font-bold text-indigo-600 hover:underline"
                                 >
@@ -488,6 +497,19 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
         </div>
 
       </div>
+
+      {/* Center-Zoom Confirm Modal for Reset Request Rejection */}
+      <ConfirmModal
+        isOpen={!!rejectConfirmId}
+        onClose={() => setRejectConfirmId(null)}
+        onConfirm={confirmRejectRequest}
+        title="Xác nhận từ chối yêu cầu"
+        message="Bạn có chắc chắn muốn từ chối và xóa yêu cầu cấp lại mật khẩu này không?"
+        confirmText="Xóa yêu cầu"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        loading={rejecting}
+      />
 
     </div>
   );

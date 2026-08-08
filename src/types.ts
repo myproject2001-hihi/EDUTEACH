@@ -3,6 +3,8 @@ export type Role = 'admin' | 'teacher' | 'student';
 export interface User {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   role: Role;
   isSuperAdmin?: boolean;
   avatar: string;
