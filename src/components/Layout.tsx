@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2 } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings } from 'lucide-react';
 import { Role, User } from '../types';
 
 export function getAvatarInitial(name?: string): string {
@@ -93,6 +93,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
     { id: 'schedule', label: 'Lịch học', icon: Calendar },
     { id: 'simulations', label: 'Mô phỏng', icon: Microscope },
+    ...(isTeacher ? [{ id: 'settings', label: 'Cài đặt Zalo', icon: Settings }] : []),
   ];
 
   const handleTabClick = (tabId: string) => {

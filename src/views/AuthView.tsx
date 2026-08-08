@@ -597,6 +597,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
             setLoading(true);
             setErrorMessage(null);
             try {
+              sessionStorage.setItem('isSigningUp', 'true');
               let email = signupUsername.trim();
               if (!email.includes('@')) {
                 email = `${email.toLowerCase()}@educonnect.com`;
@@ -633,6 +634,8 @@ export function AuthView({ onLogin }: AuthViewProps) {
               } catch (signOutErr) {
                 console.error('Error signing out after registration:', signOutErr);
               }
+              
+              sessionStorage.removeItem('isSigningUp');
 
               setIsSignUp(false);
               setLoginUsername(signupUsername);
@@ -667,6 +670,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
               }
               setErrorMessage(friendlyMessage);
             } finally {
+              sessionStorage.removeItem('isSigningUp');
               setLoading(false);
             }
           }}>

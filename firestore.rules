@@ -57,5 +57,9 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
+    // Settings collection
+    match /settings/{document=**} {
+      allow read, write: if isTeacher();
+    }
   }
 }

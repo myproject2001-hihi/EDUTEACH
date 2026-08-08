@@ -13,6 +13,8 @@ import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 
+import { SettingsView } from './views/SettingsView';
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState<Role>('student');
@@ -32,6 +34,10 @@ export default function App() {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        if (sessionStorage.getItem('isSigningUp') === 'true') {
+          return; // Ignore this sign in, AuthView will sign out immediately
+        }
+        
         // Setup user profile snapshot listener
         const unsubscribeUser = onSnapshot(doc(db, 'users', firebaseUser.uid), async (docSnap) => {
           if (docSnap.exists()) {
@@ -248,6 +254,8 @@ export default function App() {
         return role === 'teacher' ? <StudentsReportView progressData={progressData} /> : null;
       case 'simulations':
         return <SimulationsView user={currentUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
+      case 'settings':
+        return role === 'teacher' ? <SettingsView /> : null;
       default:
         return (
           <DashboardView 
