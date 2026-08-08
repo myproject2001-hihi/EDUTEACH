@@ -3,8 +3,11 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface AssignmentsProps {
   user: User;
@@ -352,6 +355,22 @@ export function AssignmentsView({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(assignments[0] || null);
+
+  // Unsubmitted students modal state
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [unsubmittedModalAssignment, setUnsubmittedModalAssignment] = useState<Assignment | null>(null);
+  const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const list: User[] = [];
+      snapshot.forEach(docSnap => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as User);
+      });
+      setUsersList(list);
+    });
+    return () => unsub();
+  }, []);
 
   // Zalo Reminder Modal / Message Banner State
   const [zaloReminderModal, setZaloReminderModal] = useState(false);
@@ -1104,6 +1123,25 @@ export function AssignmentsView({
                     <Clock className="w-3.5 h-3.5 mr-1" />
                     Hạn: {format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}
                   </p>
+
+                  {isTeacher && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
+                        {totalSubs} đã nộp
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUnsubmittedModalAssignment(assignment);
+                        }}
+                        className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center gap-1 shadow-sm"
+                      >
+                        <AlertTriangle className="w-3 h-3" />
+                        <span>Danh sách chưa nộp</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -2330,6 +2368,119 @@ export function AssignmentsView({
         cancelText="Đóng"
         variant="danger"
       />
+
+      {/* Unsubmitted Students Modal */}
+      {unsubmittedModalAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-500" />
+                  Danh sách học sinh chưa nộp bài
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Bài tập: <span className="font-bold text-slate-700">{unsubmittedModalAssignment.title}</span>
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const unsubmitted = usersList.filter(u => {
+                      if (u.role !== 'student') return false;
+                      const submittedIds = submissions
+                        .filter(s => s.assignmentId === unsubmittedModalAssignment.id)
+                        .map(s => s.studentId);
+                      return !submittedIds.includes(u.id);
+                    });
+                    if (unsubmitted.length === 0) {
+                      alert('Không có học sinh nào chưa nộp!');
+                      return;
+                    }
+                    const names = unsubmitted.map(s => s.name).join(', ');
+                    alert(`🤖 Zalo Bot đã tự động gửi hàng loạt thông báo thành công đến ${unsubmitted.length} học sinh chưa nộp (${names})!\n\nNội dung:\nNhắc hoàn thành bài tập "${unsubmittedModalAssignment.title}" trước hạn.`);
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Nhắc tất cả qua Zalo Bot</span>
+                </button>
+                <button 
+                  onClick={() => setUnsubmittedModalAssignment(null)}
+                  className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+              {(() => {
+                const unsubmitted = usersList.filter(u => {
+                  if (u.role !== 'student') return false;
+                  const submittedIds = submissions
+                    .filter(s => s.assignmentId === unsubmittedModalAssignment.id)
+                    .map(s => s.studentId);
+                  return !submittedIds.includes(u.id);
+                });
+
+                if (unsubmitted.length === 0) {
+                  return (
+                    <div className="text-center py-12 space-y-3">
+                      <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                        <Check className="w-6 h-6" />
+                      </div>
+                      <p className="text-sm font-bold text-slate-800">Tuyệt vời! Tất cả học sinh đã nộp bài đầy đủ.</p>
+                    </div>
+                  );
+                }
+
+                return unsubmitted.map(student => (
+                  <div key={student.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <UserAvatar name={student.name} firstName={student.firstName} avatar={student.avatar} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{student.name}</p>
+                        <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          {student.phoneStudent || student.phoneParent || 'Chưa có SĐT'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = `🤖 [ZALO BOT GỬI TỰ ĐỘNG]: Em chào em ${student.name} và phụ huynh, cô/thầy nhắc em hoàn thành bài tập "${unsubmittedModalAssignment.title}" trên hệ thống nhé!`;
+                          navigator.clipboard.writeText(text);
+                          setCopiedStudentId(student.id);
+                          alert(`🤖 Zalo Bot đã tự động gửi tin nhắn đến học sinh ${student.name} và Phụ huynh thành công!\n\nNội dung:\n"${text}"`);
+                          setTimeout(() => setCopiedStudentId(null), 2000);
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Nhắc nhở qua Zalo Bot</span>
+                      </button>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            <div className="border-t border-slate-100 pt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setUnsubmittedModalAssignment(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
