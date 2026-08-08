@@ -255,7 +255,7 @@ export default function App() {
       case 'simulations':
         return <SimulationsView user={currentUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'settings':
-        return role === 'teacher' ? <SettingsView /> : null;
+        return role === 'teacher' ? <SettingsView user={currentUser} /> : null;
       default:
         return (
           <DashboardView 

@@ -1,5 +1,5 @@
 {
-  "name": "EduConnect",
+  "name": "EduTeach",
   "description": "Nền tảng học tập trực tuyến kết nối giáo viên và học sinh với tính năng giao bài, chấm điểm và thông báo qua Zalo.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

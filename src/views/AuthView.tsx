@@ -430,7 +430,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
             try {
               let email = loginUsername.trim();
               if (!email.includes('@')) {
-                email = `${email.toLowerCase()}@educonnect.com`;
+                email = `${email.toLowerCase()}@eduteach.com`;
               }
               const userCredential = await signInWithEmailAndPassword(auth, email, loginPassword);
               const userDocRef = doc(db, 'users', userCredential.user.uid);
@@ -600,7 +600,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
               sessionStorage.setItem('isSigningUp', 'true');
               let email = signupUsername.trim();
               if (!email.includes('@')) {
-                email = `${email.toLowerCase()}@educonnect.com`;
+                email = `${email.toLowerCase()}@eduteach.com`;
               }
               const userCredential = await createUserWithEmailAndPassword(auth, email, signupPassword);
               const uid = userCredential.user.uid;

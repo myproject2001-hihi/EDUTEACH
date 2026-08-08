@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Link as LinkIcon, Send, Eye, EyeOff, CheckCircle, AlertCircle, Bot } from 'lucide-react';
+import { Save, RefreshCw, Link as LinkIcon, Send, Eye, EyeOff, CheckCircle, AlertCircle, Bot, Copy, Check } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { User } from '../types';
 
-export function SettingsView() {
+interface SettingsViewProps {
+  user: User;
+}
+
+export function SettingsView({ user }: SettingsViewProps) {
   const [webhookUrl, setWebhookUrl] = useState(`https://${window.location.hostname}/api/zalo-webhook`);
   const [secretToken, setSecretToken] = useState('');
   const [botToken, setBotToken] = useState('');
@@ -79,7 +84,7 @@ export function SettingsView() {
         body: JSON.stringify({
           botToken,
           chatId: testChatId,
-          message: 'Xin chào! Đây là tin nhắn thử nghiệm từ hệ thống EduConnect.'
+          message: 'Xin chào! Đây là tin nhắn thử nghiệm từ hệ thống EduTeach.'
         }),
       });
       
@@ -142,7 +147,7 @@ export function SettingsView() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Secret Token</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mã bí mật (Secret Token)</label>
               <div className="flex gap-2">
                 <button
                   onClick={generateSecretToken}
@@ -171,17 +176,17 @@ export function SettingsView() {
               <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl">
                 <p className="text-xs text-blue-800 flex gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span><strong>Lưu ý:</strong> Secret Token là một khóa bí mật từ 8 tới 256 ký tự, để xác thực yêu cầu được gửi từ Zalo gọi về hệ thống của bạn.</span>
+                  <span><strong>Giải thích:</strong> Mã này do bạn tự tạo trên hệ thống của chúng ta, sau đó <strong>copy dán vào Zalo</strong> để Zalo xác thực khi gửi thông báo về đây.</span>
                 </p>
               </div>
             </div>
           </div>
 
           <div className="space-y-4 pt-4 border-t border-slate-100">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">2. Cấu hình Bot Token</h3>
+            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">2. Cấu hình gửi tin nhắn (Từ Zalo)</h3>
             
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Zalo Bot Token (Lấy từ Zalo Official Account)</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Zalo Bot Token</label>
               <div className="relative">
                 <input
                   type={showBotToken ? "text" : "password"}
@@ -198,6 +203,7 @@ export function SettingsView() {
                   {showBotToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              <p className="mt-1.5 text-xs text-slate-500">Mã này do <strong>Zalo cấp</strong>, bạn copy từ Zalo và dán vào đây để hệ thống có quyền gửi tin nhắn qua Zalo.</p>
             </div>
 
             <div>
@@ -234,18 +240,27 @@ export function SettingsView() {
       </div>
 
       <div className="bg-blue-50/50 rounded-3xl border border-blue-100 shadow-sm overflow-hidden p-6 mt-6">
-        <h3 className="text-lg font-bold text-slate-900 mb-3">3. Hướng dẫn liên kết tài khoản cho người dùng (Hình 12)</h3>
+        <h3 className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+          <LinkIcon className="w-5 h-5 text-blue-600" />
+          3. Hướng dẫn liên kết tài khoản cho người dùng
+        </h3>
         <p className="text-sm text-slate-600 mb-4">
-          Để hệ thống có thể gửi thông báo Zalo cho học sinh/giáo viên, họ cần liên kết tài khoản. 
-          Bạn có thể hướng dẫn họ truy cập vào Zalo Bot và nhắn tin theo cú pháp sau:
+          Để hệ thống có thể tự động gửi bài tập, nhắc nhở hoặc thông báo, người dùng (Học sinh hoặc Giáo viên) cần làm thao tác sau trên Zalo của họ:
         </p>
-        <div className="bg-white p-4 rounded-xl border border-blue-100 font-mono text-sm font-bold text-blue-700 flex items-center gap-3">
-          <Send className="w-5 h-5 text-blue-400" />
-          /start [Mã_User_ID_Của_Họ]
+        <div className="bg-white p-4 rounded-xl border border-blue-100 font-mono text-sm font-bold text-blue-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Send className="w-5 h-5 text-blue-400" />
+            <span>/start {user.id}</span>
+          </div>
         </div>
-        <p className="text-sm text-slate-500 mt-3">
-          Hệ thống đã tự động bắt sự kiện Webhook khi người dùng nhắn tin này và lưu Zalo Chat ID của họ vào Database.
-        </p>
+        <div className="mt-3 space-y-2 text-sm text-slate-600">
+          <p>
+            👆 Phía trên là <strong>Mã kết nối của riêng bạn</strong> (tài khoản Giáo viên hiện tại). Bạn có thể dùng mã này để tự test bằng tài khoản Zalo của mình.
+          </p>
+          <p>
+            <strong>Đối với Học sinh:</strong> Mã kết nối chính là <strong>User ID</strong> của học sinh. Bạn có thể xem ID này trong phần quản lý tài khoản/danh sách học sinh, hoặc thông báo cho học sinh mã tương ứng của họ. Khi học sinh nhắn tin theo cú pháp <code>/start [Mã_của_học_sinh]</code>, Webhook sẽ tự động cập nhật tài khoản và liên kết thành công.
+          </p>
+        </div>
       </div>
     </div>
   );
