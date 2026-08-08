@@ -63,7 +63,39 @@ export function SettingsView() {
   };
 
   const handleTestConnection = async () => {
-    setNotification({ message: 'Tính năng gửi tin nhắn thử nghiệm sẽ khả dụng khi kết nối backend!', type: 'success' });
+    if (!botToken || !testChatId) {
+      setNotification({ message: 'Vui lòng nhập Bot Token và Zalo Chat ID để test!', type: 'error' });
+      return;
+    }
+    
+    setIsLoading(true);
+    setNotification(null);
+    try {
+      const response = await fetch('/api/send-zalo-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          botToken,
+          chatId: testChatId,
+          message: 'Xin chào! Đây là tin nhắn thử nghiệm từ hệ thống EduConnect.'
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.error && data.error !== 0) {
+        throw new Error(data.message || 'Lỗi gửi tin nhắn');
+      }
+      
+      setNotification({ message: 'Đã gửi tin nhắn test thành công! Vui lòng kiểm tra ứng dụng Zalo.', type: 'success' });
+    } catch (err: any) {
+      console.error('Lỗi gửi tin nhắn Zalo:', err);
+      setNotification({ message: `Lỗi gửi tin nhắn: ${err.message}`, type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -199,6 +231,21 @@ export function SettingsView() {
           </div>
           
         </div>
+      </div>
+
+      <div className="bg-blue-50/50 rounded-3xl border border-blue-100 shadow-sm overflow-hidden p-6 mt-6">
+        <h3 className="text-lg font-bold text-slate-900 mb-3">3. Hướng dẫn liên kết tài khoản cho người dùng (Hình 12)</h3>
+        <p className="text-sm text-slate-600 mb-4">
+          Để hệ thống có thể gửi thông báo Zalo cho học sinh/giáo viên, họ cần liên kết tài khoản. 
+          Bạn có thể hướng dẫn họ truy cập vào Zalo Bot và nhắn tin theo cú pháp sau:
+        </p>
+        <div className="bg-white p-4 rounded-xl border border-blue-100 font-mono text-sm font-bold text-blue-700 flex items-center gap-3">
+          <Send className="w-5 h-5 text-blue-400" />
+          /start [Mã_User_ID_Của_Họ]
+        </div>
+        <p className="text-sm text-slate-500 mt-3">
+          Hệ thống đã tự động bắt sự kiện Webhook khi người dùng nhắn tin này và lưu Zalo Chat ID của họ vào Database.
+        </p>
       </div>
     </div>
   );

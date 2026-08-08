@@ -21,6 +21,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow write: if isAuthenticated() && (request.auth.uid == userId || isTeacher());
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['zaloChatId']);
     }
 
     // Reset requests collection
