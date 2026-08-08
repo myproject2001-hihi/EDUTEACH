@@ -642,7 +642,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               </div>
 
               {/* Upgrade / Claim Super Admin */}
-              {!isEditing && !user.isSuperAdmin && (
+              {!isEditing && user.role === 'teacher' && !user.isSuperAdmin && (
                 <div className="pt-2">
                   <div className="p-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 rounded-2xl text-white shadow-md flex flex-col gap-2.5">
                     <div className="flex items-center gap-2">
