@@ -305,6 +305,7 @@ export default function App() {
             classes={classes} 
             onNavigate={setActiveTab}
             onSelectAssignment={setSelectedAssignmentId}
+            onOpenGuide={() => setShowZaloOnboarding(true)}
           />
         );
     }

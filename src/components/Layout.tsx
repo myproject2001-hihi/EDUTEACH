@@ -569,6 +569,35 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 )}
               </div>
 
+              {/* Upgrade / Claim Super Admin */}
+              {!isEditing && !user.isSuperAdmin && (
+                <div className="pt-2">
+                  <div className="p-4 bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 rounded-2xl text-white shadow-md flex flex-col gap-2.5">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-5 h-5 text-amber-300 shrink-0" />
+                      <p className="text-xs font-bold uppercase tracking-wider text-amber-200">Xác nhận Quản trị viên chính</p>
+                    </div>
+                    <p className="text-xs text-purple-100/90 font-medium leading-relaxed">
+                      Kích hoạt vai trò Super Admin để nắm quyền quản trị tối cao, phân quyền Admin cho các giáo viên khác và quản lý toàn bộ hệ thống.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedUser = { ...user, role: 'admin' as Role, isSuperAdmin: true };
+                        if (onUpdateUser) onUpdateUser(updatedUser);
+                        onRoleChange('admin');
+                        onTabChange('admin');
+                        setShowProfileModal(false);
+                      }}
+                      className="w-full py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
+                    >
+                      <Sparkles className="w-4 h-4 text-slate-900" />
+                      KÍCH HOẠT VAI TRÒ QUẢN TRỊ VIÊN CHÍNH
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Account Switching Action (Dành cho Giáo viên & Quản trị viên để thử nghiệm) */}
               {!isEditing && (user.role === 'teacher' || user.role === 'admin') && (
                 <div className="pt-2 border-t border-slate-100">

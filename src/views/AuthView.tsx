@@ -49,6 +49,14 @@ export function AuthView({ onLogin }: AuthViewProps) {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showStudentGuideModal, setShowStudentGuideModal] = useState(false);
+  const [registeredStudentInfo, setRegisteredStudentInfo] = useState<{
+    name: string;
+    username: string;
+    className: string;
+    connectionCode: string;
+    role: Role;
+  } | null>(null);
   const [resetEmail, setResetEmail] = useState('');
   const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
   const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null);
@@ -639,10 +647,19 @@ export function AuthView({ onLogin }: AuthViewProps) {
               
               sessionStorage.removeItem('isSigningUp');
 
+              setRegisteredStudentInfo({
+                name: signupName,
+                username: signupUsername,
+                className: signupClass || 'Lớp chưa xếp',
+                connectionCode: generatedConnectionCode,
+                role: signupRole
+              });
+              setShowStudentGuideModal(true);
+
               setIsSignUp(false);
               setLoginUsername(signupUsername);
               setLoginPassword(signupPassword);
-              setSuccessMessage('Đăng ký tài khoản thành công! Vui lòng kiểm tra lại thông tin và nhấn "ĐĂNG NHẬP" để bắt đầu.');
+              setSuccessMessage('Đăng ký tài khoản thành công! Vui lòng xem bảng hướng dẫn bên trên và nhấn "ĐĂNG NHẬP" để bắt đầu.');
             } catch (err: any) {
               console.error(err);
               let friendlyMessage = 'Đăng ký tài khoản thất bại. Vui lòng thử lại.';
@@ -1469,6 +1486,146 @@ export function AuthView({ onLogin }: AuthViewProps) {
                   className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold py-3 px-4 rounded-xl transition-all duration-200 active:scale-[0.98] text-center"
                 >
                   Đóng cửa sổ
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+        {/* Bảng Hướng Dẫn Vào Lớp Học Cho Học Sinh Mới */}
+        {showStudentGuideModal && registeredStudentInfo && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+            >
+              {/* Modal Header */}
+              <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md text-amber-300 flex items-center justify-center font-black text-xl shadow-inner">
+                    🎓
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-white text-base sm:text-lg">
+                      Bảng Hướng Dẫn Vào Lớp Học
+                    </h3>
+                    <p className="text-xs text-indigo-100">
+                      Chúc mừng {registeredStudentInfo.name} đã đăng ký tài khoản thành công!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowStudentGuideModal(false)}
+                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto custom-scrollbar space-y-5">
+                {/* Account Details Box */}
+                <div className="p-4 bg-indigo-50/80 border border-indigo-100 rounded-2xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Thông tin tài khoản mới:</span>
+                    <span className="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-full uppercase">
+                      {registeredStudentInfo.role === 'student' ? 'Học sinh' : 'Giáo viên'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-slate-700 font-medium">
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Tên đăng nhập:</span>
+                      <strong className="text-indigo-700 font-bold">{registeredStudentInfo.username}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Mã kết nối cá nhân:</span>
+                      <strong className="text-emerald-700 font-mono font-bold">{registeredStudentInfo.connectionCode}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5 Steps to join class */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                    <Award className="w-4 h-4 text-amber-500" />
+                    Các bước để bắt đầu học tập & vào lớp:
+                  </h4>
+
+                  <div className="space-y-2.5">
+                    <div className="p-3 bg-white border border-slate-200 rounded-2xl flex items-start gap-3 shadow-sm">
+                      <div className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        1
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Đăng nhập tài khoản</h5>
+                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          Sử dụng Tên đăng nhập <strong className="text-slate-800">{registeredStudentInfo.username}</strong> và Mật khẩu vừa đặt để đăng nhập vào hệ thống.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-2xl flex items-start gap-3 shadow-sm">
+                      <div className="w-7 h-7 rounded-xl bg-blue-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        2
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Chọn Giáo viên chủ nhiệm & Lớp học</h5>
+                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          Ngay sau khi đăng nhập, hệ thống sẽ hiện bảng chọn Giáo viên. Hãy chọn đúng tên Giáo viên của em để liên kết lớp.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-2xl flex items-start gap-3 shadow-sm">
+                      <div className="w-7 h-7 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        3
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Vào phòng học trực tuyến (Google Meet / Zoom)</h5>
+                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          Vào mục <strong className="text-slate-800">"Lịch học & Phòng học"</strong> trên menu để xem thời khóa biểu và bấm nút <strong className="text-emerald-600">"Tham gia buổi học"</strong>.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-2xl flex items-start gap-3 shadow-sm">
+                      <div className="w-7 h-7 rounded-xl bg-amber-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        4
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Xem & Nộp bài tập online</h5>
+                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          Vào mục <strong className="text-slate-800">"Bài tập"</strong> để làm trắc nghiệm trực tiếp hoặc tải ảnh nộp bài cho thầy cô chấm điểm.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white border border-slate-200 rounded-2xl flex items-start gap-3 shadow-sm">
+                      <div className="w-7 h-7 rounded-xl bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        5
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs">Kích hoạt Zalo Bot nhận thông báo tự động</h5>
+                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                          Gửi tin nhắn cú pháp <code className="font-mono bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-bold">/start {registeredStudentInfo.connectionCode}</code> đến Zalo Bot để nhận thông báo điểm số & nhắc lịch học.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowStudentGuideModal(false)}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  ĐÃ HIỂU & ĐĂNG NHẬP NGAY
                 </button>
               </div>
             </motion.div>

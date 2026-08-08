@@ -24,9 +24,10 @@ interface DashboardProps {
   classes: ClassSession[];
   onNavigate: (tab: string) => void;
   onSelectAssignment?: (assignmentId: string) => void;
+  onOpenGuide?: () => void;
 }
 
-export function DashboardView({ user, assignments: rawAssignments, submissions, classes: rawClasses, onNavigate, onSelectAssignment }: DashboardProps) {
+export function DashboardView({ user, assignments: rawAssignments, submissions, classes: rawClasses, onNavigate, onSelectAssignment, onOpenGuide }: DashboardProps) {
   const isAdmin = user.role === 'admin';
   const isTeacher = user.role === 'teacher' || isAdmin;
   const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
@@ -83,7 +84,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
       {/* 1. KHUNG XIN CHÀO (Greeting Banner) */}
       <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 rounded-3xl p-6 sm:p-8 border border-indigo-500/30 relative overflow-hidden shadow-lg shadow-indigo-200 text-white">
         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 blur-[80px] rounded-full pointer-events-none transform translate-x-1/3 -translate-y-1/3"></div>
-        <div className="relative z-10">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 mb-3 backdrop-blur-md">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -100,6 +101,16 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 : 'Chúc em có một ngày học tập thật tốt! Hãy hoàn thành nhiệm vụ buổi học trước khi vào buổi học tiếp theo nhé.'}
             </p>
           </div>
+
+          {!isTeacher && onOpenGuide && (
+            <button
+              onClick={onOpenGuide}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-bold text-xs transition-all backdrop-blur-md shadow-md shrink-0 self-start sm:self-center hover:scale-105 active:scale-95"
+            >
+              <BookOpen className="w-4 h-4 text-amber-300" />
+              <span>📖 Hướng Dẫn Vào Lớp Học</span>
+            </button>
+          )}
         </div>
       </div>
 

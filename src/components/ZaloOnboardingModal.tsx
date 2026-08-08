@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, Copy, ExternalLink, X, Check, Search, ShieldCheck, MessageCircle, User as UserIcon, Sparkles } from 'lucide-react';
+import { Bot, Copy, ExternalLink, X, Check, Search, ShieldCheck, MessageCircle, User as UserIcon, Sparkles, BookOpen, Calendar, Video, Award } from 'lucide-react';
 import { User } from '../types';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -15,6 +15,7 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeGuideTab, setActiveGuideTab] = useState<'guide' | 'zalo'>('guide');
 
   useEffect(() => {
     fetchTeachers();
@@ -78,33 +79,62 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
         {/* Modal Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 via-blue-50 to-indigo-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
-              <Bot className="w-5 h-5" />
+        <div className="p-5 border-b border-slate-100 flex flex-col gap-3 bg-gradient-to-r from-indigo-50 via-blue-50 to-indigo-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-200">
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                  Bảng Hướng Dẫn Vào Lớp Học
+                  <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase">Dành cho Học sinh</span>
+                </h3>
+                <p className="text-xs text-slate-500">Quy trình từng bước để tham gia lớp học, làm bài & nhận thông báo</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
-                Kết nối Zalo Bot Lớp Học
-                <span className="text-[10px] font-extrabold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase">Tự động</span>
-              </h3>
-              <p className="text-xs text-slate-500">Nhận thông báo bài tập & kết quả học tập trực tiếp qua Zalo</p>
-            </div>
+            <button 
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white/80 rounded-xl transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white/80 rounded-xl transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Navigation Tabs */}
+          <div className="grid grid-cols-2 gap-2 bg-slate-200/60 p-1 rounded-2xl text-xs font-bold">
+            <button
+              onClick={() => setActiveGuideTab('guide')}
+              className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                activeGuideTab === 'guide'
+                  ? 'bg-white text-indigo-600 shadow-sm font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              1. Hướng Dẫn Vào Lớp
+            </button>
+            <button
+              onClick={() => setActiveGuideTab('zalo')}
+              className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                activeGuideTab === 'zalo'
+                  ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              2. Kích Hoạt Zalo Bot
+            </button>
+          </div>
         </div>
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
-          {/* Section 1: Choose Teacher / Class */}
+          {/* Section 1: Choose Teacher / Class (Common to both tabs) */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-              1. Chọn Giáo viên & Lớp học của bạn
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <UserIcon className="w-4 h-4 text-indigo-600" />
+              Chọn Giáo viên chủ nhiệm & Lớp học
             </label>
 
             {loading ? (
@@ -130,7 +160,7 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 gap-2.5 max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                <div className="grid grid-cols-1 gap-2.5 max-h-44 overflow-y-auto p-1 custom-scrollbar">
                   {filteredTeachers.map((t) => {
                     const isSelected = selectedTeacher?.id === t.id;
                     return (
@@ -168,12 +198,60 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
             )}
           </div>
 
-          {/* Section 2: Setup Instructions when teacher selected */}
-          {selectedTeacher && (
-            <div className="space-y-4 pt-4 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {/* TAB 1: Detailed Class Guidance */}
+          {activeGuideTab === 'guide' && (
+            <div className="space-y-4 pt-4 border-t border-slate-100 animate-in fade-in duration-300">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-indigo-600" />
+                Hướng dẫn các thao tác chính trong lớp
+              </label>
+
+              <div className="space-y-3">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                    <Video className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-900 text-xs">1. Vào phòng học trực tuyến (Google Meet / Zoom)</h5>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                      Vào mục <strong className="text-slate-800">"Lịch học & Phòng học"</strong> ở menu bên trái. Chọn buổi học của lớp và nhấn nút <strong className="text-emerald-600 font-bold">"Tham gia phòng học"</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-900 text-xs">2. Xem & Nộp bài tập trực tuyến</h5>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                      Vào mục <strong className="text-slate-800">"Bài tập"</strong> để xem danh sách bài do Giáo viên giao. Em có thể làm trắc nghiệm trực tiếp hoặc chụp ảnh bài giải để tải lên.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                    <Bot className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-900 text-xs">3. Nhận điểm & Thông báo tự động</h5>
+                    <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                      Kích hoạt Zalo Bot ở tab bên cạnh để hệ thống tự động gửi thông báo điểm số & nhắc nhở lịch học về điện thoại của em.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: Zalo Bot Setup */}
+          {activeGuideTab === 'zalo' && selectedTeacher && (
+            <div className="space-y-4 pt-4 border-t border-slate-100 animate-in fade-in duration-300">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                2. Hướng dẫn kích hoạt Zalo Bot
+                Hướng dẫn kích hoạt Zalo Bot nhận thông báo
               </label>
 
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
