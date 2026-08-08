@@ -58,7 +58,7 @@ export function UserAvatar({ name = '', firstName, avatar, size = 'md', classNam
     xl: 'w-16 h-16 text-xl font-black ring-4 ring-white/80',
   }[size];
 
-  if (avatar && !imgError && avatar.startsWith('http')) {
+  if (avatar && !imgError && (avatar.startsWith('http') || avatar.startsWith('data:') || avatar.startsWith('blob:'))) {
     return (
       <img
         src={avatar}

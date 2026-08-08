@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera } from 'lucide-react';
 import { Role, User } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 
@@ -24,8 +24,8 @@ interface LayoutProps {
 export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const activeRole = currentRole || user.role;
-  const isAdmin = activeRole === 'admin' || user.role === 'admin';
-  const isTeacher = activeRole === 'teacher' || isAdmin;
+  const isAdmin = activeRole === 'admin';
+  const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
 
   const [academicYear, setAcademicYear] = useState(() => {
     return localStorage.getItem('academic_year') || 'Khóa 2024 - 2025';
@@ -54,6 +54,25 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
   const [profileRole, setProfileRole] = useState<Role>(user.role);
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar);
   const [isEditing, setIsEditing] = useState(false);
+
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Kích thước ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 5MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setSelectedAvatar(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   React.useEffect(() => {
     setProfileName(user.name);
@@ -151,13 +170,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             className="flex flex-col p-2 group-hover:p-3 bg-slate-50 hover:bg-indigo-50/50 rounded-xl border border-slate-100 hover:border-indigo-100 transition-all duration-300 cursor-pointer"
           >
              <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm shadow-sm shrink-0 ml-0.5 group-hover:ml-0 border border-indigo-400">
-                 {getAvatarInitial(user.name)}
-               </div>
+               <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
                <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-0 group-hover:w-auto">
                  <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
                  <p className="text-[11px] font-medium text-slate-500 truncate capitalize mt-0.5">
-                   {user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                   {activeRole === 'admin' ? 'Quản trị viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                  </p>
                </div>
              </div>
@@ -212,13 +229,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 title="Xem thông tin cá nhân"
                 className="p-3 bg-slate-50 hover:bg-indigo-50/50 rounded-xl border border-slate-100 hover:border-indigo-100 flex items-center gap-3 cursor-pointer transition-colors"
               >
-                <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-extrabold flex items-center justify-center text-sm shadow-sm border border-indigo-400 shrink-0">
-                  {getAvatarInitial(user.name)}
-                </div>
+                <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
                   <p className="text-xs text-slate-500 capitalize">
-                    {user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                    {activeRole === 'admin' ? 'Quản trị viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                   </p>
                 </div>
               </div>
@@ -310,7 +325,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-900">{user.name}</p>
                 <p className="text-xs font-medium text-slate-500">
-                  {user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học viên'}
+                  {activeRole === 'admin' ? 'Quản trị viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                 </p>
               </div>
               <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
@@ -377,12 +392,24 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             <div className="p-6 overflow-y-auto space-y-6 custom-scrollbar">
               {/* Profile Card Summary */}
               <div className="flex flex-col items-center text-center space-y-3 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                <div className="relative">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <div className="relative group">
                   <UserAvatar name={profileName} firstName={profileFirstName} avatar={selectedAvatar} size="xl" />
                   {isEditing && (
-                    <div className="absolute -bottom-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-full border border-white shadow-sm">
-                      <Sparkles className="w-3 h-3" />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Tải ảnh avatar mới"
+                      className="absolute -bottom-1 -right-1 bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-full border-2 border-white shadow-md transition-all hover:scale-110 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
                   )}
                 </div>
                 <div>
@@ -414,10 +441,34 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 </div>
               </div>
 
-              {/* Avatar Info (Only visible during edit mode) */}
+              {/* Avatar Info & Controls (Only visible during edit mode) */}
               {isEditing && (
-                <div className="p-3 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-center">
-                  <p className="text-xs font-bold text-indigo-900">Ảnh đại diện được tự động hiển thị theo chữ cái đầu tiên của TÊN bạn ({profileFirstName || 'Tên'})</p>
+                <div className="p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-100 flex flex-col items-center gap-2.5">
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Tải ảnh avatar mới
+                    </button>
+                    {selectedAvatar ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAvatar('')}
+                        className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                        Xóa ảnh (Dùng avatar chữ cái)
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="text-xs font-bold text-indigo-900 text-center">
+                    {selectedAvatar
+                      ? 'Đang sử dụng ảnh tùy chỉnh làm Avatar'
+                      : `Avatar mặc định theo chữ cái đầu tiên của TÊN: "${(profileFirstName || 'Tên').charAt(0).toUpperCase()}"`}
+                  </p>
                 </div>
               )}
 
@@ -630,11 +681,14 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                     <p className="text-xs text-slate-600">
                       Chuyển đổi giao diện nhanh để kiểm tra trải nghiệm học sinh, giáo viên hoặc quản trị viên.
                     </p>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className={`grid ${user.role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
                       <button
                         type="button"
                         onClick={() => {
                           onRoleChange('student');
+                          if (activeTab === 'admin' || activeTab === 'students' || activeTab === 'settings') {
+                            onTabChange('dashboard');
+                          }
                           setShowProfileModal(false);
                         }}
                         className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
@@ -649,6 +703,9 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                         type="button"
                         onClick={() => {
                           onRoleChange('teacher');
+                          if (activeTab === 'admin') {
+                            onTabChange('dashboard');
+                          }
                           setShowProfileModal(false);
                         }}
                         className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
@@ -659,20 +716,22 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                       >
                         Giáo viên
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onRoleChange('admin');
-                          setShowProfileModal(false);
-                        }}
-                        className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
-                          activeRole === 'admin'
-                            ? 'bg-purple-600 text-white shadow-sm'
-                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        Quản trị viên
-                      </button>
+                      {user.role === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onRoleChange('admin');
+                            setShowProfileModal(false);
+                          }}
+                          className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
+                            activeRole === 'admin'
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          Quản trị viên
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
