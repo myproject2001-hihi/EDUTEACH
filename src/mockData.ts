@@ -16,7 +16,7 @@ export const currentUserMock: Record<string, User> = {
     avatar: 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=256&h=256',
     phoneStudent: '0987654321',
     phoneParent: '0912345678',
-    className: 'Lớp 10A1',
+    className: '123456',
   }
 };
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Phone, BookOpen, UserPlus, LogIn, Eye, EyeOff, X, HelpCircle, Calendar, AlertCircle, Check, Award } from 'lucide-react';
+import { Mail, Lock, User, Phone, BookOpen, UserPlus, LogIn, Eye, EyeOff, X, HelpCircle, Calendar, AlertCircle, Check, Award, Key } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Role } from '../types';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
@@ -430,7 +430,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
             try {
               let email = loginUsername.trim();
               if (!email.includes('@')) {
-                email = `${email.toLowerCase()}@eduteach.com`;
+                email = `${email.toLowerCase()}@educonnect.com`;
               }
               const userCredential = await signInWithEmailAndPassword(auth, email, loginPassword);
               const userDocRef = doc(db, 'users', userCredential.user.uid);
@@ -600,10 +600,11 @@ export function AuthView({ onLogin }: AuthViewProps) {
               sessionStorage.setItem('isSigningUp', 'true');
               let email = signupUsername.trim();
               if (!email.includes('@')) {
-                email = `${email.toLowerCase()}@eduteach.com`;
+                email = `${email.toLowerCase()}@educonnect.com`;
               }
               const userCredential = await createUserWithEmailAndPassword(auth, email, signupPassword);
               const uid = userCredential.user.uid;
+              const generatedConnectionCode = Math.floor(100000 + Math.random() * 900000).toString();
               
               const avatarUrl = signupRole === 'teacher' 
                 ? 'https://images.unsplash.com/photo-1624561172888-ac93c696e10c?auto=format&fit=crop&q=80&w=256&h=256'
@@ -620,6 +621,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                 phoneParent: signupRole === 'student' ? signupPhoneParent : '',
                 phoneStudent: signupRole === 'student' ? signupPhoneStudent : '',
                 className: signupRole === 'student' ? signupClass : 'Giáo viên',
+                connectionCode: generatedConnectionCode,
                 createdAt: new Date().toISOString()
               };
 
@@ -766,19 +768,20 @@ export function AuthView({ onLogin }: AuthViewProps) {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-700">Lớp học</label>
+                    <label className="block text-xs font-bold text-slate-700">Mã Lớp Học (Do Giáo viên cấp)</label>
                     <div className="relative group">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                        <BookOpen className="h-4 w-4 text-slate-400" />
+                        <Key className="h-4 w-4 text-slate-400" />
                       </div>
                       <input 
                         type="text" 
-                        placeholder="10" 
-                        className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                        placeholder="VD: 123456" 
+                        className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 font-mono text-sm uppercase tracking-widest hover:border-slate-300" 
                         required 
+                        maxLength={6}
                         disabled={loading}
                         value={signupClass}
-                        onChange={(e) => setSignupClass(e.target.value)}
+                        onChange={(e) => setSignupClass(e.target.value.toUpperCase())}
                       />
                     </div>
                   </div>
@@ -987,7 +990,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                                 <span className="text-white text-xs font-mono">{signupPhoneParent || '...'}</span>
                              </div>
                              <div className="flex justify-between items-center">
-                                <span className="text-white/60 text-[10px] uppercase">Lớp</span>
+                                <span className="text-white/60 text-[10px] uppercase">Mã lớp</span>
                                 <span className="text-white text-xs font-mono">{signupClass || '...'}</span>
                              </div>
                              <div className="flex justify-between items-center">

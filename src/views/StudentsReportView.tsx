@@ -13,7 +13,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(progressData[0] || null);
 
-  const [className, setClassName] = useState(() => localStorage.getItem('class_name') || 'Lớp 10A1');
+  const [className, setClassName] = useState(() => localStorage.getItem('class_name') || '123456');
   const [academicYear, setAcademicYear] = useState(() => localStorage.getItem('academic_year') || 'Khóa 2024 - 2025');
 
   const [resetRequests, setResetRequests] = useState<any[]>([]);
@@ -108,7 +108,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                 window.dispatchEvent(new Event('storage'));
               }}
               className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none w-28 text-center"
-              placeholder="Lớp 10A1"
+              placeholder="123456"
             />
           </div>
 
@@ -429,7 +429,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-900 text-base">{selectedStudent.studentName}</h4>
-                  <p className="text-xs text-indigo-600 font-semibold">{selectedStudent.className || 'Lớp 10A1'}</p>
+                  <p className="text-xs text-indigo-600 font-semibold">{selectedStudent.className || '123456'}</p>
                 </div>
               </div>
 

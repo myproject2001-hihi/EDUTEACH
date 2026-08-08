@@ -396,6 +396,13 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                       Đang hoạt động
                     </span>
                   </div>
+                  
+                  <div className="mt-4 inline-flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
+                    <span className="text-xs text-slate-500 font-medium">Mã kết nối Zalo:</span>
+                    <span className="font-mono font-bold text-indigo-600 text-sm tracking-wider">
+                      {user.connectionCode || user.id.substring(0, 6).toUpperCase()}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -446,17 +453,17 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                 {/* Lớp / Chức vụ */}
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">
-                    {user.role === 'teacher' ? 'Chức vụ / Nhiệm vụ' : 'Lớp học'}
+                    {user.role === 'teacher' ? 'Chức vụ / Nhiệm vụ' : 'Mã lớp kết nối (Mã GV)'}
                   </label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={profileClassName}
                       onChange={(e) => setProfileClassName(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
+                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow uppercase font-mono tracking-wider"
                     />
                   ) : (
-                    <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100 text-sm font-semibold text-slate-800">
+                    <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100 text-sm font-bold font-mono tracking-wider text-slate-800">
                       {profileClassName || 'Chưa cập nhật'}
                     </div>
                   )}

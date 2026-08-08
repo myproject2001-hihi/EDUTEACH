@@ -21,22 +21,53 @@ async function startServer() {
     const senderId = req.body?.sender?.id;
 
     if (eventName === 'user_send_text' && messageText && messageText.startsWith('/start ') && senderId) {
-      const userId = messageText.replace('/start ', '').trim();
-      console.log(`Linking Zalo Chat ID ${senderId} to User ID ${userId}`);
+      const code = messageText.replace('/start ', '').trim();
+      console.log(`Linking Zalo Chat ID ${senderId} with Code ${code}`);
       
-      // Update the user's zaloChatId using Firebase REST API (bypassing SDK setup for simple demo)
       try {
         const projectId = 'eduteach-c4af0';
-        await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${userId}?updateMask.fieldPaths=zaloChatId`, {
-          method: 'PATCH',
+        
+        // Find user by connectionCode
+        const queryRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fields: {
-              zaloChatId: { stringValue: senderId }
+            structuredQuery: {
+              from: [{ collectionId: 'users' }],
+              where: {
+                fieldFilter: {
+                  field: { fieldPath: 'connectionCode' },
+                  op: 'EQUAL',
+                  value: { stringValue: code }
+                }
+              },
+              limit: 1
             }
           })
         });
-        console.log('Successfully updated user zaloChatId in Firestore');
+        
+        const queryData = await queryRes.json();
+        let targetDocName = null;
+        
+        if (queryData && queryData[0] && queryData[0].document) {
+           targetDocName = queryData[0].document.name;
+        } else {
+           // Fallback if they passed the raw ID
+           targetDocName = `projects/${projectId}/databases/(default)/documents/users/${code}`;
+        }
+
+        if (targetDocName) {
+            await fetch(`https://firestore.googleapis.com/v1/${targetDocName}?updateMask.fieldPaths=zaloChatId`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fields: {
+                  zaloChatId: { stringValue: senderId }
+                }
+              })
+            });
+            console.log('Successfully updated user zaloChatId in Firestore');
+        }
       } catch (err) {
         console.error('Failed to update Firestore:', err);
       }

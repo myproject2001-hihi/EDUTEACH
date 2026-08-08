@@ -28,11 +28,11 @@ interface DashboardProps {
 
 export function DashboardView({ user, assignments, submissions, classes, onNavigate, onSelectAssignment }: DashboardProps) {
   const isTeacher = user.role === 'teacher';
-  const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || 'Lớp 10A1');
+  const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
 
   React.useEffect(() => {
     const handleStorageChange = () => {
-      setClassName(localStorage.getItem('class_name') || 'Lớp 10A1');
+      setClassName(localStorage.getItem('class_name') || '123456');
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);

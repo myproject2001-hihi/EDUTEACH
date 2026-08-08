@@ -9,6 +9,8 @@ export interface User {
   phoneStudent?: string;
   phoneParent?: string;
   className?: string;
+  connectionCode?: string;
+  zaloChatId?: string;
 }
 
 export interface QuizQuestion {

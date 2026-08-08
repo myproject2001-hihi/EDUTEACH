@@ -250,15 +250,15 @@ export function SettingsView({ user }: SettingsViewProps) {
         <div className="bg-white p-4 rounded-xl border border-blue-100 font-mono text-sm font-bold text-blue-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Send className="w-5 h-5 text-blue-400" />
-            <span>/start {user.id}</span>
+            <span>/start {user.connectionCode || user.id.substring(0, 6).toUpperCase()}</span>
           </div>
         </div>
         <div className="mt-3 space-y-2 text-sm text-slate-600">
           <p>
-            👆 Phía trên là <strong>Mã kết nối của riêng bạn</strong> (tài khoản Giáo viên hiện tại). Bạn có thể dùng mã này để tự test bằng tài khoản Zalo của mình.
+            👆 Phía trên là <strong>Mã kết nối 6 số của riêng bạn</strong>. Bạn có thể dùng mã này để liên kết với tài khoản Zalo của mình.
           </p>
           <p>
-            <strong>Đối với Học sinh:</strong> Mã kết nối chính là <strong>User ID</strong> của học sinh. Bạn có thể xem ID này trong phần quản lý tài khoản/danh sách học sinh, hoặc thông báo cho học sinh mã tương ứng của họ. Khi học sinh nhắn tin theo cú pháp <code>/start [Mã_của_học_sinh]</code>, Webhook sẽ tự động cập nhật tài khoản và liên kết thành công.
+            <strong>Đối với Học sinh:</strong> Mỗi học sinh cũng sẽ có một mã kết nối riêng gồm 6 chữ số. Bạn có thể xem mã này trong phần quản lý tài khoản/danh sách học sinh. Khi học sinh nhắn tin theo cú pháp <code>/start [Mã_kết_nối_6_số]</code>, Webhook sẽ tự động cập nhật tài khoản và liên kết thành công.
           </p>
         </div>
       </div>

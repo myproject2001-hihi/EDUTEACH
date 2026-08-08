@@ -52,7 +52,7 @@ export default function App() {
               name: firebaseUser.email?.split('@')[0] || 'Học sinh mới',
               role: 'student',
               avatar: 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=256&h=256',
-              className: 'Lớp 10A1',
+              className: '123456',
             };
             try {
               await setDoc(doc(db, 'users', firebaseUser.uid), defaultProfile);
