@@ -20,8 +20,9 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if true;
-      allow write: if isAuthenticated() && (request.auth.uid == userId || isTeacher());
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['zaloChatId']);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isTeacher());
+      allow delete: if isAuthenticated() && isTeacher();
     }
 
     // Reset requests collection
