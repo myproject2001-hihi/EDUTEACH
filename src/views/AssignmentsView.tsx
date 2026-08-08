@@ -327,7 +327,7 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
 
 export function AssignmentsView({ 
   user, 
-  assignments, 
+  assignments: rawAssignments, 
   submissions, 
   onAddAssignment, 
   onSubmitWork, 
@@ -336,7 +336,18 @@ export function AssignmentsView({
   onClearInitialSelectedAssignmentId,
   simulations
 }: AssignmentsProps) {
-  const isTeacher = user.role === 'teacher';
+  const isTeacher = user.role === 'teacher' || user.role === 'admin';
+  const isAdmin = user.role === 'admin';
+
+  // Filter assignments: Teacher only sees & manages assignments they created, Admin sees all
+  const assignments = React.useMemo(() => {
+    if (isAdmin) return rawAssignments;
+    if (user.role === 'teacher') {
+      return rawAssignments.filter(a => !a.teacherId || a.teacherId === user.id);
+    }
+    return rawAssignments;
+  }, [rawAssignments, user, isAdmin]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(assignments[0] || null);

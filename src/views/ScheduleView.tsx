@@ -19,11 +19,27 @@ import { Video, Calendar as CalendarIcon, Clock, Bell, Plus, Edit2, X, Check, Co
 interface ScheduleProps {
   user: User;
   classes: ClassSession[];
+  onAddClass?: (session: ClassSession) => void;
 }
 
-export function ScheduleView({ user, classes: initialClasses }: ScheduleProps) {
-  const isTeacher = user.role === 'teacher';
-  const [sessions, setSessions] = useState<ClassSession[]>(initialClasses);
+export function ScheduleView({ user, classes: initialClasses, onAddClass }: ScheduleProps) {
+  const isTeacher = user.role === 'teacher' || user.role === 'admin';
+  const isAdmin = user.role === 'admin';
+
+  // Filter sessions: Teacher only manages their created sessions, Admin sees all
+  const filteredInitialClasses = React.useMemo(() => {
+    if (isAdmin) return initialClasses;
+    if (user.role === 'teacher') {
+      return initialClasses.filter(c => !c.teacherId || c.teacherId === user.id);
+    }
+    return initialClasses;
+  }, [initialClasses, user, isAdmin]);
+
+  const [sessions, setSessions] = useState<ClassSession[]>(filteredInitialClasses);
+
+  React.useEffect(() => {
+    setSessions(filteredInitialClasses);
+  }, [filteredInitialClasses]);
 
   // Modal State for Teacher (Create or Edit session)
   const [showModal, setShowModal] = useState(false);
@@ -96,8 +112,13 @@ export function ScheduleView({ user, classes: initialClasses }: ScheduleProps) {
         startTime: startTime || new Date().toISOString(),
         endTime: endTime || new Date(Date.now() + 5400000).toISOString(),
         link,
-        note
+        note,
+        teacherId: user.id,
+        teacherName: user.name,
       };
+      if (onAddClass) {
+        onAddClass(newS);
+      }
       setSessions([...sessions, newS]);
     }
     setShowModal(false);

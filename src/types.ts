@@ -1,9 +1,10 @@
-export type Role = 'teacher' | 'student';
+export type Role = 'admin' | 'teacher' | 'student';
 
 export interface User {
   id: string;
   name: string;
   role: Role;
+  isSuperAdmin?: boolean;
   avatar: string;
   dob?: string;
   phoneStudent?: string;
@@ -39,6 +40,8 @@ export interface Assignment {
   questions?: QuizQuestion[];
   simulationUrl?: string;
   createdAt: string;
+  teacherId?: string;
+  teacherName?: string;
 }
 
 export interface Submission {
@@ -53,6 +56,7 @@ export interface Submission {
   fileUrl?: string;
   quizAnswers?: Record<string, number>; // questionId -> optionIndex
   isPenalty?: boolean; // Nộp muộn / chưa nộp bị trừ điểm
+  teacherId?: string;
 }
 
 export interface ClassSession {
@@ -63,6 +67,8 @@ export interface ClassSession {
   endTime: string;
   link: string;
   note?: string;
+  teacherId?: string;
+  teacherName?: string;
 }
 
 export interface HTMLSimulation {
@@ -74,6 +80,8 @@ export interface HTMLSimulation {
   category?: string;
   hasQuiz?: boolean;
   htmlContent?: string;
+  teacherId?: string;
+  teacherName?: string;
 }
 
 export interface MonthlyProgress {

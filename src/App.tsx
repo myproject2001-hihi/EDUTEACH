@@ -14,6 +14,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 
 import { SettingsView } from './views/SettingsView';
+import { AdminConsoleView } from './views/AdminConsoleView';
 import { ZaloOnboardingModal } from './components/ZaloOnboardingModal';
 
 export default function App() {
@@ -172,6 +173,8 @@ export default function App() {
       ...newAssignment,
       id,
       createdAt: new Date().toISOString(),
+      teacherId: newAssignment.teacherId || currentUser?.id,
+      teacherName: newAssignment.teacherName || currentUser?.name,
     };
     try {
       await setDoc(doc(db, 'assignments', id), assignment);
@@ -206,10 +209,28 @@ export default function App() {
   };
 
   const handleAddSimulation = async (newSim: HTMLSimulation) => {
+    const simData: HTMLSimulation = {
+      ...newSim,
+      teacherId: newSim.teacherId || currentUser?.id,
+      teacherName: newSim.teacherName || currentUser?.name,
+    };
     try {
-      await setDoc(doc(db, 'simulations', newSim.id), newSim);
+      await setDoc(doc(db, 'simulations', simData.id), simData);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `simulations/${newSim.id}`);
+      handleFirestoreError(error, OperationType.CREATE, `simulations/${simData.id}`);
+    }
+  };
+
+  const handleAddClass = async (newClass: ClassSession) => {
+    const classData: ClassSession = {
+      ...newClass,
+      teacherId: newClass.teacherId || currentUser?.id,
+      teacherName: newClass.teacherName || currentUser?.name,
+    };
+    try {
+      await setDoc(doc(db, 'class_sessions', classData.id), classData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `class_sessions/${classData.id}`);
     }
   };
 
@@ -230,6 +251,8 @@ export default function App() {
 
   const renderContent = () => {
     if (!currentUser) return null;
+    const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
+
     switch (activeTab) {
       case 'dashboard':
         return (
@@ -242,6 +265,15 @@ export default function App() {
             onSelectAssignment={setSelectedAssignmentId}
           />
         );
+      case 'admin':
+        return (role === 'admin' || currentUser.role === 'admin') ? (
+          <AdminConsoleView 
+            user={currentUser} 
+            assignments={assignments} 
+            classes={classes} 
+            simulations={simulations} 
+          />
+        ) : null;
       case 'assignments':
         return (
           <AssignmentsView 
@@ -257,13 +289,13 @@ export default function App() {
           />
         );
       case 'schedule':
-        return <ScheduleView user={currentUser} classes={classes} />;
+        return <ScheduleView user={currentUser} classes={classes} onAddClass={handleAddClass} />;
       case 'students':
-        return role === 'teacher' ? <StudentsReportView progressData={progressData} /> : null;
+        return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} /> : null;
       case 'simulations':
         return <SimulationsView user={currentUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'settings':
-        return role === 'teacher' ? <SettingsView user={currentUser} /> : null;
+        return isTeacherOrAdmin ? <SettingsView user={currentUser} /> : null;
       default:
         return (
           <DashboardView 
@@ -307,6 +339,7 @@ export default function App() {
           {currentUser && (
             <Layout 
               user={currentUser} 
+              currentRole={role}
               onRoleChange={setRole}
               activeTab={activeTab}
               onTabChange={setActiveTab}

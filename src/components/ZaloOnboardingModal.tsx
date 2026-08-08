@@ -242,7 +242,6 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-          <p className="text-xs text-slate-400 font-medium hidden sm:block">Dễ dàng cho học sinh mọi lứa tuổi</p>
           <button
             onClick={onClose}
             className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"

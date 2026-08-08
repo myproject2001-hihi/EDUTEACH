@@ -9,14 +9,25 @@ interface SimulationsProps {
 }
 
 export function SimulationsView({ user, simulations: initialSims, onAddSimulation }: SimulationsProps) {
-  const isTeacher = user.role === 'teacher';
-  const [simList, setSimList] = useState<HTMLSimulation[]>(initialSims);
+  const isTeacher = user.role === 'teacher' || user.role === 'admin';
+  const isAdmin = user.role === 'admin';
+
+  // Filter simList for Teacher vs Admin
+  const filteredSimList = React.useMemo(() => {
+    if (isAdmin) return initialSims;
+    if (user.role === 'teacher') {
+      return initialSims.filter(s => !s.teacherId || s.teacherId === user.id);
+    }
+    return initialSims;
+  }, [initialSims, user, isAdmin]);
+
+  const [simList, setSimList] = useState<HTMLSimulation[]>(filteredSimList);
   const [activeSim, setActiveSim] = useState<HTMLSimulation | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
 
   useEffect(() => {
-    setSimList(initialSims);
-  }, [initialSims]);
+    setSimList(filteredSimList);
+  }, [filteredSimList]);
 
   // Teacher modal for adding custom simulation / HTML link
   const [showAddModal, setShowAddModal] = useState(false);
@@ -54,7 +65,9 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
       htmlContent: newSourceType === 'html_code' ? newHtmlContent : undefined,
       thumbnail: resolvedThumbnail,
       category: newCategory,
-      hasQuiz: false
+      hasQuiz: false,
+      teacherId: user.id,
+      teacherName: user.name,
     };
     setSimList([newSim, ...simList]);
     if (onAddSimulation) onAddSimulation(newSim);

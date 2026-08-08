@@ -12,6 +12,7 @@ export function getAvatarInitial(name?: string): string {
 interface LayoutProps {
   children: React.ReactNode;
   user: User;
+  currentRole?: Role;
   onRoleChange: (role: Role) => void;
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -19,9 +20,11 @@ interface LayoutProps {
   onLogout?: () => void;
 }
 
-export function Layout({ children, user, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout }: LayoutProps) {
+export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isTeacher = user.role === 'teacher';
+  const activeRole = currentRole || user.role;
+  const isAdmin = activeRole === 'admin' || user.role === 'admin';
+  const isTeacher = activeRole === 'teacher' || isAdmin;
 
   const [academicYear, setAcademicYear] = useState(() => {
     return localStorage.getItem('academic_year') || 'Khóa 2024 - 2025';
@@ -45,6 +48,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
   const [profilePhoneParent, setProfilePhoneParent] = useState(user.phoneParent || '');
   const [profileClassName, setProfileClassName] = useState(user.className || '');
   const [profileZaloBotLink, setProfileZaloBotLink] = useState(user.zaloBotLink || '');
+  const [profileRole, setProfileRole] = useState<Role>(user.role);
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -55,6 +59,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
     setProfilePhoneParent(user.phoneParent || '');
     setProfileClassName(user.className || '');
     setProfileZaloBotLink(user.zaloBotLink || '');
+    setProfileRole(user.role);
     setSelectedAvatar(user.avatar);
     setIsEditing(false);
   }, [user]);
@@ -84,14 +89,19 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
         phoneParent: profilePhoneParent,
         className: profileClassName,
         zaloBotLink: profileZaloBotLink,
+        role: profileRole,
         avatar: selectedAvatar,
       });
+    }
+    if (profileRole !== user.role) {
+      onRoleChange(profileRole);
     }
     setIsEditing(false);
   };
 
   const navItems = [
     { id: 'dashboard', label: 'Trang chủ', icon: LayoutDashboard },
+    ...(isAdmin ? [{ id: 'admin', label: 'Quản trị hệ thống', icon: ShieldCheck }] : []),
     ...(isTeacher ? [{ id: 'students', label: 'Học sinh', icon: Users }] : []),
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
     { id: 'schedule', label: 'Lịch học', icon: Calendar },
@@ -109,10 +119,6 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
       
       {/* Desktop Sidebar Navigation */}
       <aside className="hidden md:flex group w-20 hover:w-64 bg-white text-slate-600 flex-col border-r border-slate-200 absolute z-50 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] hover:shadow-[12px_0_32px_rgba(0,0,0,0.05)] overflow-hidden h-full left-0 top-0">
-        <div className="p-5 flex items-center gap-4 border-b border-slate-100 whitespace-nowrap min-h-[80px]">
-          <div className="shrink-0 w-10 h-10 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-200 text-lg">E</div>
-          <span className="text-xl font-bold text-slate-900 tracking-tight opacity-0 group-hover:opacity-100 transition-opacity duration-300">EduSync Pro</span>
-        </div>
         <nav className="flex-1 px-3 space-y-2 overflow-y-auto mt-6 custom-scrollbar">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -167,10 +173,6 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
           />
           <div className="relative w-4/5 max-w-xs bg-white h-full flex flex-col p-5 shadow-2xl z-10 border-r border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md shadow-indigo-200 text-lg">E</div>
-                <span className="text-lg font-bold text-slate-900">EduSync Pro</span>
-              </div>
               <button 
                 onClick={() => setMobileMenuOpen(false)} 
                 className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
@@ -306,7 +308,9 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
             >
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-900">{user.name}</p>
-                <p className="text-xs font-medium text-slate-500">{user.role === 'teacher' ? 'Quản trị viên' : 'Học viên'}</p>
+                <p className="text-xs font-medium text-slate-500">
+                  {user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học viên'}
+                </p>
               </div>
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-600 text-white rounded-full font-extrabold flex items-center justify-center text-sm sm:text-base border border-indigo-400 shadow-sm shrink-0">
                 {getAvatarInitial(user.name)}
@@ -388,11 +392,15 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                   <h4 className="font-bold text-slate-900 text-lg">{profileName}</h4>
                   <div className="flex items-center justify-center gap-1.5 mt-1">
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                      user.role === 'teacher' 
-                        ? 'bg-amber-50 text-amber-700 border-amber-100' 
-                        : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                      user.isSuperAdmin
+                        ? 'bg-amber-100 text-amber-900 border-amber-300 font-black'
+                        : user.role === 'admin'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : user.role === 'teacher' 
+                            ? 'bg-amber-50 text-amber-700 border-amber-100' 
+                            : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                     }`}>
-                      {user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                      {user.isSuperAdmin ? '👑 Quản trị viên chính' : user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                     </span>
                     <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -401,7 +409,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                   </div>
                   
                   <div className="mt-4 inline-flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-indigo-100 shadow-sm">
-                    <span className="text-xs text-slate-500 font-medium">Mã kết nối Zalo:</span>
+                    <span className="text-xs text-slate-500 font-medium">Mã kết nối:</span>
                     <span className="font-mono font-bold text-indigo-600 text-sm tracking-wider">
                       {user.connectionCode || user.id.substring(0, 6).toUpperCase()}
                     </span>
@@ -456,7 +464,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                 {/* Lớp / Chức vụ */}
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">
-                    {user.role === 'teacher' ? 'Chức vụ / Nhiệm vụ' : 'Mã lớp kết nối (Mã GV)'}
+                    {user.role === 'teacher' ? 'Chức vụ / Nhiệm vụ' : 'Mã lớp'}
                   </label>
                   {isEditing ? (
                     <input
@@ -509,6 +517,37 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                   )}
                 </div>
 
+                {/* Vai trò / Role */}
+                {isEditing && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 font-semibold">Vai trò tài khoản</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setProfileRole('student')}
+                        className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all ${
+                          profileRole === 'student'
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        Học sinh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProfileRole('teacher')}
+                        className={`py-2 px-2 text-xs font-bold rounded-xl border transition-all ${
+                          profileRole === 'teacher'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        Giáo viên
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* SĐT Phụ huynh (Chỉ dành cho học sinh) */}
                 {user.role === 'student' && (
                   <div>
@@ -530,28 +569,61 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                 )}
               </div>
 
-              {/* Account Switching Action */}
-              {!isEditing && (
-                <div className="pt-4 border-t border-slate-100">
-                  <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex flex-col gap-3">
+              {/* Account Switching Action (Dành cho Giáo viên & Quản trị viên để thử nghiệm) */}
+              {!isEditing && (user.role === 'teacher' || user.role === 'admin') && (
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                      <p className="text-xs font-bold text-indigo-900">Tính năng thử nghiệm đa vai trò</p>
+                      <p className="text-xs font-bold text-slate-900">Tính năng thử nghiệm đa vai trò</p>
                     </div>
-                    <p className="text-xs text-indigo-700">
-                      Bạn có thể chuyển đổi nhanh vai trò để trải nghiệm cả hai giao diện Học sinh & Giáo viên chủ nhiệm.
+                    <p className="text-xs text-slate-600">
+                      Chuyển đổi giao diện nhanh để kiểm tra trải nghiệm học sinh, giáo viên hoặc quản trị viên.
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targetRole = user.role === 'teacher' ? 'student' : 'teacher';
-                        onRoleChange(targetRole);
-                        setShowProfileModal(false);
-                      }}
-                      className="w-full py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
-                    >
-                      Chuyển sang vai trò {user.role === 'teacher' ? 'Học sinh' : 'Giáo viên'}
-                    </button>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRoleChange('student');
+                          setShowProfileModal(false);
+                        }}
+                        className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
+                          activeRole === 'student'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        Học sinh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRoleChange('teacher');
+                          setShowProfileModal(false);
+                        }}
+                        className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
+                          activeRole === 'teacher'
+                            ? 'bg-amber-600 text-white shadow-sm'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        Giáo viên
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRoleChange('admin');
+                          setShowProfileModal(false);
+                        }}
+                        className={`py-2 px-1.5 font-bold text-xs rounded-xl transition-colors text-center ${
+                          activeRole === 'admin'
+                            ? 'bg-purple-600 text-white shadow-sm'
+                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        Quản trị viên
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

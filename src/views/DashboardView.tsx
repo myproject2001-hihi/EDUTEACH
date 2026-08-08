@@ -26,9 +26,22 @@ interface DashboardProps {
   onSelectAssignment?: (assignmentId: string) => void;
 }
 
-export function DashboardView({ user, assignments, submissions, classes, onNavigate, onSelectAssignment }: DashboardProps) {
-  const isTeacher = user.role === 'teacher';
+export function DashboardView({ user, assignments: rawAssignments, submissions, classes: rawClasses, onNavigate, onSelectAssignment }: DashboardProps) {
+  const isAdmin = user.role === 'admin';
+  const isTeacher = user.role === 'teacher' || isAdmin;
   const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
+
+  const assignments = React.useMemo(() => {
+    if (isAdmin) return rawAssignments;
+    if (user.role === 'teacher') return rawAssignments.filter(a => !a.teacherId || a.teacherId === user.id);
+    return rawAssignments;
+  }, [rawAssignments, user, isAdmin]);
+
+  const classes = React.useMemo(() => {
+    if (isAdmin) return rawClasses;
+    if (user.role === 'teacher') return rawClasses.filter(c => !c.teacherId || c.teacherId === user.id);
+    return rawClasses;
+  }, [rawClasses, user, isAdmin]);
 
   React.useEffect(() => {
     const handleStorageChange = () => {

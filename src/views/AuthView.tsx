@@ -620,7 +620,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                 recoveryEmail: signupRecoveryEmail.trim().toLowerCase(),
                 phoneParent: signupRole === 'student' ? signupPhoneParent : '',
                 phoneStudent: signupRole === 'student' ? signupPhoneStudent : '',
-                className: signupRole === 'student' ? signupClass : 'Giáo viên',
+                className: signupRole === 'student' ? signupClass : signupRole === 'admin' ? 'Ban BGH / Admin' : 'Giáo viên',
                 connectionCode: generatedConnectionCode,
                 createdAt: new Date().toISOString()
               };
