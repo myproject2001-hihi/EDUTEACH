@@ -251,13 +251,25 @@ export function SettingsView({ user }: SettingsViewProps) {
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Zalo Chat ID Test (Kiểm tra)</label>
-              <input
-                type="text"
-                value={testChatId}
-                onChange={(e) => setTestChatId(e.target.value)}
-                placeholder="Ví dụ: 1234567890123456"
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={testChatId}
+                  onChange={(e) => setTestChatId(e.target.value)}
+                  placeholder="Ví dụ: 1234567890123456"
+                  className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={isLoading}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-75 text-white text-sm font-bold rounded-xl flex items-center gap-2 transition-colors shrink-0 shadow-sm shadow-blue-500/10"
+                >
+                  <Send className="w-4 h-4" />
+                  Gửi thử nghiệm
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-500">Mã Chat ID Zalo của riêng bạn (nhận được sau khi nhắn tin <code>/start</code> cho Bot) để kiểm tra việc gửi tin nhắn mẫu.</p>
             </div>
           </div>
 
@@ -342,7 +354,7 @@ export function SettingsView({ user }: SettingsViewProps) {
               className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl flex items-center gap-2 transition-colors shadow-sm shadow-blue-500/20"
             >
               <Send className="w-4 h-4" />
-              Gửi tin nhắn test
+              Gửi thử nghiệm
             </button>
           </div>
           
