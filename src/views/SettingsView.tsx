@@ -15,14 +15,12 @@ export function SettingsView({ user }: SettingsViewProps) {
   const [testChatId, setTestChatId] = useState('');
 
   // Teacher specific Zalo Bot configuration
-  const [teacherBotToken, setTeacherBotToken] = useState('');
   const [teacherBotLink, setTeacherBotLink] = useState('');
   const [teacherConnectionCode, setTeacherConnectionCode] = useState('');
   const [teacherClassName, setTeacherClassName] = useState('');
   
   const [showSecret, setShowSecret] = useState(false);
   const [showBotToken, setShowBotToken] = useState(false);
-  const [showTeacherBotToken, setShowTeacherBotToken] = useState(false);
   
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -46,12 +44,10 @@ export function SettingsView({ user }: SettingsViewProps) {
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
             const uData = userDocSnap.data();
-            if (uData.zaloBotToken) setTeacherBotToken(uData.zaloBotToken);
             if (uData.zaloBotLink) setTeacherBotLink(uData.zaloBotLink);
             if (uData.connectionCode) setTeacherConnectionCode(uData.connectionCode);
             if (uData.className) setTeacherClassName(uData.className);
           } else {
-            if (user.zaloBotToken) setTeacherBotToken(user.zaloBotToken);
             if (user.zaloBotLink) setTeacherBotLink(user.zaloBotLink);
             if (user.connectionCode) setTeacherConnectionCode(user.connectionCode);
             if (user.className) setTeacherClassName(user.className);
@@ -97,7 +93,6 @@ export function SettingsView({ user }: SettingsViewProps) {
       // If teacher or admin, save teacher-specific Zalo Bot & Class config
       if (user.role === 'teacher' || user.role === 'admin') {
         await updateDoc(doc(db, 'users', user.id), {
-          zaloBotToken: teacherBotToken,
           zaloBotLink: teacherBotLink,
           connectionCode: teacherConnectionCode || user.id.substring(0, 6).toUpperCase(),
           className: teacherClassName
@@ -114,7 +109,7 @@ export function SettingsView({ user }: SettingsViewProps) {
   };
 
   const handleTestConnection = async () => {
-    const activeToken = teacherBotToken || botToken;
+    const activeToken = botToken;
     if (!activeToken || !testChatId) {
       setNotification({ message: 'Vui lòng nhập Bot Token và Zalo Chat ID để test!', type: 'error' });
       return;
@@ -312,27 +307,6 @@ export function SettingsView({ user }: SettingsViewProps) {
                   />
                   <p className="mt-1 text-[11px] text-slate-500">Tên lớp hiển thị trên bảng hướng dẫn của học sinh.</p>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">ID Bot / Token Zalo Riêng Của Lớp</label>
-                <div className="relative">
-                  <input
-                    type={showTeacherBotToken ? "text" : "password"}
-                    value={teacherBotToken}
-                    onChange={(e) => setTeacherBotToken(e.target.value)}
-                    placeholder="Nhập Zalo Bot Token của riêng bạn..."
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowTeacherBotToken(!showTeacherBotToken)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                  >
-                    {showTeacherBotToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                <p className="mt-1 text-[11px] text-slate-500">Dùng riêng cho các bài tập và thông báo của lớp bạn quản lý.</p>
               </div>
 
               <div>
