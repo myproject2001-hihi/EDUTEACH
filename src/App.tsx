@@ -14,11 +14,13 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 
 import { SettingsView } from './views/SettingsView';
+import { ZaloOnboardingModal } from './components/ZaloOnboardingModal';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState<Role>('student');
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showZaloOnboarding, setShowZaloOnboarding] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   
   // App states synchronized with Firestore
@@ -78,6 +80,12 @@ export default function App() {
 
     return () => unsubscribeAuth();
   }, []);
+
+  useEffect(() => {
+    if (currentUser && currentUser.role === 'student' && !currentUser.zaloChatId && !sessionStorage.getItem('zaloOnboardingDismissed')) {
+      setShowZaloOnboarding(true);
+    }
+  }, [currentUser]);
 
   // 2. Setup real-time listeners for database collections when authenticated
   useEffect(() => {
@@ -307,6 +315,16 @@ export default function App() {
             >
               {renderContent()}
             </Layout>
+          )}
+          
+          {showZaloOnboarding && currentUser && (
+            <ZaloOnboardingModal
+              user={currentUser}
+              onClose={() => {
+                setShowZaloOnboarding(false);
+                sessionStorage.setItem('zaloOnboardingDismissed', 'true');
+              }}
+            />
           )}
         </motion.div>
       )}

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import config from '../firebase-applet-config.json';
@@ -41,8 +41,11 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
 export const auth = getAuth(app);
+
+// Đảm bảo không lưu đăng nhập qua các phiên web (yêu cầu đăng nhập lại khi đóng tab hoặc mở lại)
+setPersistence(auth, inMemoryPersistence).catch(console.error);
+
 export const db = getFirestore(app, config.firestoreDatabaseId || "(default)");
 
 // Bỏ qua Analytics trong môi trường sandbox để tránh lỗi API key không hợp lệ

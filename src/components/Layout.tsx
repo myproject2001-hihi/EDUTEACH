@@ -44,6 +44,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
   const [profilePhoneStudent, setProfilePhoneStudent] = useState(user.phoneStudent || '');
   const [profilePhoneParent, setProfilePhoneParent] = useState(user.phoneParent || '');
   const [profileClassName, setProfileClassName] = useState(user.className || '');
+  const [profileZaloBotLink, setProfileZaloBotLink] = useState(user.zaloBotLink || '');
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar);
   const [isEditing, setIsEditing] = useState(false);
 
@@ -53,6 +54,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
     setProfilePhoneStudent(user.phoneStudent || '');
     setProfilePhoneParent(user.phoneParent || '');
     setProfileClassName(user.className || '');
+    setProfileZaloBotLink(user.zaloBotLink || '');
     setSelectedAvatar(user.avatar);
     setIsEditing(false);
   }, [user]);
@@ -81,6 +83,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
         phoneStudent: profilePhoneStudent,
         phoneParent: profilePhoneParent,
         className: profileClassName,
+        zaloBotLink: profileZaloBotLink,
         avatar: selectedAvatar,
       });
     }
@@ -469,6 +472,25 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                   )}
                 </div>
 
+                {user.role === 'teacher' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 font-semibold">Link Zalo Bot của bạn</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={profileZaloBotLink}
+                        onChange={(e) => setProfileZaloBotLink(e.target.value)}
+                        placeholder="VD: https://zalo.me/g/..."
+                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
+                      />
+                    ) : (
+                      <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100 text-sm font-medium text-slate-800 break-all">
+                        {profileZaloBotLink || 'Chưa cập nhật link Zalo Bot'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* SĐT Học sinh / Giáo viên */}
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1 font-semibold">Số điện thoại liên hệ</label>
@@ -549,6 +571,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                       setProfilePhoneStudent(user.phoneStudent || '');
                       setProfilePhoneParent(user.phoneParent || '');
                       setProfileClassName(user.className || '');
+                      setProfileZaloBotLink(user.zaloBotLink || '');
                       setSelectedAvatar(user.avatar);
                     }}
                     className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition-colors"
