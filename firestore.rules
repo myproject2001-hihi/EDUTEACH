@@ -19,8 +19,13 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAuthenticated() && (request.auth.uid == userId || isTeacher());
+    }
+
+    // Reset requests collection
+    match /reset_requests/{requestId} {
+      allow read, write: if true;
     }
 
     // Assignments collection

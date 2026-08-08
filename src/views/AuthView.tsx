@@ -229,6 +229,15 @@ export function AuthView({ onLogin }: AuthViewProps) {
     } catch (err: any) {
       console.error(err);
       let friendlyError = 'Không thể gửi yêu cầu khôi phục. Vui lòng kiểm tra lại kết nối mạng.';
+      if (err.message) {
+        if (err.message.includes('permission-denied') || err.message.includes('Permission denied') || err.message.includes('Missing or insufficient permissions')) {
+          friendlyError = 'Lỗi bảo mật (Permission Denied): Quyền truy cập bị từ chối. Vui lòng triển khai Firestore Security Rules mới.';
+        } else {
+          friendlyError = `Lỗi gửi yêu cầu khôi phục: ${err.message}`;
+        }
+      } else if (err.code) {
+        friendlyError = `Lỗi gửi yêu cầu khôi phục: ${err.code}`;
+      }
       setResetErrorMessage(friendlyError);
     } finally {
       setResetLoading(false);
