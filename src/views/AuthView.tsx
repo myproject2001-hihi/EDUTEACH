@@ -467,8 +467,8 @@ export function AuthView({ onLogin }: AuthViewProps) {
               console.error(err);
               let friendlyMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.';
               if (err.code) {
-                if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                  friendlyMessage = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+                if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
+                  friendlyMessage = 'Tên đăng nhập hoặc mật khẩu không chính xác. Nếu bạn chưa có tài khoản, vui lòng chọn ĐĂNG KÝ để tạo tài khoản mới.';
                 } else if (err.code === 'auth/network-request-failed') {
                   friendlyMessage = 'Lỗi kết nối mạng. Vui lòng thử lại sau.';
                 } else if (err.code === 'auth/operation-not-allowed') {
@@ -768,16 +768,15 @@ export function AuthView({ onLogin }: AuthViewProps) {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-700">Mã Lớp Học (Do Giáo viên cấp)</label>
+                    <label className="block text-xs font-bold text-slate-700">Mã Lớp Học (Tùy chọn - Chọn GV sau)</label>
                     <div className="relative group">
                       <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                         <Key className="h-4 w-4 text-slate-400" />
                       </div>
                       <input 
                         type="text" 
-                        placeholder="VD: 123456" 
+                        placeholder="VD: 123456 (Để trống nếu chọn sau)" 
                         className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 font-mono text-sm uppercase tracking-widest hover:border-slate-300" 
-                        required 
                         maxLength={6}
                         disabled={loading}
                         value={signupClass}
