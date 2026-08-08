@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role, Assignment, ClassSession, HTMLSimulation } from '../types';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles } from 'lucide-react';
+import { signOut } from 'firebase/auth';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 
@@ -197,6 +198,20 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
     }
   };
 
+  const handleSystemReset = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn reset lại toàn bộ hệ thống và khởi động lại từ đầu không? Thao tác này sẽ xóa cache, đăng xuất và làm mới ứng dụng.')) {
+      return;
+    }
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      await signOut(auth);
+    } catch (e) {
+      console.error(e);
+    }
+    window.location.reload();
+  };
+
   const filteredUsers = usersList.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         (u.className && u.className.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -315,46 +330,57 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
       </div>
 
       {/* Main Tabs Header */}
-      <div className="flex border-b border-slate-200 gap-8">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'users'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          Quản Lý Tài Khoản & Phân Quyền ({usersList.length})
-        </button>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 gap-4 pb-0">
+        <div className="flex gap-8 overflow-x-auto w-full sm:w-auto">
+          <button
+            onClick={() => setActiveTab('users')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'users'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            Quản Lý Tài Khoản & Phân Quyền ({usersList.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('resets')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors relative whitespace-nowrap ${
+              activeTab === 'resets'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Key className="w-4 h-4" />
+            Duyệt Cấp Lại Mật Khẩu
+            {pendingResetCount > 0 && (
+              <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                {pendingResetCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('resources')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'resources'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            Tài Nguyên Hệ Thống (Bài tập/Lớp/Mô phỏng)
+          </button>
+        </div>
 
         <button
-          onClick={() => setActiveTab('resets')}
-          className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors relative ${
-            activeTab === 'resets'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+          type="button"
+          onClick={handleSystemReset}
+          className="mb-4 sm:mb-0 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 border border-rose-200 shadow-sm"
         >
-          <Key className="w-4 h-4" />
-          Duyệt Cấp Lại Mật Khẩu
-          {pendingResetCount > 0 && (
-            <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
-              {pendingResetCount}
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('resources')}
-          className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'resources'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          Tài Nguyên Hệ Thống (Bài tập/Lớp/Mô phỏng)
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Reset lại hệ thống</span>
         </button>
       </div>
 
