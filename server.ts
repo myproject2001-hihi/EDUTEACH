@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 
 async function startServer() {
@@ -30,97 +31,167 @@ async function startServer() {
       }
     }
 
-    if (messageText && messageText.startsWith('/start ') && senderId) {
-      const code = messageText.replace('/start ', '').trim();
-      console.log(`Linking Zalo Chat ID ${senderId} with Code ${code}`);
-      
-      try {
-        const projectId = 'eduteach-c4af0';
+    // Robust parsing of text message
+    if (!messageText) {
+      if (typeof req.body?.message === 'string') {
+        messageText = req.body.message;
+      } else if (req.body?.text) {
+        messageText = req.body.text;
+      }
+    }
+
+    if (messageText && typeof messageText === "string") {
+      const trimmedText = messageText.trim();
+      if (trimmedText.toLowerCase().startsWith("/start")) {
+        const parts = trimmedText.split(/\s+/);
+        const code = parts[1]?.trim() || "";
         
-        // Find user by connectionCode
-        const queryRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            structuredQuery: {
-              from: [{ collectionId: 'users' }],
-              where: {
-                fieldFilter: {
-                  field: { fieldPath: 'connectionCode' },
-                  op: 'EQUAL',
-                  value: { stringValue: code }
-                }
-              },
-              limit: 1
-            }
-          })
-        });
+        console.log(`[Zalo Webhook] Processing /start with connection code: "${code}", senderId: "${senderId}"`);
         
-        const queryData = await queryRes.json();
-        let targetDocName = null;
-        let userName = "";
-        
-        if (queryData && queryData[0] && queryData[0].document) {
-            targetDocName = queryData[0].document.name;
-            userName = queryData[0].document.fields?.name?.stringValue || "";
-        } else {
-            // Fallback if they passed the raw ID
-            targetDocName = `projects/${projectId}/databases/(default)/documents/users/${code}`;
+        if (!code || !senderId) {
+          console.log(`[Zalo Webhook] Missing connection code or senderId.`);
+          return res.status(200).send("OK");
         }
 
-        if (targetDocName) {
-            await fetch(`https://firestore.googleapis.com/v1/${targetDocName}?updateMask.fieldPaths=zaloChatId`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fields: {
-                  zaloChatId: { stringValue: senderId }
-                }
-              })
-            });
-            console.log('Successfully updated user zaloChatId in Firestore');
-
-            // Try to get global botToken to reply to the user
-            try {
-              const settingsRes = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/zalo_bot`);
-              if (settingsRes.ok) {
-                const settingsData = await settingsRes.json();
-                const globalBotToken = settingsData?.fields?.botToken?.stringValue;
-                
-                if (globalBotToken) {
-                  const replyText = `✅ Chúc mừng${userName ? ' ' + userName : ''}! Tài khoản Zalo của bạn đã kết nối thành công với hệ thống Eduteach. Bạn sẽ nhận được thông báo bài tập và lịch học tại đây.`;
-                  
-                  const isPersonalBot = globalBotToken.includes(':');
-                  if (isPersonalBot) {
-                    await fetch(`https://bot-api.zaloplatforms.com/bot${globalBotToken}/sendMessage`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        chat_id: String(senderId),
-                        text: replyText,
-                      }),
-                    });
-                  } else {
-                    await fetch("https://openapi.zalo.me/v3.0/oa/message/cs", {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        access_token: globalBotToken,
-                      },
-                      body: JSON.stringify({
-                        recipient: { user_id: senderId },
-                        message: { text: replyText },
-                      }),
-                    });
-                  }
-                }
+        try {
+          const projectId = 'eduteach-c4af0';
+          
+          // Get API key dynamically
+          let apiKey = "AIzaSyDuMxRa1ZS3RcRaod69cU9EyVTDdaYno78"; // default fallback
+          try {
+            const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+            if (fs.existsSync(configPath)) {
+              const configData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+              if (configData.apiKey) {
+                apiKey = configData.apiKey;
               }
-            } catch (err) {
-              console.error('Failed to send confirmation message to user:', err);
             }
+          } catch (err) {
+            console.error("[Zalo Webhook] Failed to load firebase config:", err);
+          }
+
+          console.log(`[Zalo Webhook] Querying user with connectionCode="${code}" using Firestore REST API...`);
+          const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery?key=${apiKey}`;
+          const queryRes = await fetch(queryUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              structuredQuery: {
+                from: [{ collectionId: 'users' }],
+                where: {
+                  fieldFilter: {
+                    field: { fieldPath: 'connectionCode' },
+                    op: 'EQUAL',
+                    value: { stringValue: code }
+                  }
+                },
+                limit: 1
+              }
+            })
+          });
+
+          console.log(`[Zalo Webhook] Query Response Status: ${queryRes.status}`);
+          const queryText = await queryRes.text();
+          console.log(`[Zalo Webhook] Query Response Body: ${queryText}`);
+
+          let queryData;
+          try {
+            queryData = JSON.parse(queryText);
+          } catch (e) {
+            console.error(`[Zalo Webhook] Failed to parse query response as JSON:`, e);
+          }
+
+          let targetDocName = null;
+          let userName = "";
+          
+          if (Array.isArray(queryData) && queryData[0] && queryData[0].document) {
+              targetDocName = queryData[0].document.name;
+              userName = queryData[0].document.fields?.name?.stringValue || "";
+              console.log(`[Zalo Webhook] Found user document: ${targetDocName}, name: "${userName}"`);
+          } else {
+              console.log(`[Zalo Webhook] User not found by connectionCode query. Using fallback path.`);
+              targetDocName = `projects/${projectId}/databases/(default)/documents/users/${code}`;
+          }
+
+          if (targetDocName) {
+              console.log(`[Zalo Webhook] Updating zaloChatId to "${senderId}" for document: ${targetDocName}`);
+              const patchUrl = `https://firestore.googleapis.com/v1/${targetDocName}?updateMask.fieldPaths=zaloChatId&key=${apiKey}`;
+              const patchRes = await fetch(patchUrl, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fields: {
+                    zaloChatId: { stringValue: senderId }
+                  }
+                })
+              });
+              
+              console.log(`[Zalo Webhook] Firestore PATCH Response Status: ${patchRes.status}`);
+              const patchBody = await patchRes.text();
+              console.log(`[Zalo Webhook] Firestore PATCH Response Body: ${patchBody}`);
+
+              // Try to get global botToken to reply to the user
+              try {
+                console.log(`[Zalo Webhook] Loading global bot settings from settings/zalo_bot`);
+                const settingsUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/zalo_bot?key=${apiKey}`;
+                const settingsRes = await fetch(settingsUrl);
+                console.log(`[Zalo Webhook] Settings load status: ${settingsRes.status}`);
+                
+                if (settingsRes.ok) {
+                  const settingsData = await settingsRes.json();
+                  const globalBotToken = settingsData?.fields?.botToken?.stringValue;
+                  
+                  if (globalBotToken) {
+                    const replyText = `✅ Chúc mừng${userName ? ' ' + userName : ''}! Tài khoản Zalo của bạn đã kết nối thành công với hệ thống Eduteach. Bạn sẽ nhận được thông báo bài tập và lịch học tại đây.`;
+                    
+                    const isPersonalBot = globalBotToken.includes(':');
+                    console.log(`[Zalo Webhook] Global bot token loaded. isPersonalBot=${isPersonalBot}`);
+
+                    if (isPersonalBot) {
+                      console.log(`[Zalo Webhook] Replying via Personal Bot (Zalo Bot Creator) to chat_id: "${senderId}"`);
+                      const botReplyUrl = `https://bot-api.zaloplatforms.com/bot${globalBotToken}/sendMessage`;
+                      const botReplyRes = await fetch(botReplyUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          chat_id: String(senderId),
+                          text: replyText,
+                        }),
+                      });
+                      console.log(`[Zalo Webhook] Personal Bot reply status: ${botReplyRes.status}`);
+                      const botReplyText = await botReplyRes.text();
+                      console.log(`[Zalo Webhook] Personal Bot reply response: ${botReplyText}`);
+                    } else {
+                      console.log(`[Zalo Webhook] Replying via Official Zalo OA to user_id: "${senderId}"`);
+                      const oaReplyRes = await fetch("https://openapi.zalo.me/v3.0/oa/message/cs", {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          access_token: globalBotToken,
+                        },
+                        body: JSON.stringify({
+                          recipient: { user_id: senderId },
+                          message: { text: replyText },
+                        }),
+                      });
+                      console.log(`[Zalo Webhook] Zalo OA reply status: ${oaReplyRes.status}`);
+                      const oaReplyText = await oaReplyRes.text();
+                      console.log(`[Zalo Webhook] Zalo OA reply response: ${oaReplyText}`);
+                    }
+                  } else {
+                    console.log(`[Zalo Webhook] No botToken found in settings/zalo_bot`);
+                  }
+                } else {
+                  const settingsErrText = await settingsRes.text();
+                  console.error(`[Zalo Webhook] Failed to load settings document: ${settingsErrText}`);
+                }
+              } catch (err) {
+                console.error('[Zalo Webhook] Failed to send confirmation message to user:', err);
+              }
+          }
+        } catch (err) {
+          console.error('[Zalo Webhook] Failed to process webhook flow:', err);
         }
-      } catch (err) {
-        console.error('Failed to update Firestore:', err);
       }
     }
     
