@@ -19,9 +19,10 @@ interface LayoutProps {
   onTabChange: (tab: string) => void;
   onUpdateUser?: (user: User) => void;
   onLogout?: () => void;
+  onOpenGuide?: () => void;
 }
 
-export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout }: LayoutProps) {
+export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const activeRole = currentRole || user.role;
   const isAdmin = activeRole === 'admin';
@@ -734,6 +735,23 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                       )}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Guide walkthrough button */}
+              {!isEditing && onOpenGuide && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileModal(false);
+                      onOpenGuide();
+                    }}
+                    className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold text-xs rounded-2xl transition-colors flex items-center justify-center gap-2 border border-indigo-200 shadow-sm"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span>Xem lại Hướng dẫn & Khám phá hệ thống</span>
+                  </button>
                 </div>
               )}
             </div>

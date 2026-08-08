@@ -83,7 +83,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (currentUser && currentUser.role === 'student' && !currentUser.zaloChatId && !sessionStorage.getItem('zaloOnboardingDismissed')) {
+    if (currentUser && !sessionStorage.getItem('onboardingDismissed')) {
       setShowZaloOnboarding(true);
     } else {
       setShowZaloOnboarding(false);
@@ -348,6 +348,7 @@ export default function App() {
               onTabChange={setActiveTab}
               onUpdateUser={handleUpdateUser}
               onLogout={handleLogout}
+              onOpenGuide={() => setShowZaloOnboarding(true)}
             >
               {renderContent()}
             </Layout>
@@ -358,6 +359,7 @@ export default function App() {
               user={currentUser}
               onClose={() => {
                 setShowZaloOnboarding(false);
+                sessionStorage.setItem('onboardingDismissed', 'true');
                 sessionStorage.setItem('zaloOnboardingDismissed', 'true');
               }}
             />
