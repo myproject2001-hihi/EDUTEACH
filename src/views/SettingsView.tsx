@@ -9,7 +9,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ user }: SettingsViewProps) {
-  const [webhookUrl, setWebhookUrl] = useState(`https://${window.location.hostname}/api/zalo-webhook`);
+  const [webhookUrl, setWebhookUrl] = useState(typeof window !== 'undefined' ? `${window.location.origin}/api/zalo-webhook` : '');
   const [secretToken, setSecretToken] = useState('');
   const [botToken, setBotToken] = useState('');
   const [testChatId, setTestChatId] = useState('');
