@@ -443,10 +443,27 @@ export function AuthView({ onLogin }: AuthViewProps) {
             } catch (err: any) {
               console.error(err);
               let friendlyMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.';
-              if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                friendlyMessage = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
-              } else if (err.code === 'auth/network-request-failed') {
-                friendlyMessage = 'Lỗi kết nối mạng. Vui lòng thử lại sau.';
+              if (err.code) {
+                if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                  friendlyMessage = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+                } else if (err.code === 'auth/network-request-failed') {
+                  friendlyMessage = 'Lỗi kết nối mạng. Vui lòng thử lại sau.';
+                } else if (err.code === 'auth/operation-not-allowed') {
+                  friendlyMessage = 'Đăng nhập Email/Mật khẩu chưa được kích hoạt trong Firebase Auth Console. Vui lòng truy cập Firebase Console -> Authentication -> Sign-in method và BẬT "Email/Password".';
+                } else {
+                  friendlyMessage = `Đăng nhập thất bại: ${err.message || err.code}`;
+                }
+              } else {
+                try {
+                  const parsed = JSON.parse(err.message);
+                  if (parsed && parsed.error) {
+                    friendlyMessage = `Lỗi truy xuất cơ sở dữ liệu (Firestore): ${parsed.error}`;
+                  } else {
+                    friendlyMessage = `Đăng nhập thất bại: ${err.message || err}`;
+                  }
+                } catch {
+                  friendlyMessage = `Đăng nhập thất bại: ${err.message || err}`;
+                }
               }
               setErrorMessage(friendlyMessage);
             } finally {
@@ -593,12 +610,29 @@ export function AuthView({ onLogin }: AuthViewProps) {
             } catch (err: any) {
               console.error(err);
               let friendlyMessage = 'Đăng ký tài khoản thất bại. Vui lòng thử lại.';
-              if (err.code === 'auth/email-already-in-use') {
-                friendlyMessage = 'Tên đăng nhập đã tồn tại trên hệ thống.';
-              } else if (err.code === 'auth/weak-password') {
-                friendlyMessage = 'Mật khẩu quá yếu (phải có ít nhất 6 ký tự).';
-              } else if (err.code === 'auth/network-request-failed') {
-                friendlyMessage = 'Lỗi kết nối mạng. Vui lòng thử lại sau.';
+              if (err.code) {
+                if (err.code === 'auth/email-already-in-use') {
+                  friendlyMessage = 'Tên đăng nhập đã tồn tại trên hệ thống.';
+                } else if (err.code === 'auth/weak-password') {
+                  friendlyMessage = 'Mật khẩu quá yếu (phải có ít nhất 6 ký tự).';
+                } else if (err.code === 'auth/network-request-failed') {
+                  friendlyMessage = 'Lỗi kết nối mạng. Vui lòng thử lại sau.';
+                } else if (err.code === 'auth/operation-not-allowed') {
+                  friendlyMessage = 'Đăng ký bằng Email/Mật khẩu chưa được kích hoạt trong Firebase Auth. Vui lòng truy cập Firebase Console -> Authentication -> Sign-in method và BẬT "Email/Password".';
+                } else {
+                  friendlyMessage = `Đăng ký thất bại: ${err.message || err.code}`;
+                }
+              } else {
+                try {
+                  const parsed = JSON.parse(err.message);
+                  if (parsed && parsed.error) {
+                    friendlyMessage = `Lỗi ghi cơ sở dữ liệu (Firestore): ${parsed.error}`;
+                  } else {
+                    friendlyMessage = `Đăng ký thất bại: ${err.message || err}`;
+                  }
+                } catch {
+                  friendlyMessage = `Đăng ký thất bại: ${err.message || err}`;
+                }
               }
               setErrorMessage(friendlyMessage);
             } finally {
