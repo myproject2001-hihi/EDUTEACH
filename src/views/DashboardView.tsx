@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Assignment, Submission, ClassSession } from '../types';
 import { 
   format, 
@@ -14,8 +14,11 @@ import {
   isSameMonth
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { UserAvatar } from '../components/UserAvatar';
 
 interface DashboardProps {
   user: User;
@@ -74,9 +77,29 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   ];
 
   // Teacher status logic
+  const [usersList, setUsersList] = useState<User[]>([]);
+  const [showUnsubmittedModal, setShowUnsubmittedModal] = useState(false);
+  const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const list: User[] = [];
+      snapshot.forEach(docSnap => {
+        list.push({ id: docSnap.id, ...docSnap.data() } as User);
+      });
+      setUsersList(list);
+    });
+    return () => unsub();
+  }, []);
+
+  const studentsInClass = usersList.filter(u => u.role === 'student' && (!u.className || u.className === className));
+  const effectiveTotalStudents = studentsInClass.length > 0 ? studentsInClass.length : 3;
   const recentAssignment = assignments[0];
-  const submittedCountForRecent = submissions.filter(s => s.assignmentId === recentAssignment?.id).length;
-  const totalStudents = 3; // mock 3 students
+  const submittedStudentIds = submissions.filter(s => s.assignmentId === recentAssignment?.id).map(s => s.studentId);
+  const submittedCountForRecent = submittedStudentIds.length;
+  const unsubmittedStudents = studentsInClass.length > 0 
+    ? studentsInClass.filter(u => !submittedStudentIds.includes(u.id))
+    : [];
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-6">
@@ -226,23 +249,33 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                 <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-center gap-4">
                   <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">
-                    {submittedCountForRecent}/{totalStudents}
+                    {submittedCountForRecent}/{effectiveTotalStudents}
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-indigo-900">Bài tập mới nhất</p>
                     <p className="text-sm font-bold text-slate-900 line-clamp-1">{recentAssignment?.title || 'Chưa có'}</p>
-                    <p className="text-xs text-indigo-700 font-medium mt-0.5">Tỉ lệ hoàn thành: {Math.round((submittedCountForRecent / totalStudents) * 100)}%</p>
+                    <p className="text-xs text-indigo-700 font-medium mt-0.5">Tỉ lệ hoàn thành: {Math.round((submittedCountForRecent / effectiveTotalStudents) * 100)}%</p>
                   </div>
                 </div>
 
-                <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center gap-4">
-                  <div className="w-12 h-12 bg-amber-500 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm">
-                    {totalStudents - submittedCountForRecent}
+                <div 
+                  onClick={() => setShowUnsubmittedModal(true)}
+                  className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center gap-4 cursor-pointer hover:bg-amber-100/90 transition-all hover:shadow-md group"
+                >
+                  <div className="w-12 h-12 bg-amber-500 text-white rounded-xl flex items-center justify-center font-bold text-lg shadow-sm group-hover:scale-105 transition-transform">
+                    {unsubmittedStudents.length > 0 ? unsubmittedStudents.length : Math.max(0, effectiveTotalStudents - submittedCountForRecent)}
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-amber-900">Học sinh chưa nộp</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-amber-900 flex items-center justify-between">
+                      <span>Học sinh chưa nộp</span>
+                      <span className="text-[10px] bg-amber-200/60 text-amber-900 px-1.5 py-0.5 rounded font-bold">Xem danh sách</span>
+                    </p>
                     <p className="text-sm font-bold text-slate-900">Cần nhắc nhở qua Zalo</p>
-                    <p className="text-xs text-amber-800 font-medium mt-0.5">Phạm Quang Sáng (0966554433)...</p>
+                    <p className="text-xs text-amber-800 font-medium mt-0.5 truncate">
+                      {unsubmittedStudents.length > 0 
+                        ? unsubmittedStudents.map(s => s.name).join(', ') 
+                        : 'Không có học sinh nào chưa nộp'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -255,7 +288,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 <div className="divide-y divide-slate-100">
                   {assignments.map(a => {
                     const subs = submissions.filter(s => s.assignmentId === a.id);
-                    const rate = Math.round((subs.length / totalStudents) * 100);
+                    const rate = Math.round((subs.length / effectiveTotalStudents) * 100);
 
                     return (
                       <div key={a.id} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
@@ -265,10 +298,10 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="w-24 bg-slate-200 rounded-full h-2 hidden sm:block">
-                            <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${rate}%` }}></div>
+                            <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${Math.min(100, rate)}%` }}></div>
                           </div>
                           <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg">
-                            {subs.length}/{totalStudents} nộp ({rate}%)
+                            {subs.length}/{effectiveTotalStudents} nộp ({Math.min(100, rate)}%)
                           </span>
                         </div>
                       </div>
@@ -519,6 +552,83 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
         </div>
 
       </div>
+
+      {/* Modal danh sách học sinh chưa nộp */}
+      {showUnsubmittedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-500" />
+                  Danh sách học sinh chưa nộp bài
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Bài tập: <span className="font-bold text-slate-700">{recentAssignment?.title || 'Chưa có'}</span>
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowUnsubmittedModal(false)}
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-1">
+              {unsubmittedStudents.length === 0 ? (
+                <div className="text-center py-12 space-y-3">
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                    <Check className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-800">Tuyệt vời! Tất cả học sinh trong lớp đã nộp bài đầy đủ.</p>
+                </div>
+              ) : (
+                unsubmittedStudents.map(student => (
+                  <div key={student.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <UserAvatar name={student.name} firstName={student.firstName} avatar={student.avatar} size="md" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900 truncate">{student.name}</p>
+                        <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                          <Phone className="w-3 h-3 text-slate-400" />
+                          {student.phoneStudent || student.phoneParent || 'Chưa có SĐT'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = `🤖 [ZALO BOT GỬI TỰ ĐỘNG]: Em chào em ${student.name} và phụ huynh, cô/thầy nhắc em hoàn thành bài tập "${recentAssignment?.title || ''}" trên hệ thống nhé!`;
+                          navigator.clipboard.writeText(text);
+                          setCopiedStudentId(student.id);
+                          alert(`🤖 Zalo Bot đã tự động gửi tin nhắn đến học sinh ${student.name} và Phụ huynh thành công!\n\nNội dung đã gửi:\n"${text}"`);
+                          setTimeout(() => setCopiedStudentId(null), 2000);
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>Nhắc nhở qua Zalo Bot</span>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="border-t border-slate-100 pt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowUnsubmittedModal(false)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

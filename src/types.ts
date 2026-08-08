@@ -15,6 +15,7 @@ export interface User {
   connectionCode?: string;
   zaloChatId?: string;
   zaloBotLink?: string;
+  zaloBotToken?: string;
 }
 
 export interface QuizQuestion {
