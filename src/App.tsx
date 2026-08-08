@@ -83,11 +83,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (currentUser && !sessionStorage.getItem('onboardingDismissed')) {
-      setShowZaloOnboarding(true);
-    } else {
-      setShowZaloOnboarding(false);
-    }
+    setShowZaloOnboarding(false);
   }, [currentUser]);
 
   // 2. Setup real-time listeners for database collections when authenticated
