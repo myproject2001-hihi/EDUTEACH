@@ -1,18 +1,72 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getAnalytics, isSupported } from 'firebase/analytics';
+import config from '../firebase-applet-config.json';
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC6Xi1RCWbbfJ-e_wgWi7vr_kcxAlC5b80",
-  authDomain: "gen-lang-client-0314702126.firebaseapp.com",
-  projectId: "gen-lang-client-0314702126",
-  storageBucket: "gen-lang-client-0314702126.firebasestorage.app",
-  messagingSenderId: "874931430882",
-  appId: "1:874931430882:web:0ebca9cfb0f2157f73c5bb"
+  apiKey: config.apiKey,
+  authDomain: config.authDomain,
+  projectId: config.projectId,
+  storageBucket: config.storageBucket,
+  messagingSenderId: config.messagingSenderId,
+  appId: config.appId,
+  measurementId: config.measurementId || ""
 };
 
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-// Use custom firestoreDatabaseId if specified, or default if blank
-export const db = getFirestore(app, "ai-studio-educonnect-1af6ada9-f264-4258-aa8d-9d52a528dba3");
+export const db = getFirestore(app, config.firestoreDatabaseId || "(default)");
+
+// Bỏ qua Analytics trong môi trường sandbox để tránh lỗi API key không hợp lệ
+export const analyticsPromise = Promise.resolve(null);
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+

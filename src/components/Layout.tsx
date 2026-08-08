@@ -40,6 +40,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileName, setProfileName] = useState(user.name);
+  const [profileDob, setProfileDob] = useState(user.dob || '');
   const [profilePhoneStudent, setProfilePhoneStudent] = useState(user.phoneStudent || '');
   const [profilePhoneParent, setProfilePhoneParent] = useState(user.phoneParent || '');
   const [profileClassName, setProfileClassName] = useState(user.className || '');
@@ -48,6 +49,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
 
   React.useEffect(() => {
     setProfileName(user.name);
+    setProfileDob(user.dob || '');
     setProfilePhoneStudent(user.phoneStudent || '');
     setProfilePhoneParent(user.phoneParent || '');
     setProfileClassName(user.className || '');
@@ -75,6 +77,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
       onUpdateUser({
         ...user,
         name: profileName,
+        dob: profileDob,
         phoneStudent: profilePhoneStudent,
         phoneParent: profilePhoneParent,
         className: profileClassName,
@@ -421,6 +424,24 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                   )}
                 </div>
 
+                {/* Ngày sinh */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">Ngày sinh</label>
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      value={profileDob}
+                      onChange={(e) => setProfileDob(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
+                    />
+                  ) : (
+                    <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100 text-sm font-semibold text-slate-800 flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-indigo-500" />
+                      {profileDob ? profileDob.split('-').reverse().join('/') : 'Chưa cập nhật'}
+                    </div>
+                  )}
+                </div>
+
                 {/* Lớp / Chức vụ */}
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">
@@ -516,6 +537,7 @@ export function Layout({ children, user, onRoleChange, activeTab, onTabChange, o
                       setIsEditing(false);
                       // Reset states
                       setProfileName(user.name);
+                      setProfileDob(user.dob || '');
                       setProfilePhoneStudent(user.phoneStudent || '');
                       setProfilePhoneParent(user.phoneParent || '');
                       setProfileClassName(user.className || '');

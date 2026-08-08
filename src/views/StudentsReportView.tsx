@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StudentProgress } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle } from 'lucide-react';
+import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle } from 'lucide-react';
+import { db } from '../firebase';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 interface StudentsReportProps {
   progressData: StudentProgress[];
@@ -13,6 +15,67 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
 
   const [className, setClassName] = useState(() => localStorage.getItem('class_name') || 'Lớp 10A1');
   const [academicYear, setAcademicYear] = useState(() => localStorage.getItem('academic_year') || 'Khóa 2024 - 2025');
+
+  const [resetRequests, setResetRequests] = useState<any[]>([]);
+  const [activeSubTab, setActiveSubTab] = useState<'roster' | 'requests'>('roster');
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'reset_requests'), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      // Sắp xếp yêu cầu mới nhất lên đầu
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setResetRequests(list);
+    }, (error) => {
+      console.error("Lỗi tải yêu cầu khôi phục mật khẩu:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleApproveRequest = async (requestId: string, username: string) => {
+    // Tạo mật khẩu tạm ngẫu nhiên: ví dụ Edu@2026_ + số ngẫu nhiên 4 chữ số
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const tempPass = `Edu@2026_${randomNum}`;
+
+    try {
+      const requestRef = doc(db, 'reset_requests', requestId);
+      await updateDoc(requestRef, {
+        status: 'approved',
+        tempPassword: tempPass,
+        approvedAt: new Date().toISOString()
+      });
+      setNotification({
+        message: `Đã duyệt yêu cầu của học sinh ${username}! Mật khẩu tạm của học sinh là: ${tempPass}`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error(err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi phê duyệt yêu cầu.',
+        type: 'error'
+      });
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn từ chối và xóa yêu cầu này không?')) return;
+    try {
+      await deleteDoc(doc(db, 'reset_requests', requestId));
+      setNotification({
+        message: 'Đã bác bỏ và xóa yêu cầu khôi phục mật khẩu.',
+        type: 'success'
+      });
+    } catch (err) {
+      console.error(err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi từ chối yêu cầu.',
+        type: 'error'
+      });
+    }
+  };
 
   const filteredData = progressData.filter(s => 
     s.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -116,69 +179,244 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
         </div>
       </div>
 
+      {/* Notification Toast */}
+      {notification && (
+        <div className={`p-4 rounded-2xl border flex items-start justify-between gap-3 ${
+          notification.type === 'success' 
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+            : 'bg-rose-50 border-rose-200 text-rose-800'
+        }`}>
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="text-xs font-semibold leading-relaxed">
+              {notification.message}
+            </div>
+          </div>
+          <button 
+            onClick={() => setNotification(null)}
+            className="text-slate-400 hover:text-slate-600 font-bold text-xs p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Roster & Detail View */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Roster Table */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50/50">
-            <h3 className="font-bold text-slate-900 text-base">Danh sách Học sinh</h3>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text" 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Tìm tên hoặc SĐT học sinh..." 
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
+        {/* Roster Table / Requests Container */}
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col">
+          {/* Sub tabs header */}
+          <div className="border-b border-slate-100 bg-slate-50/50 p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('roster')}
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
+                  activeSubTab === 'roster' 
+                    ? 'bg-white text-indigo-600 shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" />
+                Danh sách Học sinh
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSubTab('requests')}
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 relative ${
+                  activeSubTab === 'requests' 
+                    ? 'bg-white text-indigo-600 shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Key className="w-3.5 h-3.5" />
+                Yêu cầu khôi phục mật khẩu
+                {resetRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-rose-500 text-white rounded-full text-[9px] font-black animate-pulse">
+                    {resetRequests.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
+              </button>
             </div>
+
+            {activeSubTab === 'roster' && (
+              <div className="relative w-full sm:w-60">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input 
+                  type="text" 
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  placeholder="Tìm học sinh..." 
+                  className="w-full pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none placeholder:text-slate-400"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-600">
-              <thead className="bg-slate-50 text-slate-700 uppercase text-[10px] tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="px-5 py-3.5 font-bold">Học sinh</th>
-                  <th className="px-5 py-3.5 font-bold text-center">Nộp bài</th>
-                  <th className="px-5 py-3.5 font-bold text-center">Điểm TB</th>
-                  <th className="px-5 py-3.5 font-bold text-center">Chuyên cần</th>
-                  <th className="px-5 py-3.5 font-bold text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredData.map((student) => (
-                  <tr 
-                    key={student.studentId} 
-                    onClick={() => setSelectedStudent(student)}
-                    className={`hover:bg-indigo-50/50 cursor-pointer transition-colors ${
-                      selectedStudent?.studentId === student.studentId ? 'bg-indigo-50/80 font-semibold' : ''
-                    }`}
-                  >
-                    <td className="px-5 py-4 font-bold text-slate-900">
-                      <div>
-                        <p className="text-sm">{student.studentName}</p>
-                        <p className="text-[11px] text-slate-400 font-normal">PH: {student.phoneParent || '0912345678'}</p>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-100 font-bold">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        {student.completionRate}%
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-center font-extrabold text-indigo-600 text-sm">
-                      {student.averageGrade.toFixed(1)}
-                    </td>
-                    <td className="px-5 py-4 text-center font-semibold">{student.attendanceRate}%</td>
-                    <td className="px-5 py-4 text-right">
-                      <button className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Xem tiến độ</button>
-                    </td>
+          {activeSubTab === 'roster' ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-600">
+                <thead className="bg-slate-50 text-slate-700 uppercase text-[10px] tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="px-5 py-3.5 font-bold">Học sinh</th>
+                    <th className="px-5 py-3.5 font-bold text-center">Nộp bài</th>
+                    <th className="px-5 py-3.5 font-bold text-center">Điểm TB</th>
+                    <th className="px-5 py-3.5 font-bold text-center">Chuyên cần</th>
+                    <th className="px-5 py-3.5 font-bold text-right">Thao tác</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredData.map((student) => (
+                    <tr 
+                      key={student.studentId} 
+                      onClick={() => setSelectedStudent(student)}
+                      className={`hover:bg-indigo-50/50 cursor-pointer transition-colors ${
+                        selectedStudent?.studentId === student.studentId ? 'bg-indigo-50/80 font-semibold' : ''
+                      }`}
+                    >
+                      <td className="px-5 py-4 font-bold text-slate-900">
+                        <div>
+                          <p className="text-sm">{student.studentName}</p>
+                          <p className="text-[11px] text-slate-400 font-normal">PH: {student.phoneParent || '0912345678'}</p>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <div className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-100 font-bold">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {student.completionRate}%
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-center font-extrabold text-indigo-600 text-sm">
+                        {student.averageGrade.toFixed(1)}
+                      </td>
+                      <td className="px-5 py-4 text-center font-semibold">{student.attendanceRate}%</td>
+                      <td className="px-5 py-4 text-right">
+                        <button className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Xem tiến độ</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* RESET PASSWORD REQUESTS PANEL */
+            <div className="p-4 space-y-4">
+              {resetRequests.length === 0 ? (
+                <div className="p-10 text-center text-slate-400 text-xs italic bg-slate-50/40 rounded-2xl border border-dashed border-slate-200">
+                  <ShieldCheck className="w-10 h-10 mx-auto text-slate-300 mb-2.5" />
+                  Hiện không có yêu cầu khôi phục mật khẩu nào cần xử lý.
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed">
+                    <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                      Quy trình phê duyệt an toàn
+                    </p>
+                    Khi học sinh gửi yêu cầu khôi phục, thông tin lớp học, họ tên và số điện thoại liên hệ sẽ được hiển thị tại đây.
+                    Thầy cô vui lòng kiểm tra và xác nhận đúng thông tin học sinh lớp mình, sau đó bấm <strong>"Phê duyệt & Cấp mật khẩu"</strong> để tạo mật khẩu tạm thời. 
+                    Bạn có thể gửi trực tiếp mật khẩu này cho phụ huynh hoặc học sinh thông qua nút nhắn Zalo nhanh.
+                  </div>
+
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
+                    {resetRequests.map((req) => (
+                      <div 
+                        key={req.id} 
+                        className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                          req.status === 'pending' ? 'bg-indigo-50/20' : 'bg-white'
+                        }`}
+                      >
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-slate-900 text-sm">{req.name}</span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                              Lớp {req.className}
+                            </span>
+                            {req.status === 'pending' ? (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 animate-pulse border border-amber-200">
+                                Chờ duyệt
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Đã duyệt
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="text-[11px] text-slate-500 space-y-0.5 font-medium">
+                            <p className="flex items-center gap-1">
+                              <User className="w-3 h-3 text-slate-400" /> Tên đăng nhập: <code className="bg-slate-100 px-1 py-0.2 rounded font-mono text-indigo-600 text-[10px]">{req.username}</code>
+                            </p>
+                            <p className="flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" /> SĐT liên hệ nhận mật khẩu: <strong className="text-slate-700">{req.phone}</strong>
+                            </p>
+                            {req.message && (
+                              <p className="flex items-center gap-1">
+                                <MessageCircle className="w-3 h-3 text-slate-400" /> Lời nhắn: <span className="text-slate-700 italic">"{req.message}"</span>
+                              </p>
+                            )}
+                            {req.approvedAt && (
+                              <p className="text-slate-400">
+                                Đã duyệt lúc: {new Date(req.approvedAt).toLocaleTimeString('vi-VN')} {new Date(req.approvedAt).toLocaleDateString('vi-VN')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          {req.status === 'pending' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApproveRequest(req.id, req.username)}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 px-3 rounded-xl transition-all shadow-sm flex items-center gap-1"
+                              >
+                                <Check className="w-3.5 h-3.5" /> Phê duyệt & Cấp mật khẩu
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectRequest(req.id)}
+                                className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold py-2 px-3 rounded-xl transition-all flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Bác bỏ
+                              </button>
+                            </>
+                          ) : (
+                            <div className="bg-emerald-50 border border-emerald-100 p-2.5 rounded-xl text-left space-y-1 w-full sm:w-auto">
+                              <p className="text-[10px] text-emerald-800 font-bold uppercase tracking-wide">Mật khẩu tạm đã cấp:</p>
+                              <div className="flex items-center gap-2">
+                                <code className="bg-white border border-emerald-200 px-2 py-1 rounded font-mono text-xs font-black text-emerald-700 select-all">
+                                  {req.tempPassword}
+                                </code>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(req.tempPassword);
+                                    alert('Đã sao chép mật khẩu tạm vào bộ nhớ tạm!');
+                                  }}
+                                  className="text-[10px] font-bold text-indigo-600 hover:underline"
+                                >
+                                  Sao chép
+                                </button>
+                              </div>
+                              <a 
+                                href={`https://zalo.me/${req.phone}`}
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="mt-1 text-[10px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                              >
+                                <MessageCircle className="w-3 h-3" /> Nhắn Zalo báo thông tin
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Selected Student Detail Card */}

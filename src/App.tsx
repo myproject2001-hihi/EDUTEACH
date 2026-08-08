@@ -9,7 +9,7 @@ import { AuthView } from './views/AuthView';
 import { currentUserMock } from './mockData';
 import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress } from './types';
 import { AnimatePresence, motion } from 'motion/react';
-import { auth, db } from './firebase';
+import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 
@@ -48,12 +48,18 @@ export default function App() {
               avatar: 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=256&h=256',
               className: 'Lớp 10A1',
             };
-            await setDoc(doc(db, 'users', firebaseUser.uid), defaultProfile);
-            setCurrentUser(defaultProfile);
-            setRole('student');
-            setIsAuthenticated(true);
+            try {
+              await setDoc(doc(db, 'users', firebaseUser.uid), defaultProfile);
+              setCurrentUser(defaultProfile);
+              setRole('student');
+              setIsAuthenticated(true);
+            } catch (err) {
+              handleFirestoreError(err, OperationType.CREATE, `users/${firebaseUser.uid}`);
+            }
           }
           setInitializingAuth(false);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
         });
 
         return () => unsubscribeUser();
@@ -79,6 +85,8 @@ export default function App() {
       });
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setAssignments(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'assignments');
     });
 
     // Listen to submissions
@@ -88,6 +96,8 @@ export default function App() {
         list.push(docSnap.data() as Submission);
       });
       setSubmissions(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'submissions');
     });
 
     // Listen to custom simulations
@@ -97,6 +107,8 @@ export default function App() {
         list.push(docSnap.data() as HTMLSimulation);
       });
       setSimulations(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'simulations');
     });
 
     // Listen to class sessions (buổi học)
@@ -106,6 +118,8 @@ export default function App() {
         list.push(docSnap.data() as ClassSession);
       });
       setClasses(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'class_sessions');
     });
 
     // Listen to student progress
@@ -115,6 +129,8 @@ export default function App() {
         list.push(docSnap.data() as StudentProgress);
       });
       setProgressData(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'student_progress');
     });
 
     return () => {
@@ -128,7 +144,11 @@ export default function App() {
 
   const handleUpdateUser = async (updated: User) => {
     if (auth.currentUser) {
-      await setDoc(doc(db, 'users', auth.currentUser.uid), updated, { merge: true });
+      try {
+        await setDoc(doc(db, 'users', auth.currentUser.uid), updated, { merge: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser.uid}`);
+      }
     }
   };
 
@@ -139,7 +159,11 @@ export default function App() {
       id,
       createdAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, 'assignments', id), assignment);
+    try {
+      await setDoc(doc(db, 'assignments', id), assignment);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `assignments/${id}`);
+    }
   };
 
   const handleSubmitWork = async (submission: Omit<Submission, 'id' | 'submittedAt'>) => {
@@ -149,18 +173,30 @@ export default function App() {
       id,
       submittedAt: new Date().toISOString(),
     };
-    await setDoc(doc(db, 'submissions', id), newSubmission);
+    try {
+      await setDoc(doc(db, 'submissions', id), newSubmission);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `submissions/${id}`);
+    }
   };
 
   const handleGrade = async (submissionId: string, grade: number, feedback: string) => {
-    await updateDoc(doc(db, 'submissions', submissionId), {
-      grade,
-      feedback
-    });
+    try {
+      await updateDoc(doc(db, 'submissions', submissionId), {
+        grade,
+        feedback
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `submissions/${submissionId}`);
+    }
   };
 
   const handleAddSimulation = async (newSim: HTMLSimulation) => {
-    await setDoc(doc(db, 'simulations', newSim.id), newSim);
+    try {
+      await setDoc(doc(db, 'simulations', newSim.id), newSim);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `simulations/${newSim.id}`);
+    }
   };
 
   const handleLogout = async () => {

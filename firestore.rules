@@ -6,17 +6,14 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Helper to get user record
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
     // Helper to check if user is a teacher
     function isTeacher() {
       return isAuthenticated() && (
-        getUserData().role == 'teacher' || 
-        // Fallback or initialization
-        request.auth.token.email.endsWith('@educonnect.com') && getUserData().role == 'teacher'
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher') ||
+        (request.auth.token != null && 
+         'email' in request.auth.token && 
+         request.auth.token.email.endsWith('@educonnect.com'))
       );
     }
 

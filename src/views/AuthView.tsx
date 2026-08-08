@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Phone, BookOpen, UserPlus, LogIn } from 'lucide-react';
+import { Mail, Lock, User, Phone, BookOpen, UserPlus, LogIn, Eye, EyeOff, X, HelpCircle, Calendar, AlertCircle, Check, Award } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { Role } from '../types';
-import { auth, db } from '../firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 interface AuthViewProps {
   onLogin: (role: Role) => void;
@@ -16,6 +17,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
   const [loginPassword, setLoginPassword] = useState('');
   
   const [signupName, setSignupName] = useState('');
+  const [signupDob, setSignupDob] = useState('');
   const [signupUsername, setSignupUsername] = useState('');
   const [signupPhoneParent, setSignupPhoneParent] = useState('');
   const [signupPhoneStudent, setSignupPhoneStudent] = useState('');
@@ -23,11 +25,214 @@ export function AuthView({ onLogin }: AuthViewProps) {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   
+  const [signupRecoveryEmail, setSignupRecoveryEmail] = useState('');
+  const [resetUsername, setResetUsername] = useState('');
+  const [resetPhone, setResetPhone] = useState('');
+  const [resetStudentName, setResetStudentName] = useState('');
+  const [resetClassName, setResetClassName] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
+
+  // Custom Form Validation State
+  const [resetStudentNameError, setResetStudentNameError] = useState('');
+  const [resetUsernameError, setResetUsernameError] = useState('');
+  const [resetClassNameError, setResetClassNameError] = useState('');
+  const [resetPhoneError, setResetPhoneError] = useState('');
+  
+  const [lookupUsernameError, setLookupUsernameError] = useState('');
+  const [lookupPhoneError, setLookupPhoneError] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
+  const [resetErrorMessage, setResetErrorMessage] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // States for Reset Request Lookup
+  const [lookupUsername, setLookupUsername] = useState('');
+  const [lookupPhone, setLookupPhone] = useState('');
+  const [lookupResult, setLookupResult] = useState<any>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [recoveryTab, setRecoveryTab] = useState<'request' | 'lookup'>('request');
+  const [copied, setCopied] = useState(false);
+  const [pasteWarning, setPasteWarning] = useState(false);
+  
   const showAdminContact = () => {
-    alert("Vui lòng liên hệ Admin qua hotline: 1900 xxxx để cấp lại mật khẩu.");
+    setResetUsername('');
+    setResetStudentName('');
+    setResetClassName('');
+    setResetPhone('');
+    setResetMessage('');
+    setResetSuccessMessage(null);
+    setResetErrorMessage(null);
+    setResetLoading(false);
+    
+    setResetStudentNameError('');
+    setResetUsernameError('');
+    setResetClassNameError('');
+    setResetPhoneError('');
+    
+    setLookupUsername('');
+    setLookupPhone('');
+    setLookupResult(null);
+    setLookupError(null);
+    setLookupUsernameError('');
+    setLookupPhoneError('');
+    setRecoveryTab('request');
+    
+    setShowAdminModal(true);
+  };
+
+  const handleRequestLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let hasError = false;
+    
+    if (!lookupUsername.trim()) {
+      setLookupUsernameError('Vui lòng nhập tên đăng nhập cần tra cứu');
+      hasError = true;
+    } else {
+      setLookupUsernameError('');
+    }
+    
+    if (!lookupPhone.trim()) {
+      setLookupPhoneError('Vui lòng nhập số điện thoại liên hệ đã gửi');
+      hasError = true;
+    } else {
+      setLookupPhoneError('');
+    }
+    
+    if (hasError) return;
+    
+    setLookupLoading(true);
+    setLookupError(null);
+    setLookupResult(null);
+
+    let searchUsername = lookupUsername.trim().toLowerCase();
+    if (searchUsername.includes('@')) {
+      searchUsername = searchUsername.split('@')[0];
+    }
+
+    try {
+      const q = query(
+        collection(db, 'reset_requests'),
+        where('username', '==', searchUsername)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        setLookupError('Không tìm thấy yêu cầu khôi phục nào cho tài khoản này. Vui lòng gửi yêu cầu trước.');
+        setLookupLoading(false);
+        return;
+      }
+
+      const requestDoc = querySnapshot.docs[0];
+      const requestData = requestDoc.data();
+
+      // Đối chiếu số điện thoại
+      const inputPhone = lookupPhone.trim();
+      const registeredPhone = (requestData.phone || '').trim();
+      if (inputPhone !== registeredPhone) {
+        setLookupError('Số điện thoại không trùng khớp với số điện thoại đã điền trong yêu cầu.');
+        setLookupLoading(false);
+        return;
+      }
+
+      setLookupResult(requestData);
+    } catch (err) {
+      console.error(err);
+      setLookupError('Có lỗi xảy ra trong quá trình tra cứu. Vui lòng thử lại sau.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let hasError = false;
+    
+    if (!resetStudentName.trim()) {
+      setResetStudentNameError('Vui lòng điền họ và tên');
+      hasError = true;
+    } else {
+      setResetStudentNameError('');
+    }
+    
+    if (!resetUsername.trim()) {
+      setResetUsernameError('Vui lòng điền tên đăng nhập');
+      hasError = true;
+    } else {
+      setResetUsernameError('');
+    }
+    
+    if (!resetClassName.trim()) {
+      setResetClassNameError('Vui lòng điền lớp học hoặc đơn vị công tác');
+      hasError = true;
+    } else {
+      setResetClassNameError('');
+    }
+    
+    if (!resetPhone.trim()) {
+      setResetPhoneError('Vui lòng điền số điện thoại liên hệ');
+      hasError = true;
+    } else {
+      setResetPhoneError('');
+    }
+    
+    if (hasError) return;
+    
+    setResetLoading(true);
+    setResetErrorMessage(null);
+    setResetSuccessMessage(null);
+    
+    let searchUsername = resetUsername.trim();
+    if (searchUsername.includes('@')) {
+      searchUsername = searchUsername.split('@')[0];
+    }
+    searchUsername = searchUsername.toLowerCase();
+    
+    try {
+      // 1. Truy vấn Firestore tìm người dùng theo username
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('username', '==', searchUsername));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setResetErrorMessage('Tên đăng nhập không tồn tại trên hệ thống. Vui lòng kiểm tra kỹ hoặc liên hệ trực tiếp Thầy cô để đăng ký.');
+        setResetLoading(false);
+        return;
+      }
+      
+      const userDoc = querySnapshot.docs[0];
+      const userData = userDoc.data();
+      
+      // 2. Tạo yêu cầu trong Firestore để Giáo viên/Admin duyệt nhanh chóng
+      const requestPayload = {
+        userId: userData.id,
+        username: searchUsername,
+        name: resetStudentName.trim(),
+        className: resetClassName.trim(),
+        phone: resetPhone.trim(),
+        message: resetMessage.trim() || 'Cần cấp lại mật khẩu mới',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      };
+      
+      await setDoc(doc(db, 'reset_requests', userData.id), requestPayload);
+      
+      setResetSuccessMessage(`Gửi yêu cầu thành công! Yêu cầu cấp lại mật khẩu của học sinh ${resetStudentName.trim()} đã được gửi đến Thầy cô phụ trách để duyệt và cấp lại mật khẩu tạm thời. Vui lòng chuyển sang tab "Tra cứu trạng thái duyệt" để kiểm tra kết quả phê duyệt.`);
+    } catch (err: any) {
+      console.error(err);
+      let friendlyError = 'Không thể gửi yêu cầu khôi phục. Vui lòng kiểm tra lại kết nối mạng.';
+      setResetErrorMessage(friendlyError);
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -206,13 +411,19 @@ export function AuthView({ onLogin }: AuthViewProps) {
               }
               const userCredential = await signInWithEmailAndPassword(auth, email, loginPassword);
               const userDocRef = doc(db, 'users', userCredential.user.uid);
-              const userDocSnap = await getDoc(userDocRef);
-              if (userDocSnap.exists()) {
+              let userDocSnap;
+              try {
+                userDocSnap = await getDoc(userDocRef);
+              } catch (getErr) {
+                handleFirestoreError(getErr, OperationType.GET, `users/${userCredential.user.uid}`);
+              }
+
+              if (userDocSnap && userDocSnap.exists()) {
                 const userData = userDocSnap.data();
                 onLogin(userData.role as Role);
               } else {
                 const detectedRole = loginUsername.toLowerCase().includes('teacher') ? 'teacher' : 'student';
-                await setDoc(userDocRef, {
+                const profilePayload = {
                   id: userCredential.user.uid,
                   name: loginUsername,
                   role: detectedRole,
@@ -221,7 +432,12 @@ export function AuthView({ onLogin }: AuthViewProps) {
                     : 'https://images.unsplash.com/photo-1607990283143-e81e7a2c93ab?auto=format&fit=crop&q=80&w=256&h=256',
                   username: loginUsername,
                   createdAt: new Date().toISOString()
-                });
+                };
+                try {
+                  await setDoc(userDocRef, profilePayload);
+                } catch (setErr) {
+                  handleFirestoreError(setErr, OperationType.CREATE, `users/${userCredential.user.uid}`);
+                }
                 onLogin(detectedRole);
               }
             } catch (err: any) {
@@ -237,34 +453,52 @@ export function AuthView({ onLogin }: AuthViewProps) {
               setLoading(false);
             }
           }}>
-            <div className="space-y-3 sm:space-y-4 bg-slate-50/80 p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <User className="h-5 w-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+            <div className="space-y-4 bg-slate-50/80 p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Tên đăng nhập</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="nguyenvana" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 sm:py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                    required 
+                    disabled={loading}
+                    value={loginUsername}
+                    onChange={(e) => setLoginUsername(e.target.value)}
+                  />
                 </div>
-                <input 
-                  type="text" 
-                  placeholder="Tên đăng nhập" 
-                  className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 sm:py-3.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder:text-slate-400 text-sm hover:border-slate-300" 
-                  required 
-                  disabled={loading}
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value)}
-                />
               </div>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Mật khẩu</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
+                  </div>
+                  <input 
+                    type={showLoginPassword ? "text" : "password"} 
+                    placeholder="Nhập mật khẩu của bạn" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-12 py-2.5 sm:py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                    required 
+                    disabled={loading}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                  />
+                   <button
+                    type="button"
+                    onMouseDown={() => setShowLoginPassword(true)}
+                    onMouseUp={() => setShowLoginPassword(false)}
+                    onMouseLeave={() => setShowLoginPassword(false)}
+                    onTouchStart={(e) => { e.preventDefault(); setShowLoginPassword(true); }}
+                    onTouchEnd={(e) => { e.preventDefault(); setShowLoginPassword(false); }}
+                    onTouchCancel={(e) => { e.preventDefault(); setShowLoginPassword(false); }}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-indigo-600 transition-colors focus:outline-none select-none touch-none cursor-pointer"
+                  >
+                    {showLoginPassword ? <Eye className="h-4 w-4 text-indigo-600" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
                 </div>
-                <input 
-                  type="password" 
-                  placeholder="Mật khẩu" 
-                  className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 sm:py-3.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder:text-slate-400 text-sm hover:border-slate-300" 
-                  required 
-                  disabled={loading}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                />
               </div>
             </div>
             
@@ -287,7 +521,6 @@ export function AuthView({ onLogin }: AuthViewProps) {
           <div className="mb-3 sm:mb-4">
             <h3 className="text-indigo-600 text-xs font-bold tracking-widest uppercase mb-1">Thành viên mới</h3>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-1">Tạo tài khoản</h2>
-            <p className="text-slate-500 text-xs sm:text-sm">Chỉ mất vài giây để bắt đầu.</p>
           </div>
 
           {errorMessage && (
@@ -338,16 +571,22 @@ export function AuthView({ onLogin }: AuthViewProps) {
               const newUserProfile = {
                 id: uid,
                 name: signupName,
+                dob: signupDob,
                 role: signupRole,
                 avatar: avatarUrl,
                 username: signupUsername,
+                recoveryEmail: signupRecoveryEmail.trim().toLowerCase(),
                 phoneParent: signupRole === 'student' ? signupPhoneParent : '',
                 phoneStudent: signupRole === 'student' ? signupPhoneStudent : '',
                 className: signupRole === 'student' ? signupClass : 'Giáo viên',
                 createdAt: new Date().toISOString()
               };
 
-              await setDoc(doc(db, 'users', uid), newUserProfile);
+              try {
+                await setDoc(doc(db, 'users', uid), newUserProfile);
+              } catch (setErr) {
+                handleFirestoreError(setErr, OperationType.CREATE, `users/${uid}`);
+              }
               
               setIsSignUp(false);
               onLogin(signupRole);
@@ -366,110 +605,216 @@ export function AuthView({ onLogin }: AuthViewProps) {
               setLoading(false);
             }
           }}>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <User className="h-5 w-5 text-slate-400" />
-              </div>
-              <input 
-                type="text" 
-                placeholder="Họ và tên" 
-                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
-                required 
-                disabled={loading}
-                value={signupName}
-                onChange={(e) => setSignupName(e.target.value)}
-              />
-            </div>
-            
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <User className="h-5 w-5 text-slate-400" />
-              </div>
-              <input 
-                type="text" 
-                placeholder="Tên đăng nhập" 
-                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
-                required 
-                disabled={loading}
-                value={signupUsername}
-                onChange={(e) => setSignupUsername(e.target.value)}
-              />
-            </div>
-
-            {signupRole === 'student' && (
-              <>
-                <div className="relative">
+            <div className="space-y-3 pb-2">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Họ và tên</label>
+                <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Phone className="h-5 w-5 text-slate-400" />
-                  </div>
-                  <input 
-                    type="tel" 
-                    placeholder="SĐT Phụ huynh" 
-                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
-                    required 
-                    disabled={loading}
-                    value={signupPhoneParent}
-                    onChange={(e) => setSignupPhoneParent(e.target.value)}
-                  />
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <BookOpen className="h-5 w-5 text-slate-400" />
+                    <User className="h-4 w-4 text-slate-400" />
                   </div>
                   <input 
                     type="text" 
-                    placeholder="Lớp (VD: 10A1)" 
-                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
+                    placeholder="Nguyễn Văn A" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
                     required 
                     disabled={loading}
-                    value={signupClass}
-                    onChange={(e) => setSignupClass(e.target.value)}
+                    value={signupName}
+                    onChange={(e) => setSignupName(e.target.value)}
                   />
                 </div>
-                <div className="relative">
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Ngày sinh</label>
+                <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Phone className="h-5 w-5 text-slate-400" />
+                    <Calendar className="h-4 w-4 text-slate-400" />
                   </div>
                   <input 
-                    type="tel" 
-                    placeholder="SĐT Học sinh (nếu có)" 
-                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
+                    type="date" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors text-sm hover:border-slate-300" 
+                    required 
                     disabled={loading}
-                    value={signupPhoneStudent}
-                    onChange={(e) => setSignupPhoneStudent(e.target.value)}
+                    value={signupDob}
+                    onChange={(e) => setSignupDob(e.target.value)}
                   />
                 </div>
-              </>
-            )}
+              </div>
+              
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Tên đăng nhập</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="nguyenvana" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                    required 
+                    disabled={loading}
+                    value={signupUsername}
+                    onChange={(e) => setSignupUsername(e.target.value)}
+                  />
+                </div>
+              </div>
 
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-slate-400" />
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Email khôi phục (Gmail)</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input 
+                    type="email" 
+                    placeholder="vi-du@gmail.com" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                    required 
+                    disabled={loading}
+                    value={signupRecoveryEmail}
+                    onChange={(e) => setSignupRecoveryEmail(e.target.value)}
+                  />
+                </div>
               </div>
-              <input 
-                type="password" 
-                placeholder="Mật khẩu" 
-                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
-                required 
-                disabled={loading}
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-              />
-            </div>
-            
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Lock className="h-5 w-5 text-slate-400" />
+
+              {signupRole === 'student' && (
+                <>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700">SĐT Phụ huynh</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Phone className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <input 
+                        type="tel" 
+                        placeholder="0912345678" 
+                        className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                        required 
+                        disabled={loading}
+                        value={signupPhoneParent}
+                        onChange={(e) => setSignupPhoneParent(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700">Lớp học</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <BookOpen className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="10" 
+                        className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                        required 
+                        disabled={loading}
+                        value={signupClass}
+                        onChange={(e) => setSignupClass(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700">SĐT Học sinh (nếu có)</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Phone className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <input 
+                        type="tel" 
+                        placeholder="0987654321" 
+                        className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-4 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                        disabled={loading}
+                        value={signupPhoneStudent}
+                        onChange={(e) => setSignupPhoneStudent(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Mật khẩu</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input 
+                    type={showSignupPassword ? "text" : "password"} 
+                    placeholder="Nhập mật khẩu ít nhất 6 ký tự" 
+                    className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-11 pr-12 py-2.5 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm hover:border-slate-300" 
+                    required 
+                    disabled={loading}
+                    value={signupPassword}
+                    onChange={(e) => setSignupPassword(e.target.value)}
+                  />
+                   <button
+                    type="button"
+                    onMouseDown={() => setShowSignupPassword(true)}
+                    onMouseUp={() => setShowSignupPassword(false)}
+                    onMouseLeave={() => setShowSignupPassword(false)}
+                    onTouchStart={(e) => { e.preventDefault(); setShowSignupPassword(true); }}
+                    onTouchEnd={(e) => { e.preventDefault(); setShowSignupPassword(false); }}
+                    onTouchCancel={(e) => { e.preventDefault(); setShowSignupPassword(false); }}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-indigo-600 transition-colors focus:outline-none select-none touch-none cursor-pointer"
+                  >
+                    {showSignupPassword ? <Eye className="h-4 w-4 text-indigo-600" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-              <input 
-                type="password" 
-                placeholder="Xác nhận mật khẩu" 
-                className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-colors placeholder:text-slate-400 text-sm" 
-                required 
-                disabled={loading}
-                value={signupConfirmPassword}
-                onChange={(e) => setSignupConfirmPassword(e.target.value)}
-              />
+              
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-700">Xác nhận mật khẩu</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Lock className="h-4 w-4 text-slate-400" />
+                  </div>
+                  <input 
+                    type={showSignupConfirmPassword ? "text" : "password"} 
+                    placeholder="Nhập lại mật khẩu để xác nhận" 
+                    className={`w-full bg-white border text-slate-900 rounded-xl pl-11 pr-12 py-2.5 focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 text-sm hover:border-slate-300 ${
+                      pasteWarning 
+                        ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                        : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                    }`}
+                    required 
+                    disabled={loading}
+                    value={signupConfirmPassword}
+                    onChange={(e) => {
+                      setSignupConfirmPassword(e.target.value);
+                      if (pasteWarning) setPasteWarning(false);
+                    }}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      setPasteWarning(true);
+                    }}
+                    onCopy={(e) => {
+                      e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                    }}
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={() => setShowSignupConfirmPassword(true)}
+                    onMouseUp={() => setShowSignupConfirmPassword(false)}
+                    onMouseLeave={() => setShowSignupConfirmPassword(false)}
+                    onTouchStart={(e) => { e.preventDefault(); setShowSignupConfirmPassword(true); }}
+                    onTouchEnd={(e) => { e.preventDefault(); setShowSignupConfirmPassword(false); }}
+                    onTouchCancel={(e) => { e.preventDefault(); setShowSignupConfirmPassword(false); }}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-indigo-600 transition-colors focus:outline-none select-none touch-none cursor-pointer"
+                  >
+                    {showSignupConfirmPassword ? <Eye className="h-4 w-4 text-indigo-600" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                </div>
+                {pasteWarning && (
+                  <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1 animate-fadeIn">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    Vui lòng tự gõ tay mật khẩu xác nhận, không thể sao chép!
+                  </p>
+                )}
+              </div>
             </div>
             
             <div className="pt-2 text-center">
@@ -596,12 +941,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                           {signupRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                         </p>
                      </div>
-                     <button 
-                       onClick={() => setIsSignUp(false)}
-                       className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 text-xs text-white"
-                     >
-                       Quay lại Đăng nhập
-                     </button>
+
                   </div>
                </div>
             </div>
@@ -610,6 +950,460 @@ export function AuthView({ onLogin }: AuthViewProps) {
         </div>
 
       </div>
+
+      <AnimatePresence>
+        {showAdminModal && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowAdminModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+            
+            {/* Modal Box */}
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ 
+                scale: 1, 
+                opacity: 1, 
+                y: 0,
+                transition: {
+                  type: "spring",
+                  damping: 25,
+                  stiffness: 350
+                }
+              }}
+              exit={{ 
+                scale: 0.9, 
+                opacity: 0, 
+                y: 10,
+                transition: { duration: 0.15 }
+              }}
+              className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-lg w-full relative z-[1010] text-left flex flex-col max-h-[85vh] sm:max-h-[90vh] overflow-hidden"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowAdminModal(false)}
+                className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full p-2 transition-all duration-200 z-[1020]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Fixed Header Section */}
+              <div className="pt-6 px-6 sm:pt-8 sm:px-8 pb-4 border-b border-slate-100 flex flex-col bg-white">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="bg-indigo-50 text-indigo-600 rounded-2xl p-3 w-12 h-12 flex items-center justify-center shadow-sm">
+                    <HelpCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+                      Khôi phục mật khẩu
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">Cổng xác thực & Cấp lại mật khẩu an toàn</p>
+                  </div>
+                </div>
+
+                {/* Tab Selector Inside Modal */}
+                <div className="flex p-1 bg-slate-50 rounded-2xl gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryTab('request')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                      recoveryTab === 'request'
+                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Gửi yêu cầu khôi phục
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryTab('lookup')}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                      recoveryTab === 'lookup'
+                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Tra cứu trạng thái duyệt
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Content Section */}
+              <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-slate-300">
+                {recoveryTab === 'request' ? (
+                <>
+                  <div className="mb-6 pb-6 border-b border-slate-100">
+                    <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold">1</span>
+                      Gửi thông tin khôi phục đến Thầy cô hoặc Admin
+                    </h4>
+                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                      Vui lòng nhập chính xác thông tin cá nhân của bạn dưới đây để gửi yêu cầu đặt lại mật khẩu đến Giáo viên chủ nhiệm hoặc Thầy cô quản trị phê duyệt trực tiếp.
+                    </p>
+
+                    <form onSubmit={handlePasswordReset} className="space-y-3">
+                      {/* Họ tên học sinh */}
+                      <div className="space-y-1 animate-fadeIn">
+                        <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1">
+                          Họ và tên (Học sinh/Phụ huynh/Giáo viên)
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <User className={`h-4 w-4 ${resetStudentNameError ? 'text-rose-400' : 'text-slate-400'}`} />
+                          </div>
+                          <input 
+                            type="text"
+                            placeholder="Nhập họ và tên đầy đủ"
+                            value={resetStudentName}
+                            onChange={(e) => {
+                              setResetStudentName(e.target.value);
+                              if (resetStudentNameError) setResetStudentNameError('');
+                            }}
+                            className={`w-full bg-white border text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 ${
+                              resetStudentNameError 
+                                ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                                : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                            }`}
+                            disabled={resetLoading}
+                          />
+                        </div>
+                        {resetStudentNameError && (
+                          <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            {resetStudentNameError}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Tên đăng nhập */}
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1">
+                          Tên đăng nhập tài khoản cần đặt lại
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <User className={`h-4 w-4 ${resetUsernameError ? 'text-rose-400' : 'text-slate-400'}`} />
+                          </div>
+                          <input 
+                            type="text"
+                            placeholder="nguyenvana"
+                            value={resetUsername}
+                            onChange={(e) => {
+                              setResetUsername(e.target.value);
+                              if (resetUsernameError) setResetUsernameError('');
+                            }}
+                            className={`w-full bg-white border text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 ${
+                              resetUsernameError 
+                                ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                                : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                            }`}
+                            disabled={resetLoading}
+                          />
+                        </div>
+                        {resetUsernameError && (
+                          <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            {resetUsernameError}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Lớp học */}
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1">
+                          Lớp học / Đơn vị công tác
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <Award className={`h-4 w-4 ${resetClassNameError ? 'text-rose-400' : 'text-slate-400'}`} />
+                          </div>
+                          <input 
+                            type="text"
+                            placeholder="Ví dụ: 10A1, Tổ Toán, Phụ huynh em Nguyễn Văn A..."
+                            value={resetClassName}
+                            onChange={(e) => {
+                              setResetClassName(e.target.value);
+                              if (resetClassNameError) setResetClassNameError('');
+                            }}
+                            className={`w-full bg-white border text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 ${
+                              resetClassNameError 
+                                ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                                : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                            }`}
+                            disabled={resetLoading}
+                          />
+                        </div>
+                        {resetClassNameError && (
+                          <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            {resetClassNameError}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Số điện thoại */}
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1">
+                          Số điện thoại liên hệ
+                          <span className="text-rose-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                            <Phone className={`h-4 w-4 ${resetPhoneError ? 'text-rose-400' : 'text-slate-400'}`} />
+                          </div>
+                          <input 
+                            type="tel"
+                            placeholder="Nhập số điện thoại liên hệ của bạn"
+                            value={resetPhone}
+                            onChange={(e) => {
+                              setResetPhone(e.target.value);
+                              if (resetPhoneError) setResetPhoneError('');
+                            }}
+                            className={`w-full bg-white border text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 ${
+                              resetPhoneError 
+                                ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                                : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                            }`}
+                            disabled={resetLoading}
+                          />
+                        </div>
+                        {resetPhoneError && (
+                          <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1">
+                            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                            {resetPhoneError}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Lời nhắn */}
+                      <div className="space-y-1">
+                        <label className="block text-xs font-semibold text-slate-600">Lời nhắn đến Thầy cô hoặc Admin (Tùy chọn)</label>
+                        <textarea 
+                          placeholder="Nhập lý do hoặc lời nhắn thêm..."
+                          value={resetMessage}
+                          onChange={(e) => setResetMessage(e.target.value)}
+                          className="w-full bg-white border border-slate-200 text-slate-900 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 transition-all placeholder:text-slate-400 h-16 resize-none"
+                          disabled={resetLoading}
+                        />
+                      </div>
+
+                      {resetErrorMessage && (
+                        <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl px-3 py-2 text-xs flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <span>{resetErrorMessage}</span>
+                        </div>
+                      )}
+
+                      {resetSuccessMessage && (
+                        <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl px-3 py-2.5 text-xs flex items-start gap-2 leading-relaxed">
+                          <Check className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                          <span>{resetSuccessMessage}</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        disabled={resetLoading}
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 px-4 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                      >
+                        {resetLoading ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu khôi phục đến Thầy cô / Admin'}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Option 2: Contact Teacher / Admin directly */}
+                  <div className="mt-6 mb-2">
+                    <h4 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                      <span className="flex items-center justify-center w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full text-xs font-bold">2</span>
+                      Liên hệ trực tiếp Giáo viên hoặc Admin
+                    </h4>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-3">
+                      Trong trường hợp khẩn cấp (như cần mật khẩu gấp để vào làm bài thi, nộp bài, hoặc chấm điểm), học sinh, phụ huynh và giáo viên có thể liên hệ trực tiếp với Giáo viên chủ nhiệm hoặc Ban quản trị qua Zalo để được duyệt nhanh nhất.
+                    </p>
+                    
+                    <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 text-xs text-slate-600 space-y-2">
+                      <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-indigo-500" />
+                        Hướng dẫn xử lý nhanh:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-slate-700">
+                        <li>Thầy cô hoặc Admin duyệt ngay yêu cầu của bạn trên trang quản lý tài khoản.</li>
+                        <li>Mật khẩu tạm thời sẽ được cấp trực tiếp mà không cần qua Email.</li>
+                        <li>Bạn có thể tra cứu kết quả duyệt ở tab <strong>"Tra cứu trạng thái duyệt"</strong>.</li>
+                      </ul>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* REQUEST LOOKUP PANEL FOR STUDENTS */
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Sau khi gửi yêu cầu khôi phục, bạn hãy nhập tên đăng nhập cùng số điện thoại liên hệ đã điền để tra cứu trạng thái phê duyệt và lấy mật khẩu tạm thời.
+                  </p>
+
+                  <form onSubmit={handleRequestLookup} className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1">
+                        Tên đăng nhập cần kiểm tra
+                        <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                          <User className={`h-4 w-4 ${lookupUsernameError ? 'text-rose-400' : 'text-slate-400'}`} />
+                        </div>
+                        <input 
+                          type="text"
+                          placeholder="Nhập tên đăng nhập của bạn"
+                          value={lookupUsername}
+                          onChange={(e) => {
+                            setLookupUsername(e.target.value);
+                            if (lookupUsernameError) setLookupUsernameError('');
+                          }}
+                          className={`w-full bg-white border text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 ${
+                            lookupUsernameError 
+                              ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                              : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                          }`}
+                          disabled={lookupLoading}
+                        />
+                      </div>
+                      {lookupUsernameError && (
+                        <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          {lookupUsernameError}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-xs font-semibold text-slate-600 flex items-center gap-1">
+                        Số điện thoại liên hệ (Đã điền trong yêu cầu)
+                        <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                          <Phone className={`h-4 w-4 ${lookupPhoneError ? 'text-rose-400' : 'text-slate-400'}`} />
+                        </div>
+                        <input 
+                          type="tel"
+                          placeholder="Nhập số điện thoại liên hệ để đối chiếu"
+                          value={lookupPhone}
+                          onChange={(e) => {
+                            setLookupPhone(e.target.value);
+                            if (lookupPhoneError) setLookupPhoneError('');
+                          }}
+                          className={`w-full bg-white border text-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 transition-all placeholder:text-slate-400 ${
+                            lookupPhoneError 
+                              ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/10' 
+                              : 'border-slate-200 focus:border-indigo-600 focus:ring-indigo-600'
+                          }`}
+                          disabled={lookupLoading}
+                        />
+                      </div>
+                      {lookupPhoneError && (
+                        <p className="text-rose-500 text-[11px] font-medium mt-1 flex items-center gap-1 pl-1">
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                          {lookupPhoneError}
+                        </p>
+                      )}
+                    </div>
+
+                    {lookupError && (
+                      <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-xl px-3 py-2 text-xs flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                        <span>{lookupError}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={lookupLoading}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {lookupLoading ? 'Đang tìm kiếm...' : 'Tra cứu kết quả duyệt'}
+                    </button>
+                  </form>
+
+                  {lookupResult && (
+                    <div className="mt-4 p-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 space-y-3 animate-fadeIn">
+                      <h4 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wide">Kết quả tra cứu yêu cầu:</h4>
+                      
+                      <div className="text-xs text-slate-600 space-y-1">
+                        <p>👤 Họ và tên: <strong className="text-slate-800">{lookupResult.name}</strong></p>
+                        <p>🏫 Lớp học / Đơn vị: <span className="text-slate-800 font-semibold">{lookupResult.className}</span></p>
+                        <p>📅 Ngày gửi: <span className="text-slate-800">{new Date(lookupResult.createdAt).toLocaleDateString('vi-VN')}</span></p>
+                        
+                        <div className="pt-2 border-t border-indigo-100/60 mt-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Trạng thái phê duyệt:</span>
+                          {lookupResult.status === 'pending' ? (
+                            <div className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-xl font-bold animate-pulse">
+                              <AlertCircle className="w-4 h-4 text-amber-600" />
+                              Đang chờ Thầy cô / Admin phê duyệt
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <div className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-xl font-bold">
+                                <Check className="w-4 h-4 text-emerald-600" />
+                                Đã được phê duyệt thành công!
+                              </div>
+                              <div className="p-3 bg-white border border-emerald-100 rounded-xl mt-2">
+                                <p className="text-[10px] text-emerald-700 font-bold uppercase mb-1">Mật khẩu tạm thời của bạn:</p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <code className="bg-emerald-50 px-2.5 py-1 rounded font-mono text-sm font-black text-emerald-700 select-all">
+                                    {lookupResult.tempPassword}
+                                  </code>
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(lookupResult.tempPassword);
+                                      setCopied(true);
+                                      setTimeout(() => setCopied(false), 2000);
+                                    }}
+                                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
+                                      copied 
+                                        ? 'bg-emerald-500 text-white' 
+                                        : 'text-indigo-600 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    {copied ? 'Đã sao chép!' : 'Sao chép'}
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2 italic">
+                                  * Hãy sử dụng mật khẩu này để đăng nhập ngay và đổi lại mật khẩu cá nhân mới của bạn trong phần Cấu hình tài khoản.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              </div>
+
+              {/* Fixed Footer Section */}
+              <div className="p-4 sm:p-6 border-t border-slate-100 bg-slate-50/50 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminModal(false)}
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold py-3 px-4 rounded-xl transition-all duration-200 active:scale-[0.98] text-center"
+                >
+                  Đóng cửa sổ
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

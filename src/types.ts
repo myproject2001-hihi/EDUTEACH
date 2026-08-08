@@ -5,6 +5,7 @@ export interface User {
   name: string;
   role: Role;
   avatar: string;
+  dob?: string;
   phoneStudent?: string;
   phoneParent?: string;
   className?: string;
