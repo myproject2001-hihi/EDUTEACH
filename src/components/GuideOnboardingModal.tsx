@@ -4,18 +4,17 @@ import { User } from '../types';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-interface ZaloOnboardingModalProps {
+interface GuideOnboardingModalProps {
   user: User;
   onClose: () => void;
 }
 
-export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps) {
+export function GuideOnboardingModal({ user, onClose }: GuideOnboardingModalProps) {
   const [teachers, setTeachers] = useState<User[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeGuideTab, setActiveGuideTab] = useState<'guide' | 'zalo'>('guide');
 
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
 
@@ -108,33 +107,7 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
             </button>
           </div>
 
-          {/* Navigation Tabs (Only for students or general) */}
-          {!isTeacher && (
-            <div className="grid grid-cols-2 gap-2 bg-slate-200/60 p-1 rounded-2xl text-xs font-bold">
-              <button
-                onClick={() => setActiveGuideTab('guide')}
-                className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                  activeGuideTab === 'guide'
-                    ? 'bg-white text-indigo-600 shadow-sm font-extrabold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <BookOpen className="w-4 h-4" />
-                1. Hướng Dẫn Vào Lớp
-              </button>
-              <button
-                onClick={() => setActiveGuideTab('zalo')}
-                className={`py-2 px-3 rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                  activeGuideTab === 'zalo'
-                    ? 'bg-indigo-600 text-white shadow-sm font-extrabold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Bot className="w-4 h-4" />
-                2. Kích Hoạt Zalo Bot
-              </button>
-            </div>
-          )}
+
         </div>
 
         {/* Modal Content */}
@@ -189,17 +162,7 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                    <Bot className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-slate-900 text-xs sm:text-sm">4. Kết nối Zalo Bot tự động nhắc nhở</h5>
-                    <p className="text-xs text-slate-500 leading-relaxed mt-1">
-                      Học sinh sử dụng mã kết nối của Thầy/Cô (<code className="font-mono font-bold text-indigo-600">{user.connectionCode || user.id.substring(0, 6).toUpperCase()}</code>) kết nối với Zalo Bot để nhận thông báo điểm số & nhắc lịch học tự động.
-                    </p>
-                  </div>
-                </div>
+
               </div>
             </div>
           ) : (
@@ -273,120 +236,42 @@ export function ZaloOnboardingModal({ user, onClose }: ZaloOnboardingModalProps)
               </div>
 
               {/* TAB 1: Detailed Class Guidance */}
-              {activeGuideTab === 'guide' && (
-                <div className="space-y-4 pt-4 border-t border-slate-100 animate-in fade-in duration-300">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Award className="w-4 h-4 text-indigo-600" />
-                    Hướng dẫn các thao tác chính trong lớp
-                  </label>
+              <div className="space-y-4 pt-4 border-t border-slate-100 animate-in fade-in duration-300">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-indigo-600" />
+                  Hướng dẫn các thao tác chính trong lớp
+                </label>
 
-                  <div className="space-y-3">
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                        <Video className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h5 className="font-bold text-slate-900 text-xs">1. Vào phòng học trực tuyến (Google Meet / Zoom)</h5>
-                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                          Vào mục <strong className="text-slate-800">"Lịch học & Phòng học"</strong> ở menu bên trái. Chọn buổi học của lớp và nhấn nút <strong className="text-emerald-600 font-bold">"Tham gia phòng học"</strong>.
-                        </p>
-                      </div>
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                      <Video className="w-4 h-4" />
                     </div>
-
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                        <BookOpen className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h5 className="font-bold text-slate-900 text-xs">2. Xem & Nộp bài tập trực tuyến</h5>
-                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                          Vào mục <strong className="text-slate-800">"Bài tập"</strong> để xem danh sách bài do Giáo viên giao. Em có thể làm trắc nghiệm trực tiếp hoặc chụp ảnh bài giải để tải lên.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                        <Bot className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <h5 className="font-bold text-slate-900 text-xs">3. Nhận điểm & Thông báo tự động</h5>
-                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                          Kích hoạt Zalo Bot ở tab bên cạnh để hệ thống tự động gửi thông báo điểm số & nhắc nhở lịch học về điện thoại của em.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: Zalo Bot Setup */}
-              {activeGuideTab === 'zalo' && selectedTeacher && (
-                <div className="space-y-4 pt-4 border-t border-slate-100 animate-in fade-in duration-300">
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    Hướng dẫn kích hoạt Zalo Bot nhận thông báo
-                  </label>
-
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
                     <div>
-                      <p className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-black flex items-center justify-center">A</span>
-                        Sao chép cú pháp kết nối cá nhân:
-                      </p>
-                      <div className="bg-white border border-slate-200 rounded-xl p-2 flex items-center justify-between shadow-sm">
-                        <code className="text-base font-mono font-bold text-indigo-600 px-2 tracking-wider">
-                          /start {user.connectionCode || user.id.substring(0, 6).toUpperCase()}
-                        </code>
-                        <button 
-                          onClick={handleCopy}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-colors ${
-                            copied 
-                              ? 'bg-emerald-500 text-white' 
-                              : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                          }`}
-                        >
-                          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                          {copied ? 'Đã chép' : 'Sao chép'}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-black flex items-center justify-center">B</span>
-                        Mở Zalo Bot của Giáo viên {selectedTeacher.name}:
-                      </p>
-                      {selectedTeacher.zaloBotLink ? (
-                        <a 
-                          href={selectedTeacher.zaloBotLink} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#0068ff] hover:bg-[#0054cc] text-white font-bold text-sm rounded-xl transition-colors shadow-sm"
-                        >
-                          <MessageCircle className="w-5 h-5" />
-                          Mở ứng dụng Zalo Bot
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 shrink-0 text-amber-600" />
-                          <span>Giáo viên chưa dán Link Zalo Bot. Em vẫn có thể bấm nút <strong>"Sao chép"</strong> ở trên và gửi mã này cho cô qua Zalo nha!</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-3 bg-blue-50/60 border border-blue-100 rounded-xl space-y-1">
-                      <p className="text-xs font-bold text-blue-900">
-                        💡 Sau khi mở Zalo Bot:
-                      </p>
-                      <p className="text-xs text-blue-700 leading-relaxed">
-                        Dán đoạn mã vừa sao chép (ví dụ: <code className="font-mono font-bold">/start {user.connectionCode || user.id.substring(0, 6).toUpperCase()}</code>) vào ô tin nhắn. Bot sẽ gửi lời chào mừng xác nhận kết nối thành công!
+                      <h5 className="font-bold text-slate-900 text-xs">1. Vào phòng học trực tuyến (Google Meet / Zoom)</h5>
+                      <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                        Vào mục <strong className="text-slate-800">"Lịch học & Phòng học"</strong> ở menu bên trái. Chọn buổi học của lớp và nhấn nút <strong className="text-emerald-600 font-bold">"Tham gia phòng học"</strong>.
                       </p>
                     </div>
                   </div>
+
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-slate-900 text-xs">2. Xem & Nộp bài tập trực tuyến</h5>
+                      <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
+                        Vào mục <strong className="text-slate-800">"Bài tập"</strong> để xem danh sách bài do Giáo viên giao. Em có thể làm trắc nghiệm trực tiếp hoặc chụp ảnh bài giải để tải lên.
+                      </p>
+                    </div>
+                  </div>
+
+
                 </div>
-              )}
+              </div>
+
+
             </>
           )}
         </div>

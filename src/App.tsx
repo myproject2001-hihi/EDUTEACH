@@ -15,13 +15,13 @@ import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firesto
 
 import { SettingsView } from './views/SettingsView';
 import { AdminConsoleView } from './views/AdminConsoleView';
-import { ZaloOnboardingModal } from './components/ZaloOnboardingModal';
+import { GuideOnboardingModal } from './components/GuideOnboardingModal';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [role, setRole] = useState<Role>('student');
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [showZaloOnboarding, setShowZaloOnboarding] = useState(false);
+  const [showGuideOnboarding, setShowGuideOnboarding] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   
   // App states synchronized with Firestore
@@ -83,7 +83,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    setShowZaloOnboarding(false);
+    setShowGuideOnboarding(false);
   }, [currentUser]);
 
   // 2. Setup real-time listeners for database collections when authenticated
@@ -284,6 +284,37 @@ export default function App() {
             initialSelectedAssignmentId={selectedAssignmentId}
             onClearInitialSelectedAssignmentId={() => setSelectedAssignmentId(null)}
             simulations={simulations}
+            viewMode="assignments"
+          />
+        );
+      case 'games':
+        return (
+          <AssignmentsView 
+            user={currentUser}
+            assignments={assignments}
+            submissions={submissions}
+            onAddAssignment={handleAddAssignment}
+            onSubmitWork={handleSubmitWork}
+            onGrade={handleGrade}
+            initialSelectedAssignmentId={selectedAssignmentId}
+            onClearInitialSelectedAssignmentId={() => setSelectedAssignmentId(null)}
+            simulations={simulations}
+            viewMode="games"
+          />
+        );
+      case 'flashcards':
+        return (
+          <AssignmentsView 
+            user={currentUser}
+            assignments={assignments}
+            submissions={submissions}
+            onAddAssignment={handleAddAssignment}
+            onSubmitWork={handleSubmitWork}
+            onGrade={handleGrade}
+            initialSelectedAssignmentId={selectedAssignmentId}
+            onClearInitialSelectedAssignmentId={() => setSelectedAssignmentId(null)}
+            simulations={simulations}
+            viewMode="flashcards"
           />
         );
       case 'schedule':
@@ -303,7 +334,7 @@ export default function App() {
             classes={classes} 
             onNavigate={setActiveTab}
             onSelectAssignment={setSelectedAssignmentId}
-            onOpenGuide={() => setShowZaloOnboarding(true)}
+            onOpenGuide={() => setShowGuideOnboarding(true)}
           />
         );
     }
@@ -344,19 +375,19 @@ export default function App() {
               onTabChange={setActiveTab}
               onUpdateUser={handleUpdateUser}
               onLogout={handleLogout}
-              onOpenGuide={() => setShowZaloOnboarding(true)}
+              onOpenGuide={() => setShowGuideOnboarding(true)}
             >
               {renderContent()}
             </Layout>
           )}
           
-          {showZaloOnboarding && currentUser && (
-            <ZaloOnboardingModal
+          {showGuideOnboarding && currentUser && (
+            <GuideOnboardingModal
               user={currentUser}
               onClose={() => {
-                setShowZaloOnboarding(false);
+                setShowGuideOnboarding(false);
                 sessionStorage.setItem('onboardingDismissed', 'true');
-                sessionStorage.setItem('zaloOnboardingDismissed', 'true');
+                sessionStorage.setItem('guideOnboardingDismissed', 'true');
               }}
             />
           )}

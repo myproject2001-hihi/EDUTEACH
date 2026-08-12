@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProgress } from '../types';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle } from 'lucide-react';
+import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -325,7 +325,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                     </p>
                     Khi học sinh gửi yêu cầu khôi phục, thông tin lớp học, họ tên và số điện thoại liên hệ sẽ được hiển thị tại đây.
                     Thầy cô vui lòng kiểm tra và xác nhận đúng thông tin học sinh lớp mình, sau đó bấm <strong>"Phê duyệt & Cấp mật khẩu"</strong> để tạo mật khẩu tạm thời. 
-                    Bạn có thể gửi trực tiếp mật khẩu này cho phụ huynh hoặc học sinh thông qua nút nhắn Zalo nhanh.
+                    Bạn có thể gửi trực tiếp mật khẩu này cho phụ huynh hoặc học sinh thông qua ứng dụng nhắn tin cá nhân.
                   </div>
 
                   <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden">
@@ -408,14 +408,15 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                                   Sao chép
                                 </button>
                               </div>
-                              <a 
-                                href={`https://zalo.me/${req.phone}`}
-                                target="_blank" 
-                                rel="noreferrer"
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`Chào em/anh/chị, mật khẩu tạm thời mới của em trên hệ thống là: ${req.tempPassword}`);
+                                  setNotification({ message: 'Đã sao chép tin nhắn thông báo mật khẩu!', type: 'success' });
+                                }}
                                 className="mt-1 text-[10px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
                               >
-                                <MessageCircle className="w-3 h-3" /> Nhắn Zalo báo thông tin
-                              </a>
+                                <Copy className="w-3 h-3" /> Sao chép thông tin thông báo
+                              </button>
                             </div>
                           )}
                         </div>
@@ -479,13 +480,11 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                 )}
 
                 <a 
-                  href={`https://zalo.me/${selectedStudent.phoneParent || '0912345678'}`}
-                  target="_blank" 
-                  rel="noreferrer"
+                  href={`tel:${selectedStudent.phoneParent || '0912345678'}`}
                   className="w-full mt-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors"
                 >
-                  <MessageCircle className="w-4 h-4" />
-                  Nhắn Zalo trực tiếp Phụ huynh
+                  <Phone className="w-4 h-4" />
+                  Gọi điện trực tiếp Phụ huynh
                 </a>
               </div>
             </div>

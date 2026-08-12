@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2 } from 'lucide-react';
 import { Role, User } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 
@@ -51,7 +51,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
   const [profilePhoneStudent, setProfilePhoneStudent] = useState(user.phoneStudent || '');
   const [profilePhoneParent, setProfilePhoneParent] = useState(user.phoneParent || '');
   const [profileClassName, setProfileClassName] = useState(user.className || '');
-  const [profileZaloBotLink, setProfileZaloBotLink] = useState(user.zaloBotLink || '');
   const [profileRole, setProfileRole] = useState<Role>(user.role);
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar);
   const [isEditing, setIsEditing] = useState(false);
@@ -83,7 +82,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     setProfilePhoneStudent(user.phoneStudent || '');
     setProfilePhoneParent(user.phoneParent || '');
     setProfileClassName(user.className || '');
-    setProfileZaloBotLink(user.zaloBotLink || '');
     setProfileRole(user.role);
     setSelectedAvatar(user.avatar);
     setIsEditing(false);
@@ -109,7 +107,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
         phoneStudent: profilePhoneStudent,
         phoneParent: profilePhoneParent,
         className: profileClassName,
-        zaloBotLink: profileZaloBotLink,
         role: profileRole,
         avatar: selectedAvatar,
       });
@@ -124,10 +121,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     { id: 'dashboard', label: 'Trang chủ', icon: LayoutDashboard },
     ...(isAdmin ? [{ id: 'admin', label: 'Quản trị hệ thống', icon: ShieldCheck }] : []),
     ...(isTeacher ? [{ id: 'students', label: 'Học sinh', icon: Users }] : []),
+    { id: 'flashcards', label: 'Flashcard', icon: Library },
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
+    { id: 'games', label: 'Chơi và học', icon: Gamepad2 },
     { id: 'schedule', label: 'Lịch học', icon: Calendar },
     { id: 'simulations', label: 'Mô phỏng', icon: Microscope },
-    ...(isTeacher ? [{ id: 'settings', label: 'Cài đặt Zalo', icon: Settings }] : []),
   ];
 
   const handleTabClick = (tabId: string) => {
@@ -553,24 +551,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                   )}
                 </div>
 
-                {user.role === 'teacher' && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 font-semibold">Link Zalo Bot của bạn</label>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={profileZaloBotLink}
-                        onChange={(e) => setProfileZaloBotLink(e.target.value)}
-                        placeholder="VD: https://zalo.me/g/..."
-                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-sm transition-shadow"
-                      />
-                    ) : (
-                      <div className="px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-100 text-sm font-medium text-slate-800 break-all">
-                        {profileZaloBotLink || 'Chưa cập nhật link Zalo Bot'}
-                      </div>
-                    )}
-                  </div>
-                )}
+
 
                 {/* SĐT Học sinh / Giáo viên */}
                 <div>
@@ -770,7 +751,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                       setProfilePhoneStudent(user.phoneStudent || '');
                       setProfilePhoneParent(user.phoneParent || '');
                       setProfileClassName(user.className || '');
-                      setProfileZaloBotLink(user.zaloBotLink || '');
                       setSelectedAvatar(user.avatar);
                     }}
                     className="px-4 py-2 bg-white border border-slate-200 text-slate-600 font-bold text-xs rounded-xl hover:bg-slate-50 transition-colors"

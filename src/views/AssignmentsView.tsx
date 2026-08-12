@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -19,6 +19,7 @@ interface AssignmentsProps {
   initialSelectedAssignmentId?: string | null;
   onClearInitialSelectedAssignmentId?: () => void;
   simulations?: HTMLSimulation[];
+  viewMode?: 'assignments' | 'games' | 'flashcards';
 }
 
 export const SAMPLE_TEMPLATES = {
@@ -338,19 +339,30 @@ export function AssignmentsView({
   onGrade,
   initialSelectedAssignmentId,
   onClearInitialSelectedAssignmentId,
-  simulations
+  simulations,
+  viewMode = 'assignments'
 }: AssignmentsProps) {
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
   const isAdmin = user.role === 'admin';
 
   // Filter assignments: Teacher only sees & manages assignments they created, Admin sees all
   const assignments = React.useMemo(() => {
-    if (isAdmin) return rawAssignments;
-    if (user.role === 'teacher') {
-      return rawAssignments.filter(a => !a.teacherId || a.teacherId === user.id);
+    let filtered = rawAssignments;
+    if (viewMode === 'games') {
+      filtered = rawAssignments.filter(a => a.type === 'game');
+    } else if (viewMode === 'flashcards') {
+      filtered = rawAssignments.filter(a => a.type === 'flashcard');
+    } else {
+      // viewMode === 'assignments', show file_upload, online_test, simulation
+      filtered = rawAssignments.filter(a => a.type !== 'game' && a.type !== 'flashcard');
     }
-    return rawAssignments;
-  }, [rawAssignments, user, isAdmin]);
+
+    if (isAdmin) return filtered;
+    if (user.role === 'teacher') {
+      return filtered.filter(a => !a.teacherId || a.teacherId === user.id);
+    }
+    return filtered;
+  }, [rawAssignments, user, isAdmin, viewMode]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
@@ -372,13 +384,10 @@ export function AssignmentsView({
     return () => unsub();
   }, []);
 
-  // Zalo Reminder Modal / Message Banner State
-  const [zaloReminderModal, setZaloReminderModal] = useState(false);
-  const [zaloMessage, setZaloMessage] = useState('');
-  const [copiedZalo, setCopiedZalo] = useState(false);
+
 
   // Teacher Create Assignment Form State
-  const [newType, setNewType] = useState<'file_upload' | 'online_test' | 'simulation'>('file_upload');
+  const [newType, setNewType] = useState<'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard'>('file_upload');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
@@ -386,6 +395,8 @@ export function AssignmentsView({
   const [newPdfUrl, setNewPdfUrl] = useState('');
   const [newSimUrl, setNewSimUrl] = useState('');
   const [selectedSimId, setSelectedSimId] = useState<string>('');
+  const [newGameType, setNewGameType] = useState('quiz_nghieng_dau');
+  const [newIsMandatory, setNewIsMandatory] = useState(false);
 
   // Online test raw code input (Azota style)
   const [rawQuestionCode, setRawQuestionCode] = useState<string>(SAMPLE_TEMPLATES.mau2);
@@ -655,7 +666,7 @@ export function AssignmentsView({
     if (e) e.preventDefault();
     
     let finalQuestions = questions;
-    if (newType === 'online_test') {
+    if (newType === 'online_test' || newType === 'game' || newType === 'flashcard') {
       const { parsedQuestions } = parseRawCodeToQuestions(rawQuestionCode);
       if (parsedQuestions.length > 0) {
         finalQuestions = parsedQuestions.map((pq, idx) => ({
@@ -674,14 +685,16 @@ export function AssignmentsView({
     }
 
     onAddAssignment({
-      title: newTitle || 'Bài tập buổi học mới',
+      title: newTitle || (newType === 'game' ? 'Game Học Tập' : newType === 'flashcard' ? 'Bộ Flashcard' : 'Bài tập buổi học mới'),
       description: newDescription || 'Các em hoàn thành bài tập đầy đủ đúng hạn trước khi vào giờ học tiếp theo.',
       dueDate: newDueDate || new Date(Date.now() + 86400000 * 2).toISOString(),
       classSessionTitle: newSessionTitle,
       type: newType,
       pdfUrl: newPdfUrl || undefined,
       simulationUrl: newSimUrl || undefined,
-      questions: newType === 'online_test' ? finalQuestions : undefined,
+      gameType: newType === 'game' ? newGameType : undefined,
+      isMandatory: newIsMandatory,
+      questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
     });
     setShowCreateModal(false);
     setCreateStep(1);
@@ -689,6 +702,8 @@ export function AssignmentsView({
     setNewTitle('');
     setNewDescription('');
     setNewDueDate('');
+    setNewIsMandatory(false);
+    setNewGameType('quiz_nghieng_dau');
   };
 
   const handleStudentSubmit = (e: React.FormEvent) => {
@@ -721,19 +736,7 @@ export function AssignmentsView({
     setUploadedFileUrl(null);
   };
 
-  const handleOpenZaloReminder = (assignment: Assignment) => {
-    const unsubmittedStudents = ['Phạm Quang Sáng', 'Lê Thị Bình'];
-    const msg = `[NHẮC NHỞ TỪ GIÁO VIÊN - LỚP 10A1]\nKính gửi Phụ huynh và các em Học sinh (${unsubmittedStudents.join(', ')}),\nCô Nguyễn Thị Hoa nhắc nhở các em chưa hoàn thành bài tập: "${assignment.title}".\nHạn nộp trước giờ học: ${format(new Date(assignment.dueDate), 'HH:mm dd/MM/yyyy', { locale: vi })}.\nCác em vui lòng vào app làm bài ngay để tránh bị trừ điểm chuyên cần nhé!`;
-    setZaloMessage(msg);
-    setZaloReminderModal(true);
-    setCopiedZalo(false);
-  };
 
-  const handleCopyZalo = () => {
-    navigator.clipboard.writeText(zaloMessage);
-    setCopiedZalo(true);
-    setTimeout(() => setCopiedZalo(false), 2500);
-  };
 
   const handleDownloadFile = (sub: Submission) => {
     if (!sub.fileUrl) return;
@@ -781,13 +784,15 @@ export function AssignmentsView({
     }
   };
 
-  if (selectedAssignment && selectedAssignment.type === 'online_test' && isExamStarted) {
+  if (selectedAssignment && (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && isExamStarted) {
     return (
       <div className="fixed inset-0 bg-[#F4F6F9] z-[9999] overflow-hidden flex flex-col h-screen w-screen">
         {/* Header Exam */}
         <div className="bg-emerald-800 text-white px-6 py-4 flex items-center justify-between shadow-md shrink-0">
           <div className="flex items-center gap-3">
-            <span className="text-white font-black text-xl tracking-tight">Hệ Thống Đề Thi Trắc Nghiệm</span>
+            <span className="text-white font-black text-xl tracking-tight">
+              {selectedAssignment.type === 'game' ? 'Trò Chơi Học Tập' : selectedAssignment.type === 'flashcard' ? 'Thẻ Ghi Nhớ' : 'Hệ Thống Đề Thi Trắc Nghiệm'}
+            </span>
             <div className="h-4 w-[1px] bg-emerald-600/60 hidden sm:block"></div>
             <span className="text-xs font-semibold bg-emerald-700/60 px-2.5 py-1 rounded-lg border border-emerald-600/30 text-emerald-100 hidden sm:inline-block">
               🟢 Đang giám sát thí sinh
@@ -1040,18 +1045,20 @@ export function AssignmentsView({
           <button 
             onClick={() => {
               // Reset type and fields on open
-              setNewType('file_upload');
+              setNewType(viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
               setNewTitle('');
               setNewDescription('');
               setNewPdfUrl('');
               setNewSimUrl('');
               setSelectedSimId('');
+              setNewGameType('quiz_nghieng_dau');
+              setNewIsMandatory(false);
               setShowCreateModal(true);
             }}
             className="flex items-center px-5 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl hover:bg-indigo-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5 mr-2" />
-            Giao bài tập mới
+            {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard mới' : 'Giao bài tập mới'}
           </button>
         )}
       </div>
@@ -1062,7 +1069,9 @@ export function AssignmentsView({
         {/* Left Column: Assignments List */}
         <div className="lg:col-span-1 space-y-4">
           <div className="flex items-center justify-between px-1">
-            <h3 className="font-bold text-slate-900 text-base">Danh sách Bài Tập</h3>
+            <h3 className="font-bold text-slate-900 text-base">
+              {viewMode === 'games' ? 'Danh sách Game' : viewMode === 'flashcards' ? 'Danh sách Flashcard' : 'Danh sách Bài Tập'}
+            </h3>
             <span className="text-xs font-semibold text-slate-500">{assignments.length} bài</span>
           </div>
 
@@ -1113,10 +1122,16 @@ export function AssignmentsView({
                     {assignment.title}
                   </h4>
 
+                  {assignment.isMandatory && (
+                    <span className="inline-block bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-2 mr-2">
+                      Bắt buộc
+                    </span>
+                  )}
+
                   {assignment.classSessionTitle && (
-                    <p className="text-xs text-indigo-600 font-semibold mb-2">
+                    <span className="inline-block text-[10px] text-indigo-600 font-semibold mb-2 bg-indigo-50 px-2 py-0.5 rounded">
                       Buổi học: {assignment.classSessionTitle}
-                    </p>
+                    </span>
                   )}
 
                   <p className={`text-xs flex items-center font-medium ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
@@ -1156,17 +1171,28 @@ export function AssignmentsView({
               {/* Header Details */}
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                  <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100">
-                    {selectedAssignment.classSessionTitle || 'Bài tập buổi học'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full border border-indigo-100">
+                      {selectedAssignment.classSessionTitle || 'Bài tập buổi học'}
+                    </span>
+                    {selectedAssignment.isMandatory && (
+                      <span className="bg-rose-100 text-rose-700 text-xs font-bold px-3 py-1 rounded-full border border-rose-200 uppercase tracking-wider">
+                        Bắt buộc
+                      </span>
+                    )}
+                  </div>
                   
                   {isTeacher && (
                     <button 
-                      onClick={() => handleOpenZaloReminder(selectedAssignment)}
-                      className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors"
+                      onClick={() => {
+                        const summary = `📝 [BÀI TẬP]: ${selectedAssignment.title}\nHạn nộp: ${format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\nCác em học sinh đăng nhập hệ thống để hoàn thành bài tập nhé!`;
+                        navigator.clipboard.writeText(summary);
+                        alert('Đã sao chép tóm tắt bài tập vào bộ nhớ tạm!');
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors"
                     >
-                      <Share2 className="w-4 h-4 text-emerald-600" />
-                      Gửi Zalo nhắc học sinh làm bài
+                      <Copy className="w-4 h-4 text-indigo-600" />
+                      Sao chép tóm tắt bài tập
                     </button>
                   )}
                 </div>
@@ -1401,11 +1427,13 @@ export function AssignmentsView({
                     }
 
                     // --- AZOTA TYPE: LANDING SCREEN ---
-                    if (selectedAssignment.type === 'online_test' && !isExamStarted) {
+                    if ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && !isExamStarted) {
                       return (
                         <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 text-center max-w-xl mx-auto">
                           <div className="flex items-center justify-center gap-2">
-                            <span className="text-emerald-600 font-extrabold text-2xl tracking-tight">Hệ Thống Đề Thi</span>
+                            <span className="text-emerald-600 font-extrabold text-2xl tracking-tight">
+                              {selectedAssignment.type === 'game' ? 'Trò Chơi Học Tập' : selectedAssignment.type === 'flashcard' ? 'Thẻ Ghi Nhớ' : 'Hệ Thống Đề Thi'}
+                            </span>
                           </div>
 
                           <div className="space-y-2">
@@ -1453,7 +1481,7 @@ export function AssignmentsView({
                     }
 
                     // --- AZOTA TYPE: ACTIVE EXAM SCREEN ---
-                    if (selectedAssignment.type === 'online_test' && isExamStarted) {
+                    if ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && isExamStarted) {
                       return null;
                     }
 
@@ -1660,28 +1688,90 @@ export function AssignmentsView({
                 <div className="flex-1 overflow-hidden flex flex-col p-5">
                   <div className="mb-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 flex items-center justify-between">
                     <div>
-                      <h4 className="text-sm font-extrabold text-slate-800">1. Chọn hình thức và cấu hình đề bài</h4>
-                      <p className="text-xs text-slate-500 font-medium">Bấm để chọn 1 trong 3 hình thức bài tập dưới đây.</p>
+                      <h4 className="text-sm font-extrabold text-slate-800">
+                        {viewMode === 'games' ? '1. Chọn Game Học Tập' : viewMode === 'flashcards' ? '1. Cấu hình Flashcard' : '1. Chọn hình thức và cấu hình đề bài'}
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium">
+                        {viewMode === 'games' ? 'Chọn 1 trong các game dưới đây.' : viewMode === 'flashcards' ? 'Nhập bộ câu hỏi cho Flashcard.' : 'Bấm để chọn 1 trong 3 hình thức bài tập dưới đây.'}
+                      </p>
                     </div>
-                    <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                      {(['file_upload', 'online_test', 'simulation'] as const).map(t => (
-                        <button 
-                          key={t}
-                          type="button"
-                          onClick={() => setNewType(t)}
-                          className={`py-2 px-6 rounded-lg text-xs font-bold transition-all ${
-                            newType === t 
-                              ? 'bg-white text-blue-700 shadow border border-slate-200' 
-                              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
-                          }`}
-                        >
-                          {t === 'file_upload' ? 'Offline' : t === 'online_test' ? 'Online' : 'Mô phỏng'}
-                        </button>
-                      ))}
-                    </div>
+                    {viewMode === 'assignments' && (
+                      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                        {(['file_upload', 'online_test', 'simulation'] as const).map(t => (
+                          <button 
+                            key={t}
+                            type="button"
+                            onClick={() => setNewType(t)}
+                            className={`py-2 px-6 rounded-lg text-xs font-bold transition-all ${
+                              newType === t 
+                                ? 'bg-white text-blue-700 shadow border border-slate-200' 
+                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
+                            }`}
+                          >
+                            {t === 'file_upload' ? 'Offline' : t === 'online_test' ? 'Online' : 'Mô phỏng'}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1 overflow-hidden flex">
+                    {/* Game Selection */}
+                    {newType === 'game' && (
+                      <div className="w-full h-full bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-y-auto custom-scrollbar">
+                        <h4 className="text-lg font-extrabold text-slate-800 mb-4 border-b border-slate-100 pb-3">
+                          🎮 Chọn Game Hệ Thống
+                        </h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {[
+                            { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu' },
+                            { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay' },
+                            { id: 'do_min', name: 'Dò Mìn' },
+                            { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức' },
+                            { id: 'game_map', name: 'Game Map' },
+                            { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay' },
+                            { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý' },
+                            { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật' },
+                            { id: 'san_kho_bau', name: 'Săn Kho Báu' },
+                            { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép' }
+                          ].map(game => (
+                            <div 
+                              key={game.id}
+                              onClick={() => setNewGameType(game.id)}
+                              className={`cursor-pointer p-4 rounded-2xl border-2 transition-all ${
+                                newGameType === game.id ? 'border-indigo-600 bg-indigo-50 shadow-md' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                              }`}
+                            >
+                              <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-3 font-bold">
+                                <Gamepad2 className="w-5 h-5" />
+                              </div>
+                              <h5 className="font-bold text-slate-900 text-sm leading-tight">{game.name}</h5>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Flashcard Configuration */}
+                    {(newType === 'flashcard' || newType === 'game') && (
+                      <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full ml-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
+                          <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                            <span>📝</span> Nhập câu hỏi (Định dạng mẫu)
+                          </h4>
+                        </div>
+                        <div className="flex-1 min-h-0 flex flex-col relative">
+                          <textarea
+                            value={rawQuestionCode}
+                            onChange={(e) => setRawQuestionCode(e.target.value)}
+                            placeholder="Nhập nội dung câu hỏi..."
+                            className="flex-1 w-full p-5 bg-slate-900 text-slate-100 font-mono text-sm leading-relaxed rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:outline-none resize-none shadow-inner custom-scrollbar"
+                            spellCheck={false}
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {/* 1. OFFLINE WORKSPACE (File Upload Type) */}
                     {newType === 'file_upload' && (
                       <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-center">
@@ -1963,6 +2053,19 @@ export function AssignmentsView({
                           className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 resize-none transition-shadow leading-relaxed"
                           placeholder="VD: Các em làm bài đầy đủ trước khi lên lớp học..."
                         />
+                      </div>
+
+                      <div className="flex items-center gap-3 mt-4">
+                        <input
+                          type="checkbox"
+                          id="isMandatory"
+                          checked={newIsMandatory}
+                          onChange={e => setNewIsMandatory(e.target.checked)}
+                          className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-600 cursor-pointer"
+                        />
+                        <label htmlFor="isMandatory" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                          Bài tập bắt buộc hoàn thành
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -2399,12 +2502,14 @@ export function AssignmentsView({
                       return;
                     }
                     const names = unsubmitted.map(s => s.name).join(', ');
-                    alert(`🤖 Zalo Bot đã tự động gửi hàng loạt thông báo thành công đến ${unsubmitted.length} học sinh chưa nộp (${names})!\n\nNội dung:\nNhắc hoàn thành bài tập "${unsubmittedModalAssignment.title}" trước hạn.`);
+                    const text = `🔔 [NHẮC NHỞ HOÀN THÀNH BÀI TẬP]:\nChào các em học sinh chưa nộp bài: ${names}.\nCác em nhớ nộp bài tập "${unsubmittedModalAssignment.title}" trước hạn nhé!`;
+                    navigator.clipboard.writeText(text);
+                    alert(`Đã sao chép nội dung nhắc nhở học sinh chưa nộp vào bộ nhớ tạm!\n\n${text}`);
                   }}
                   className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>Nhắc tất cả qua Zalo Bot</span>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Sao chép nhắc nhở tất cả</span>
                 </button>
                 <button 
                   onClick={() => setUnsubmittedModalAssignment(null)}
@@ -2452,16 +2557,16 @@ export function AssignmentsView({
                       <button
                         type="button"
                         onClick={() => {
-                          const text = `🤖 [ZALO BOT GỬI TỰ ĐỘNG]: Em chào em ${student.name} và phụ huynh, cô/thầy nhắc em hoàn thành bài tập "${unsubmittedModalAssignment.title}" trên hệ thống nhé!`;
+                          const text = `🔔 [NHẮC NHỞ BÀI TẬP]: Thầy/cô nhắc em ${student.name} hoàn thành bài tập "${unsubmittedModalAssignment.title}" trên hệ thống học tập nhé!`;
                           navigator.clipboard.writeText(text);
                           setCopiedStudentId(student.id);
-                          alert(`🤖 Zalo Bot đã tự động gửi tin nhắn đến học sinh ${student.name} và Phụ huynh thành công!\n\nNội dung:\n"${text}"`);
+                          alert(`Đã sao chép tin nhắn nhắc nhở riêng của ${student.name} vào bộ nhớ tạm!\n\nNội dung:\n"${text}"`);
                           setTimeout(() => setCopiedStudentId(null), 2000);
                         }}
                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>Nhắc nhở qua Zalo Bot</span>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Sao chép nhắc nhở</span>
                       </button>
                     </div>
                   </div>

@@ -13,9 +13,6 @@ export interface User {
   phoneParent?: string;
   className?: string;
   connectionCode?: string;
-  zaloChatId?: string;
-  zaloBotLink?: string;
-  zaloBotToken?: string;
 }
 
 export interface QuizQuestion {
@@ -38,10 +35,12 @@ export interface Assignment {
   dueDate: string;
   classSessionId?: string; // Tương ứng buổi học nào
   classSessionTitle?: string;
-  type: 'online_test' | 'file_upload' | 'simulation';
+  type: 'online_test' | 'file_upload' | 'simulation' | 'game' | 'flashcard';
   pdfUrl?: string;
   questions?: QuizQuestion[];
   simulationUrl?: string;
+  gameType?: string; // ID game nếu type là 'game'
+  isMandatory?: boolean; // Nút bắt buộc
   createdAt: string;
   teacherId?: string;
   teacherName?: string;

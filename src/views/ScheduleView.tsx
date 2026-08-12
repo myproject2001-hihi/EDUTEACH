@@ -53,9 +53,9 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
   const [link, setLink] = useState('');
   const [note, setNote] = useState('');
 
-  // Zalo Notification Modal State
-  const [zaloNotifyModal, setZaloNotifyModal] = useState(false);
-  const [zaloMsg, setZaloMsg] = useState('');
+  // Notification Modal State
+  const [notifyModal, setNotifyModal] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Calendar Note state for Student / Teacher
@@ -124,10 +124,10 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
     setShowModal(false);
   };
 
-  const handleOpenZaloNotice = (session: ClassSession) => {
+  const handleOpenNotice = (session: ClassSession) => {
     const msg = `[THÔNG BÁO LỊCH HỌC TRỰC TUYẾN - LỚP 10A1]\nXin chào các em học sinh và Quý Phụ huynh,\nChuẩn bị diễn ra buổi học: "${session.title}".\nThời gian: ${format(new Date(session.startTime), 'HH:mm dd/MM/yyyy', { locale: vi })}\nLink phòng học Google Meet / Zoom: ${session.link}\nLưu ý: ${session.note || 'Vào phòng học đúng giờ trước 5 phút!'}`;
-    setZaloMsg(msg);
-    setZaloNotifyModal(true);
+    setNotifyMsg(msg);
+    setNotifyModal(true);
     setCopied(false);
   };
 
@@ -153,7 +153,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Lịch học & Phòng học trực tuyến</h2>
           <p className="text-slate-500 text-sm mt-0.5">
             {isTeacher 
-              ? 'Tạo, chỉnh sửa lịch học, thêm link phòng học Meet/Zoom/Zalo và gửi thông báo nhắc học sinh' 
+              ? 'Tạo, chỉnh sửa lịch học, thêm link phòng học Meet/Zoom và sao chép thông tin nhắc học sinh' 
               : 'Theo dõi lịch học, ghi chú nhắc nhở ngày giờ và truy cập link phòng học'}
           </p>
         </div>
@@ -238,11 +238,11 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
 
                     {isTeacher && (
                       <button 
-                        onClick={() => handleOpenZaloNotice(session)}
+                        onClick={() => handleOpenNotice(session)}
                         className="w-full py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 border border-emerald-200 transition-colors"
                       >
                         <Bell className="w-3.5 h-3.5 text-emerald-600" />
-                        Gửi Zalo nhắc thông báo vào học
+                        Sao chép thông báo lịch học
                       </button>
                     )}
                   </div>
@@ -415,7 +415,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
                   rows={2}
                   value={currentNote}
                   onChange={e => setCurrentNote(e.target.value)}
-                  placeholder="VD: Nhắc học sinh mở Zalo chuẩn bị vào học lúc 19h..."
+                  placeholder="VD: Nhắc học sinh mở máy chuẩn bị vào học lúc 19h..."
                   className="w-full p-2.5 bg-white border border-slate-300 text-xs rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 resize-none font-medium"
                 />
                 <button 
@@ -488,7 +488,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Link Phòng học trực tuyến (Meet / Zoom / Zalo):</label>
+                <label className="block font-bold text-slate-700 mb-1">Link Phòng học trực tuyến (Meet / Zoom):</label>
                 <input 
                   required type="url"
                   value={link} onChange={e => setLink(e.target.value)}
@@ -520,16 +520,16 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
         </div>
       )}
 
-      {/* ZALO NOTIFICATION MODAL */}
-      {zaloNotifyModal && (
+      {/* NOTIFICATION MODAL */}
+      {notifyModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                 <Bell className="w-5 h-5 text-emerald-600" />
-                Thông báo Zalo Lịch học trực tuyến
+                Thông báo Lịch học trực tuyến
               </h3>
-              <button onClick={() => setZaloNotifyModal(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-full">
+              <button onClick={() => setNotifyModal(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-full">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -537,21 +537,21 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
             <textarea 
               rows={7} 
               readOnly
-              value={zaloMsg}
+              value={notifyMsg}
               className="w-full p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl text-xs font-mono text-emerald-950 outline-none"
             />
 
             <div className="flex justify-end gap-3 pt-2">
               <button 
                 onClick={() => {
-                  navigator.clipboard.writeText(zaloMsg);
+                  navigator.clipboard.writeText(notifyMsg);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
                 className="px-4 py-2 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 shadow-sm flex items-center gap-1.5"
               >
                 <Copy className="w-4 h-4" />
-                {copied ? 'Đã sao chép!' : 'Sao chép tin nhắn Zalo'}
+                {copied ? 'Đã sao chép!' : 'Sao chép tin nhắn thông báo'}
               </button>
             </div>
           </div>
