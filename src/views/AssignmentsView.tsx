@@ -669,6 +669,37 @@ export function AssignmentsView({
   const [gradeValue, setGradeValue] = useState<number>(0);
   const [feedbackValue, setFeedbackValue] = useState<string>('');
 
+  const handleImportFlashcards = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim().length > 0);
+      const newCards = lines.map((line, index) => {
+        // Handle common delimiters: tab, or dash, or comma
+        let separator = ',';
+        if (line.includes('\t')) separator = '\t';
+        else if (line.includes(' - ')) separator = ' - ';
+        else if (line.includes('-')) separator = '-';
+
+        const parts = line.split(separator);
+        const front = parts[0]?.trim() || `Thẻ ${index + 1}`;
+        const back = parts.slice(1).join(separator)?.trim() || '';
+        return {
+          id: `fc_${Date.now()}_${index}`,
+          front,
+          back
+        };
+      });
+      if (newCards.length > 0) {
+        setNewFlashcards(newCards);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset input
+  };
+
   const handleCreateAssignment = (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
     
@@ -1061,6 +1092,7 @@ export function AssignmentsView({
               setSelectedSimId('');
               setNewGameType('quiz_nghieng_dau');
               setNewIsMandatory(false);
+              setNewType(viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
               setShowCreateModal(true);
             }}
             className="flex items-center px-5 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl hover:bg-indigo-700 transition-colors shadow-sm"
@@ -1918,14 +1950,20 @@ export function AssignmentsView({
                     {/* Flashcard Configuration */}
                     {newType === 'flashcard' && (
                       <div className="w-full flex flex-col h-full gap-4">
-                        <div className="flex-1 bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
+                        <div className="flex-[2] min-h-[300px] bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0 flex-wrap gap-2">
                             <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
                               <span>🗂️</span> Tạo danh sách thẻ (Flashcards)
                             </h4>
-                            <button onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} className="px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 hover:bg-blue-200 flex items-center gap-2">
-                              <Plus className="w-4 h-4" /> Thêm thẻ mới
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <label className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-2 transition-colors">
+                                <Upload className="w-4 h-4" /> Nhập từ file
+                                <input type="file" accept=".txt,.csv" hidden onChange={handleImportFlashcards} />
+                              </label>
+                              <button onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} className="px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 hover:bg-blue-200 flex items-center gap-2 transition-colors">
+                                <Plus className="w-4 h-4" /> Thêm thẻ
+                              </button>
+                            </div>
                           </div>
                           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                             {newFlashcards.map((card, index) => (
@@ -1948,7 +1986,7 @@ export function AssignmentsView({
                           </div>
                         </div>
 
-                        <div className="h-64 bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col shrink-0">
+                        <div className="flex-1 min-h-[200px] bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col shrink-0">
                           <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 mb-3">
                             <span>📝</span> Câu hỏi kiểm tra sau khi học (Định dạng mẫu)
                           </h4>

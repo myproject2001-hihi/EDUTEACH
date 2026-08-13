@@ -275,6 +275,7 @@ export default function App() {
       case 'assignments':
         return (
           <AssignmentsView 
+            key="assignments"
             user={currentUser}
             assignments={assignments}
             submissions={submissions}
@@ -290,6 +291,7 @@ export default function App() {
       case 'games':
         return (
           <AssignmentsView 
+            key="games"
             user={currentUser}
             assignments={assignments}
             submissions={submissions}
@@ -305,6 +307,7 @@ export default function App() {
       case 'flashcards':
         return (
           <AssignmentsView 
+            key="flashcards"
             user={currentUser}
             assignments={assignments}
             submissions={submissions}
