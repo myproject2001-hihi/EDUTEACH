@@ -35,12 +35,13 @@ export interface Assignment {
   dueDate: string;
   classSessionId?: string; // Tương ứng buổi học nào
   classSessionTitle?: string;
-  type: 'online_test' | 'file_upload' | 'simulation' | 'game' | 'flashcard';
+  type: 'online_test' | 'file_upload' | 'simulation' | 'game' | 'flashcard' | 'lesson_check';
   pdfUrl?: string;
   questions?: QuizQuestion[];
   simulationUrl?: string;
   gameType?: string; // ID game nếu type là 'game'
   isMandatory?: boolean; // Nút bắt buộc
+  flashcards?: { id: string; front: string; back: string }[];
   createdAt: string;
   teacherId?: string;
   teacherName?: string;

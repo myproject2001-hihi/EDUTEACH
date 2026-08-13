@@ -333,14 +333,14 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
         </header>
         
         <div className="flex-1 overflow-auto p-3 sm:p-6 md:p-8 custom-scrollbar">
-          <div className="w-full h-full max-w-7xl mx-auto">
+          <div className="w-full h-full max-w-7xl 2xl:max-w-[1600px] mx-auto">
             {children}
           </div>
         </div>
       </main>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-1.5 flex items-center justify-around shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+      {/* Mobile & Tablet Touch Bottom Navigation Bar */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-1.5 flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1 sm:gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -348,17 +348,26 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             <button
               key={item.id}
               onClick={() => handleTabClick(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all min-w-[56px] ${
-                isActive ? 'text-indigo-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all shrink-0 min-w-[62px] ${
+                isActive ? 'text-indigo-600 font-bold bg-indigo-50/60' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
-              <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-indigo-50' : ''}`}>
+              <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-indigo-100/80' : ''}`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <span className="text-[10px] mt-0.5 truncate max-w-[64px]">{item.label}</span>
+              <span className="text-[10px] mt-0.5 truncate max-w-[68px]">{item.label}</span>
             </button>
           );
         })}
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className="flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all shrink-0 min-w-[62px] text-slate-500 hover:text-slate-800"
+        >
+          <div className="p-1 rounded-xl">
+            <Menu className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] mt-0.5 truncate max-w-[68px]">Menu</span>
+        </button>
       </nav>
 
       {/* Profile Modal */}

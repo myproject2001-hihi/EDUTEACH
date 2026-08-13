@@ -3,8 +3,10 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2 } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { CameraCapture } from '../components/CameraCapture';
+import { GamePreview } from '../components/GamePreview';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
@@ -387,7 +389,7 @@ export function AssignmentsView({
 
 
   // Teacher Create Assignment Form State
-  const [newType, setNewType] = useState<'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard'>('file_upload');
+  const [newType, setNewType] = useState<'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard' | 'lesson_check'>('file_upload');
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
@@ -396,6 +398,8 @@ export function AssignmentsView({
   const [newSimUrl, setNewSimUrl] = useState('');
   const [selectedSimId, setSelectedSimId] = useState<string>('');
   const [newGameType, setNewGameType] = useState('quiz_nghieng_dau');
+  const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
+  const [showGamePreview, setShowGamePreview] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
 
   // Online test raw code input (Azota style)
@@ -421,6 +425,9 @@ export function AssignmentsView({
 
   // Student Online Test Answer State
   const [studentQuizAnswers, setStudentQuizAnswers] = useState<Record<string, number>>({});
+  const [showCamera, setShowCamera] = useState(false);
+  const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set());
+  const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [mobileExamTab, setMobileExamTab] = useState<'questions' | 'bubble'>('questions');
   const [submitContent, setSubmitContent] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -694,6 +701,7 @@ export function AssignmentsView({
       simulationUrl: newSimUrl || undefined,
       gameType: newType === 'game' ? newGameType : undefined,
       isMandatory: newIsMandatory,
+      flashcards: newType === 'flashcard' ? newFlashcards : undefined,
       questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
     });
     setShowCreateModal(false);
@@ -706,12 +714,12 @@ export function AssignmentsView({
     setNewGameType('quiz_nghieng_dau');
   };
 
-  const handleStudentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleStudentSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!selectedAssignment) return;
 
     let autoGrade: number | undefined = undefined;
-    if (selectedAssignment.type === 'online_test' && selectedAssignment.questions) {
+    if ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && selectedAssignment.questions) {
       let earnedPoints = 0;
       selectedAssignment.questions.forEach(q => {
         if (studentQuizAnswers[q.id] === q.correctAnswer) {
@@ -725,9 +733,9 @@ export function AssignmentsView({
       assignmentId: selectedAssignment.id,
       studentId: user.id,
       studentName: user.name,
-      content: submitContent || (selectedAssignment.type === 'online_test' ? 'Đã hoàn thành bài làm trắc nghiệm trực tuyến.' : 'Đã nộp bài đầy đủ.'),
+      content: submitContent || ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') ? 'Đã hoàn thành bài làm trực tuyến.' : 'Đã nộp bài đầy đủ.'),
       fileUrl: uploadedFileUrl || uploadedFileName || (selectedAssignment.type === 'file_upload' ? 'bailam_hocsinh.pdf' : undefined),
-      quizAnswers: selectedAssignment.type === 'online_test' ? studentQuizAnswers : undefined,
+      quizAnswers: (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') ? studentQuizAnswers : undefined,
       grade: autoGrade
     });
 
@@ -1427,12 +1435,12 @@ export function AssignmentsView({
                     }
 
                     // --- AZOTA TYPE: LANDING SCREEN ---
-                    if ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && !isExamStarted) {
+                    if ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game') && !isExamStarted) {
                       return (
                         <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 text-center max-w-xl mx-auto">
                           <div className="flex items-center justify-center gap-2">
                             <span className="text-emerald-600 font-extrabold text-2xl tracking-tight">
-                              {selectedAssignment.type === 'game' ? 'Trò Chơi Học Tập' : selectedAssignment.type === 'flashcard' ? 'Thẻ Ghi Nhớ' : 'Hệ Thống Đề Thi'}
+                              {selectedAssignment.type === 'game' ? 'Trò Chơi Học Tập' : 'Hệ Thống Đề Thi'}
                             </span>
                           </div>
 
@@ -1475,6 +1483,126 @@ export function AssignmentsView({
                             className="w-full max-w-md py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-100 transition-all uppercase tracking-wider font-semibold"
                           >
                             Bắt đầu làm bài
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    // --- FLASHCARD TYPE: LANDING SCREEN ---
+                    if (selectedAssignment.type === 'flashcard' && !isExamStarted) {
+                      const allFlipped = selectedAssignment.flashcards && flippedCards.size === selectedAssignment.flashcards.length;
+                      const activeCard = selectedAssignment.flashcards?.[activeCardIndex];
+
+                      return (
+                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 text-center max-w-xl mx-auto flex flex-col">
+                          <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">{selectedAssignment.title}</h3>
+                          <p className="text-xs text-slate-500">
+                            Bạn cần xem (lật) tất cả thẻ ghi nhớ để mở khóa bài kiểm tra.
+                          </p>
+                          
+                          {activeCard && (
+                            <div 
+                              onClick={() => {
+                                setFlippedCards(prev => new Set(prev).add(activeCard.id));
+                              }}
+                              className="w-full h-64 sm:h-80 perspective-1000 cursor-pointer group"
+                            >
+                              <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${flippedCards.has(activeCard.id) ? 'rotate-y-180' : ''}`}>
+                                {/* Front */}
+                                <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 rounded-3xl shadow-lg flex flex-col items-center justify-center p-8 group-hover:border-indigo-300 transition-colors">
+                                  <span className="text-indigo-400 text-sm font-bold uppercase tracking-widest mb-4">Mặt trước</span>
+                                  <p className="text-2xl font-bold text-slate-800">{activeCard.front}</p>
+                                </div>
+                                {/* Back */}
+                                <div className="absolute w-full h-full backface-hidden bg-indigo-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col items-center justify-center p-8 rotate-y-180">
+                                  <span className="text-indigo-500 text-sm font-bold uppercase tracking-widest mb-4">Mặt sau</span>
+                                  <p className="text-xl font-medium text-slate-800">{activeCard.back}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between items-center px-4">
+                            <button 
+                              disabled={activeCardIndex === 0}
+                              onClick={() => setActiveCardIndex(i => i - 1)}
+                              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50"
+                            >
+                              Trước
+                            </button>
+                            <span className="text-sm font-bold text-slate-500">
+                              {activeCardIndex + 1} / {selectedAssignment.flashcards?.length || 0}
+                            </span>
+                            <button 
+                              disabled={activeCardIndex === (selectedAssignment.flashcards?.length || 1) - 1}
+                              onClick={() => setActiveCardIndex(i => i + 1)}
+                              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50"
+                            >
+                              Sau
+                            </button>
+                          </div>
+
+                          <div className="pt-4 border-t border-slate-200">
+                            {allFlipped ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  setIsExamStarted(true);
+                                  setExamTimeRemaining(900);
+                                  setTabSwitchCount(0);
+                                  setStudentQuizAnswers({});
+                                  await enterFullscreen();
+                                }}
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-100 transition-all uppercase tracking-wider"
+                              >
+                                Bắt đầu bài kiểm tra
+                              </button>
+                            ) : (
+                              <button
+                                disabled
+                                className="w-full py-3.5 bg-slate-200 text-slate-400 font-bold text-sm rounded-2xl uppercase tracking-wider cursor-not-allowed"
+                              >
+                                Xem hết thẻ để làm bài
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // --- LESSON CHECK TYPE ---
+                    if (selectedAssignment.type === 'lesson_check') {
+                      return (
+                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 text-center max-w-xl mx-auto">
+                          <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2 shadow-sm border border-blue-200">
+                            <Camera className="w-8 h-8" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">Nộp ảnh chép bài</h3>
+                            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                              Sử dụng camera để chụp lại vở ghi chép của bạn. Hình ảnh sẽ tự động được hệ thống chuyển đổi thành định dạng PDF để nộp.
+                            </p>
+                          </div>
+                          
+                          {showCamera && (
+                            <CameraCapture 
+                              onCancel={() => setShowCamera(false)}
+                              onCapture={(img) => {
+                                setUploadedFileName('lesson_capture.pdf'); // Giả lập PDF
+                                setSubmitContent('Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.');
+                                setShowCamera(false);
+                                // Directly submit (auto submit on capture)
+                                handleStudentSubmit();
+                              }}
+                            />
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setShowCamera(true)}
+                            className="w-full max-w-md mx-auto py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                          >
+                            <Camera className="w-5 h-5" /> Mở Camera & Chụp ảnh
                           </button>
                         </div>
                       );
@@ -1677,10 +1805,20 @@ export function AssignmentsView({
         </div>
       </div>
 
+      {showGamePreview && (
+        <GamePreview 
+          gameType={newGameType} 
+          questions={parseRawCodeToQuestions(rawQuestionCode).parsedQuestions} 
+          onClose={() => setShowGamePreview(false)} 
+        />
+      )}
+
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden h-[90vh] flex flex-col transition-all">
-            
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden h-[90vh] flex flex-col relative transition-all">
+            <button onClick={() => setShowCreateModal(false)} className="absolute top-4 right-4 z-[60] p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-500 rounded-full transition-colors">
+              <X className="w-5 h-5" />
+            </button>
             {/* Main Editor Area */}
             <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50">
               
@@ -1697,7 +1835,7 @@ export function AssignmentsView({
                     </div>
                     {viewMode === 'assignments' && (
                       <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                        {(['file_upload', 'online_test', 'simulation'] as const).map(t => (
+                        {(['file_upload', 'online_test', 'simulation', 'lesson_check'] as const).map(t => (
                           <button 
                             key={t}
                             type="button"
@@ -1708,64 +1846,117 @@ export function AssignmentsView({
                                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
                             }`}
                           >
-                            {t === 'file_upload' ? 'Offline' : t === 'online_test' ? 'Online' : 'Mô phỏng'}
+                            {t === 'file_upload' ? 'Offline' : t === 'online_test' ? 'Online' : t === 'simulation' ? 'Mô phỏng' : 'Chép bài'}
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
 
-                  <div className="flex-1 overflow-hidden flex">
+                  <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row gap-4">
                     {/* Game Selection */}
                     {newType === 'game' && (
-                      <div className="w-full h-full bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-y-auto custom-scrollbar">
-                        <h4 className="text-lg font-extrabold text-slate-800 mb-4 border-b border-slate-100 pb-3">
-                          🎮 Chọn Game Hệ Thống
-                        </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                          {[
-                            { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu' },
-                            { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay' },
-                            { id: 'do_min', name: 'Dò Mìn' },
-                            { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức' },
-                            { id: 'game_map', name: 'Game Map' },
-                            { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay' },
-                            { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý' },
-                            { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật' },
-                            { id: 'san_kho_bau', name: 'Săn Kho Báu' },
-                            { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép' }
-                          ].map(game => (
-                            <div 
-                              key={game.id}
-                              onClick={() => setNewGameType(game.id)}
-                              className={`cursor-pointer p-4 rounded-2xl border-2 transition-all ${
-                                newGameType === game.id ? 'border-indigo-600 bg-indigo-50 shadow-md' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-3 font-bold">
-                                <Gamepad2 className="w-5 h-5" />
+                      <>
+                        <div className="w-full h-full bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-y-auto custom-scrollbar">
+                          <h4 className="text-lg font-extrabold text-slate-800 mb-4 border-b border-slate-100 pb-3">
+                            🎮 Chọn Game Hệ Thống
+                          </h4>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                            {[
+                              { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu' },
+                              { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay' },
+                              { id: 'do_min', name: 'Dò Mìn' },
+                              { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức' },
+                              { id: 'game_map', name: 'Game Map' },
+                              { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay' },
+                              { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý' },
+                              { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật' },
+                              { id: 'san_kho_bau', name: 'Săn Kho Báu' },
+                              { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép' }
+                            ].map(game => (
+                              <div 
+                                key={game.id}
+                                onClick={() => setNewGameType(game.id)}
+                                className={`cursor-pointer p-3.5 sm:p-4 rounded-2xl border-2 transition-all ${
+                                  newGameType === game.id ? 'border-indigo-600 bg-indigo-50 shadow-md' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2.5 font-bold">
+                                  <Gamepad2 className="w-5 h-5" />
+                                </div>
+                                <h5 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight">{game.name}</h5>
                               </div>
-                              <h5 className="font-bold text-slate-900 text-sm leading-tight">{game.name}</h5>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
+
+                        <div className="w-full max-w-2xl mx-auto bg-white p-4 sm:p-6 lg:p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full shrink-0 lg:shrink">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
+                            <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                              <span>📝</span> Nhập câu hỏi Game (Định dạng mẫu)
+                            </h4>
+                            <button onClick={() => setShowGamePreview(true)} className="px-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-xl text-sm border border-emerald-200 hover:bg-emerald-200 flex items-center gap-2">
+                              <Play className="w-4 h-4" /> Xem trước
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-200">Mẫu trắc nghiệm cơ bản</button>
+                          </div>
+                          <div className="flex-1 min-h-0 flex flex-col relative">
+                            <textarea
+                              value={rawQuestionCode}
+                              onChange={(e) => setRawQuestionCode(e.target.value)}
+                              placeholder="Nhập nội dung câu hỏi..."
+                              className="flex-1 w-full p-5 bg-slate-900 text-slate-100 font-mono text-sm leading-relaxed rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:outline-none resize-none shadow-inner custom-scrollbar"
+                              spellCheck={false}
+                            />
+                          </div>
+                        </div>
+                      </>
                     )}
 
                     {/* Flashcard Configuration */}
-                    {(newType === 'flashcard' || newType === 'game') && (
-                      <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full ml-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
-                          <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                            <span>📝</span> Nhập câu hỏi (Định dạng mẫu)
-                          </h4>
+                    {newType === 'flashcard' && (
+                      <div className="w-full flex flex-col h-full gap-4">
+                        <div className="flex-1 bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
+                            <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                              <span>🗂️</span> Tạo danh sách thẻ (Flashcards)
+                            </h4>
+                            <button onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} className="px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 hover:bg-blue-200 flex items-center gap-2">
+                              <Plus className="w-4 h-4" /> Thêm thẻ mới
+                            </button>
+                          </div>
+                          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                            {newFlashcards.map((card, index) => (
+                              <div key={card.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
+                                <button onClick={() => setNewFlashcards(newFlashcards.filter(c => c.id !== card.id))} className="absolute top-2 right-2 p-1.5 bg-white text-rose-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 hover:bg-rose-50">
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
+                                    <textarea value={card.front} onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 resize-none h-20" placeholder="Nhập mặt trước..." />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Mặt sau (Đáp án / Giải nghĩa)</label>
+                                    <textarea value={card.back} onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 resize-none h-20" placeholder="Nhập mặt sau..." />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex-1 min-h-0 flex flex-col relative">
+
+                        <div className="h-64 bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col shrink-0">
+                          <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 mb-3">
+                            <span>📝</span> Câu hỏi kiểm tra sau khi học (Định dạng mẫu)
+                          </h4>
                           <textarea
                             value={rawQuestionCode}
                             onChange={(e) => setRawQuestionCode(e.target.value)}
-                            placeholder="Nhập nội dung câu hỏi..."
-                            className="flex-1 w-full p-5 bg-slate-900 text-slate-100 font-mono text-sm leading-relaxed rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:outline-none resize-none shadow-inner custom-scrollbar"
+                            placeholder="Nhập nội dung câu hỏi trắc nghiệm (như phần bài tập)..."
+                            className="flex-1 w-full p-4 bg-slate-900 text-slate-100 font-mono text-xs leading-relaxed rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:outline-none resize-none shadow-inner custom-scrollbar"
                             spellCheck={false}
                           />
                         </div>
@@ -1842,6 +2033,21 @@ export function AssignmentsView({
                             </div>
                           </div>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Lesson Check Workspace */}
+                    {newType === 'lesson_check' && (
+                      <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-center text-center">
+                        <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Camera className="w-10 h-10" />
+                        </div>
+                        <h4 className="text-xl font-black text-slate-800">
+                          Kiểm tra Chép bài / Bài học
+                        </h4>
+                        <p className="text-slate-500 font-medium">
+                          Học sinh sẽ được yêu cầu chụp ảnh vở ghi chép bằng camera trên thiết bị (điện thoại/máy tính bảng) để nộp lại. Hệ thống sẽ tự động ghép ảnh thành file PDF để giáo viên dễ dàng chấm điểm.
+                        </p>
                       </div>
                     )}
 
