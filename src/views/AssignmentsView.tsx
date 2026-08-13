@@ -3,10 +3,11 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
+import { FlashcardPreviewModal } from '../components/FlashcardPreviewModal';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
@@ -400,6 +401,7 @@ export function AssignmentsView({
   const [newGameType, setNewGameType] = useState('quiz_nghieng_dau');
   const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
   const [showGamePreview, setShowGamePreview] = useState(false);
+  const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
 
   // Online test raw code input (Azota style)
@@ -698,6 +700,23 @@ export function AssignmentsView({
     };
     reader.readAsText(file);
     e.target.value = ''; // Reset input
+  };
+
+  const handleDownloadSampleFlashcards = () => {
+    const sampleContent = `Apple - Quả táo
+Banana - Quả chuối
+Cat - Con mèo
+Dog - Con chó
+Elephant - Con voi
+1 + 1 = ? - Bằng 2
+Thành phố thủ đô của Việt Nam? - Hà Nội`;
+    const blob = new Blob([sampleContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'mau_nhap_flashcard.txt';
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleCreateAssignment = (e?: React.FormEvent | React.MouseEvent) => {
@@ -1537,18 +1556,42 @@ export function AssignmentsView({
                               onClick={() => {
                                 setFlippedCards(prev => new Set(prev).add(activeCard.id));
                               }}
-                              className="w-full h-64 sm:h-80 perspective-1000 cursor-pointer group"
+                              className="w-full h-64 sm:h-80 md:h-96 perspective-1000 cursor-pointer group my-2"
                             >
                               <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${flippedCards.has(activeCard.id) ? 'rotate-y-180' : ''}`}>
                                 {/* Front */}
-                                <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 rounded-3xl shadow-lg flex flex-col items-center justify-center p-8 group-hover:border-indigo-300 transition-colors">
-                                  <span className="text-indigo-400 text-sm font-bold uppercase tracking-widest mb-4">Mặt trước</span>
-                                  <p className="text-2xl font-bold text-slate-800">{activeCard.front}</p>
+                                <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-lg flex flex-col justify-between p-5 sm:p-8 transition-colors overflow-hidden">
+                                  <div className="flex justify-between items-center border-b border-indigo-50 pb-2">
+                                    <span className="text-indigo-500 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                      ✨ Mặt trước
+                                    </span>
+                                    <span className="text-xs font-mono text-slate-400">#{activeCardIndex + 1}</span>
+                                  </div>
+                                  <div className="flex-1 flex items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                    <div className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
+                                      <MarkdownMath content={activeCard.front || '(Trống)'} />
+                                    </div>
+                                  </div>
+                                  <div className="pt-2 border-t border-indigo-50 text-center text-xs font-semibold text-indigo-400 flex items-center justify-center gap-1">
+                                    <RotateCw className="w-3.5 h-3.5" /> Chạm để lật mặt sau
+                                  </div>
                                 </div>
                                 {/* Back */}
-                                <div className="absolute w-full h-full backface-hidden bg-indigo-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col items-center justify-center p-8 rotate-y-180">
-                                  <span className="text-indigo-500 text-sm font-bold uppercase tracking-widest mb-4">Mặt sau</span>
-                                  <p className="text-xl font-medium text-slate-800">{activeCard.back}</p>
+                                <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col justify-between p-5 sm:p-8 rotate-y-180 overflow-hidden">
+                                  <div className="flex justify-between items-center border-b border-indigo-100 pb-2">
+                                    <span className="text-indigo-600 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                      🎯 Mặt sau
+                                    </span>
+                                    <span className="text-xs font-mono text-indigo-400">#{activeCardIndex + 1}</span>
+                                  </div>
+                                  <div className="flex-1 flex items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                    <div className="text-base sm:text-xl font-medium text-slate-800 leading-relaxed">
+                                      <MarkdownMath content={activeCard.back || '(Trống)'} />
+                                    </div>
+                                  </div>
+                                  <div className="pt-2 border-t border-indigo-100 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">
+                                    <RotateCw className="w-3.5 h-3.5" /> Chạm để quay lại mặt trước
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -1619,12 +1662,19 @@ export function AssignmentsView({
                           {showCamera && (
                             <CameraCapture 
                               onCancel={() => setShowCamera(false)}
-                              onCapture={(img) => {
-                                setUploadedFileName('lesson_capture.pdf'); // Giả lập PDF
+                              onCapture={(img, pdfDataUrl) => {
+                                if (pdfDataUrl) {
+                                  // This is the generated PDF string
+                                  setUploadedFileUrl(pdfDataUrl);
+                                  setUploadedFileName('bai_tap_chep_tay.pdf');
+                                } else {
+                                  // Fallback to image
+                                  setUploadedFileUrl(img);
+                                  setUploadedFileName('bai_tap_chep_tay.jpg');
+                                }
                                 setSubmitContent('Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.');
                                 setShowCamera(false);
-                                // Directly submit (auto submit on capture)
-                                handleStudentSubmit();
+                                // Don't automatically submit, let user preview and then click submit
                               }}
                             />
                           )}
@@ -1683,7 +1733,30 @@ export function AssignmentsView({
                             >
                               Chọn file từ thiết bị
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowCamera(true)}
+                              className="mt-3 ml-2 px-4 py-1.5 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg hover:bg-emerald-100 border border-emerald-200 font-semibold inline-flex items-center gap-1"
+                            >
+                              <Camera className="w-4 h-4" /> Chụp hình (PDF)
+                            </button>
                           </div>
+                          {showCamera && (
+                            <CameraCapture 
+                              onCancel={() => setShowCamera(false)}
+                              onCapture={(img, pdfDataUrl) => {
+                                if (pdfDataUrl) {
+                                  setUploadedFileUrl(pdfDataUrl);
+                                  setUploadedFileName('bai_tap_chep_tay.pdf');
+                                } else {
+                                  setUploadedFileUrl(img);
+                                  setUploadedFileName('bai_tap_chep_tay.jpg');
+                                }
+                                setSubmitContent(prev => prev ? prev + '\nEm gửi ảnh chép bài (đã chuyển thành PDF) ạ.' : 'Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.');
+                                setShowCamera(false);
+                              }}
+                            />
+                          )}
                         </div>
 
                         <div>
@@ -1845,34 +1918,42 @@ export function AssignmentsView({
         />
       )}
 
+      {showFlashcardPreview && (
+        <FlashcardPreviewModal
+          flashcards={newFlashcards}
+          title={newTitle ? `Xem trước: ${newTitle}` : 'Xem trước bộ thẻ Flashcard'}
+          onClose={() => setShowFlashcardPreview(false)}
+        />
+      )}
+
       {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden h-[90vh] flex flex-col relative transition-all">
-            <button onClick={() => setShowCreateModal(false)} className="absolute top-4 right-4 z-[60] p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-500 rounded-full transition-colors">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden h-[95vh] sm:h-[90vh] flex flex-col relative transition-all">
+            <button onClick={() => setShowCreateModal(false)} className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[60] p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-500 rounded-full transition-colors">
               <X className="w-5 h-5" />
             </button>
             {/* Main Editor Area */}
             <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50">
               
               {createStep === 1 ? (
-                <div className="flex-1 overflow-hidden flex flex-col p-5">
-                  <div className="mb-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-extrabold text-slate-800">
+                <div className="flex-1 overflow-hidden flex flex-col p-3 sm:p-5">
+                  <div className="mb-3 sm:mb-4 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">
                         {viewMode === 'games' ? '1. Chọn Game Học Tập' : viewMode === 'flashcards' ? '1. Cấu hình Flashcard' : '1. Chọn hình thức và cấu hình đề bài'}
                       </h4>
-                      <p className="text-xs text-slate-500 font-medium">
+                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
                         {viewMode === 'games' ? 'Chọn 1 trong các game dưới đây.' : viewMode === 'flashcards' ? 'Nhập bộ câu hỏi cho Flashcard.' : 'Bấm để chọn 1 trong 3 hình thức bài tập dưới đây.'}
                       </p>
                     </div>
                     {viewMode === 'assignments' && (
-                      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                      <div className="flex flex-wrap sm:flex-nowrap gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 overflow-x-auto custom-scrollbar">
                         {(['file_upload', 'online_test', 'simulation', 'lesson_check'] as const).map(t => (
                           <button 
                             key={t}
                             type="button"
                             onClick={() => setNewType(t)}
-                            className={`py-2 px-6 rounded-lg text-xs font-bold transition-all ${
+                            className={`py-1.5 px-3 sm:px-4 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                               newType === t 
                                 ? 'bg-white text-blue-700 shadow border border-slate-200' 
                                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
@@ -1885,17 +1966,18 @@ export function AssignmentsView({
                     )}
                   </div>
 
-                  <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row gap-4">
+                  <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row gap-4 custom-scrollbar">
                     {/* Game Selection */}
                     {newType === 'game' && (
                       <>
-                        <div className="w-full h-full bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-y-auto custom-scrollbar">
-                          <h4 className="text-lg font-extrabold text-slate-800 mb-4 border-b border-slate-100 pb-3">
+                        <div className="w-full lg:w-1/2 bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-y-auto custom-scrollbar min-h-[200px] max-h-[260px] lg:max-h-none lg:min-h-0 lg:h-full shrink-0 lg:shrink">
+                          <h4 className="text-sm sm:text-base font-extrabold text-slate-800 mb-3 border-b border-slate-100 pb-2">
                             🎮 Chọn Game Hệ Thống
                           </h4>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2.5 sm:gap-3">
                             {[
                               { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu' },
+                              { id: 'pose_matching', name: 'Tư Thế Mô Phỏng' },
                               { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay' },
                               { id: 'do_min', name: 'Dò Mìn' },
                               { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức' },
@@ -1909,39 +1991,55 @@ export function AssignmentsView({
                               <div 
                                 key={game.id}
                                 onClick={() => setNewGameType(game.id)}
-                                className={`cursor-pointer p-3.5 sm:p-4 rounded-2xl border-2 transition-all ${
+                                className={`cursor-pointer p-3 sm:p-3.5 rounded-2xl border-2 transition-all ${
                                   newGameType === game.id ? 'border-indigo-600 bg-indigo-50 shadow-md' : 'border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300'
                                 }`}
                               >
-                                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2.5 font-bold">
-                                  <Gamepad2 className="w-5 h-5" />
+                                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2 font-bold">
+                                  <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5" />
                                 </div>
-                                <h5 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight">{game.name}</h5>
+                                <h5 className="font-bold text-slate-900 text-xs leading-tight">{game.name}</h5>
                               </div>
                             ))}
                           </div>
                         </div>
 
-                        <div className="w-full max-w-2xl mx-auto bg-white p-4 sm:p-6 lg:p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full shrink-0 lg:shrink">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0">
-                            <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
-                              <span>📝</span> Nhập câu hỏi Game (Định dạng mẫu)
-                            </h4>
-                            <button onClick={() => setShowGamePreview(true)} className="px-4 py-2 bg-emerald-100 text-emerald-700 font-bold rounded-xl text-sm border border-emerald-200 hover:bg-emerald-200 flex items-center gap-2">
+                        <div className="w-full lg:w-1/2 bg-white p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[320px] lg:min-h-0 lg:h-full">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 mb-3 gap-2 shrink-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-1.5">
+                                <span>📝</span> Mã nguồn câu hỏi Game
+                              </h4>
+                              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                {rawQuestionCode.split('\n').length} dòng
+                              </span>
+                            </div>
+                            <button onClick={() => setShowGamePreview(true)} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs sm:text-sm border border-emerald-200 hover:bg-emerald-200 flex items-center justify-center gap-2 shrink-0">
                               <Play className="w-4 h-4" /> Xem trước
                             </button>
                           </div>
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg border border-slate-200 hover:bg-slate-200">Mẫu trắc nghiệm cơ bản</button>
-                          </div>
-                          <div className="flex-1 min-h-0 flex flex-col relative">
+
+                          <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[160px]">
+                            <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4">
+                              {Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 10) }, (_, i) => i + 1).map(num => (
+                                <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
+                              ))}
+                            </div>
                             <textarea
                               value={rawQuestionCode}
                               onChange={(e) => setRawQuestionCode(e.target.value)}
                               placeholder="Nhập nội dung câu hỏi..."
-                              className="flex-1 w-full p-5 bg-slate-900 text-slate-100 font-mono text-sm leading-relaxed rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:outline-none resize-none shadow-inner custom-scrollbar"
+                              className="flex-1 w-full p-3 sm:p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
                               spellCheck={false}
                             />
+                          </div>
+
+                          <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
+                            <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
+                            <div className="flex flex-wrap gap-2">
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
+                            </div>
                           </div>
                         </div>
                       </>
@@ -1949,29 +2047,63 @@ export function AssignmentsView({
 
                     {/* Flashcard Configuration */}
                     {newType === 'flashcard' && (
-                      <div className="w-full flex flex-col h-full gap-4">
-                        <div className="flex-[2] min-h-[300px] bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4 shrink-0 flex-wrap gap-2">
-                            <h4 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                      <div className="w-full flex flex-col lg:h-full gap-4 overflow-y-auto lg:overflow-hidden">
+                        <div className="flex-[2] min-h-[280px] bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col lg:overflow-hidden shrink-0 lg:shrink">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 mb-3 shrink-0 gap-2">
+                            <h4 className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-2">
                               <span>🗂️</span> Tạo danh sách thẻ (Flashcards)
                             </h4>
-                            <div className="flex items-center gap-2">
-                              <label className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-sm border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-2 transition-colors">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button 
+                                type="button"
+                                onClick={() => setShowFlashcardPreview(true)}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold rounded-xl text-xs sm:text-sm border border-emerald-200 flex items-center gap-1.5 transition-colors shadow-sm"
+                                title="Xem trước trải nghiệm học lật thẻ của học sinh"
+                              >
+                                <Eye className="w-4 h-4 text-emerald-700" /> Xem trước bộ thẻ
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={handleDownloadSampleFlashcards}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs sm:text-sm border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors"
+                                title="Tải file text mẫu (.txt)"
+                              >
+                                <Download className="w-4 h-4" /> Tải file mẫu
+                              </button>
+                              <label className="px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs sm:text-sm border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors">
                                 <Upload className="w-4 h-4" /> Nhập từ file
                                 <input type="file" accept=".txt,.csv" hidden onChange={handleImportFlashcards} />
                               </label>
-                              <button onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} className="px-4 py-2 bg-blue-100 text-blue-700 font-bold rounded-xl text-sm border border-blue-200 hover:bg-blue-200 flex items-center gap-2 transition-colors">
+                              <button type="button" onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 font-bold rounded-xl text-xs sm:text-sm border border-blue-200 hover:bg-blue-200 flex items-center gap-1.5 transition-colors">
                                 <Plus className="w-4 h-4" /> Thêm thẻ
                               </button>
                             </div>
                           </div>
-                          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+
+                          {/* Guidance Banner */}
+                          <div className="mb-3 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2 shrink-0">
+                            <HelpCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="leading-relaxed">
+                              <span className="font-bold">Cú pháp file .txt hoặc .csv: </span> 
+                               Mỗi dòng 1 thẻ. <strong>Mặt trước</strong> và <strong>Mặt sau</strong> cách nhau bởi 
+                               <code className="mx-1 px-1.5 py-0.5 bg-white border border-amber-300 rounded font-mono text-[11px] font-bold text-amber-800"> - </code> (dấu gạch ngang), 
+                               <code className="mx-1 px-1.5 py-0.5 bg-white border border-amber-300 rounded font-mono text-[11px] font-bold text-amber-800">,</code> (dấu phẩy), hoặc TAB.
+                              <div className="mt-1 text-[11px] text-amber-700 font-mono bg-amber-100/60 px-2 py-1 rounded border border-amber-200/60">
+                                Ví dụ:<br/>
+                                Apple - Quả táo<br/>
+                                Cat,Con mèo<br/>
+                                Thủ đô Việt Nam? - Hà Nội
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 lg:overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                             {newFlashcards.map((card, index) => (
-                              <div key={card.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
-                                <button onClick={() => setNewFlashcards(newFlashcards.filter(c => c.id !== card.id))} className="absolute top-2 right-2 p-1.5 bg-white text-rose-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 hover:bg-rose-50">
+                              <div key={card.id} className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
+                                <button onClick={() => setNewFlashcards(newFlashcards.filter(c => c.id !== card.id))} className="absolute top-2 right-2 p-1.5 bg-white text-rose-500 rounded-lg opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 hover:bg-rose-50">
                                   <X className="w-4 h-4" />
                                 </button>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                                   <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
                                     <textarea value={card.front} onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 resize-none h-20" placeholder="Nhập mặt trước..." />
@@ -1986,45 +2118,66 @@ export function AssignmentsView({
                           </div>
                         </div>
 
-                        <div className="flex-1 min-h-[200px] bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col shrink-0">
-                          <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 mb-3">
-                            <span>📝</span> Câu hỏi kiểm tra sau khi học (Định dạng mẫu)
-                          </h4>
-                          <textarea
-                            value={rawQuestionCode}
-                            onChange={(e) => setRawQuestionCode(e.target.value)}
-                            placeholder="Nhập nội dung câu hỏi trắc nghiệm (như phần bài tập)..."
-                            className="flex-1 w-full p-4 bg-slate-900 text-slate-100 font-mono text-xs leading-relaxed rounded-2xl focus:ring-4 focus:ring-indigo-500/20 focus:outline-none resize-none shadow-inner custom-scrollbar"
-                            spellCheck={false}
-                          />
+                        <div className="flex-1 min-h-[220px] bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col shrink-0">
+                          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                            <span className="text-xs sm:text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                              <span>📝</span> Mã nguồn câu hỏi kiểm tra Flashcard
+                            </span>
+                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                              {rawQuestionCode.split('\n').length} dòng
+                            </span>
+                          </div>
+
+                          <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[140px]">
+                            <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4">
+                              {Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 8) }, (_, i) => i + 1).map(num => (
+                                <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
+                              ))}
+                            </div>
+                            <textarea
+                              value={rawQuestionCode}
+                              onChange={(e) => setRawQuestionCode(e.target.value)}
+                              placeholder="Nhập nội dung câu hỏi trắc nghiệm kiểm tra sau khi học..."
+                              className="flex-1 w-full p-3 sm:p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
+                              spellCheck={false}
+                            />
+                          </div>
+
+                          <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
+                            <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
+                            <div className="flex flex-wrap gap-2">
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
 
                     {/* 1. OFFLINE WORKSPACE (File Upload Type) */}
                     {newType === 'file_upload' && (
-                      <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-center">
-                        <h4 className="text-lg font-extrabold text-slate-800 flex items-center justify-center gap-2 border-b border-slate-100 pb-4">
+                      <div className="w-full max-w-2xl mx-auto bg-white p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm space-y-4 sm:space-y-6 flex flex-col justify-center">
+                        <h4 className="text-base sm:text-lg font-extrabold text-slate-800 flex items-center justify-center gap-2 border-b border-slate-100 pb-3 sm:pb-4">
                           <span>📁</span> Tạo đề Offline (Nộp bài tự luận)
                         </h4>
                         
-                        <div className="space-y-6">
+                        <div className="space-y-4 sm:space-y-6">
                           <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">
+                            <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
                               1. Dán đường link đề bài / Tài liệu (Google Drive, PDF, Ảnh):
                             </label>
-                            <div className="flex gap-3">
+                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                               <input 
                                 type="url"
                                 value={newPdfUrl} 
                                 onChange={e => setNewPdfUrl(e.target.value)}
-                                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+                                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-600 font-mono"
                                 placeholder="https://example.com/de-bai-tap.pdf"
                               />
                               <button 
                                 type="button"
                                 onClick={() => setNewPdfUrl('https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?auto=format&fit=crop&q=80&w=1000')}
-                                className="px-5 py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-sm font-bold shrink-0"
+                                className="px-4 sm:px-5 py-2.5 sm:py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs sm:text-sm font-bold shrink-0"
                               >
                                 Dùng đề mẫu
                               </button>

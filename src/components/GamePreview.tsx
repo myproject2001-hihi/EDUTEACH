@@ -1,5 +1,7 @@
-import React from 'react';
-import { Gamepad2, X, Play, Camera } from 'lucide-react';
+import React, { useState } from 'react';
+import { Gamepad2, X, Play, Camera, UserCheck, Download } from 'lucide-react';
+import { CameraCapture } from './CameraCapture';
+import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 
 interface Props {
   gameType: string;
@@ -7,31 +9,265 @@ interface Props {
   onClose: () => void;
 }
 
+
+function LiveCamera({ onTilt }: { onTilt?: (dir: 'left' | 'right' | 'none') => void }) {
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const [error, setError] = React.useState('');
+  const [isLoaded, setIsLoaded] = React.useState(false);
+  const onTiltRef = React.useRef(onTilt);
+  React.useEffect(() => { onTiltRef.current = onTilt; }, [onTilt]);
+  
+  React.useEffect(() => {
+    let stream: MediaStream | null = null;
+    let faceLandmarker: FaceLandmarker | null = null;
+    let animationFrameId: number;
+    let isActive = true;
+    
+    async function initMediaPipe() {
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+        );
+        faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+            delegate: "GPU"
+          },
+          outputFaceBlendshapes: false,
+          runningMode: "VIDEO",
+          numFaces: 1
+        });
+        if (isActive) setIsLoaded(true);
+      } catch (err) {
+        console.error("MediaPipe load error", err);
+      }
+    }
+    
+    initMediaPipe();
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+      .then(s => {
+        stream = s;
+        if (videoRef.current) {
+          videoRef.current.srcObject = s;
+          videoRef.current.onloadedmetadata = () => {
+             videoRef.current?.play();
+             predictWebcam();
+          }
+        }
+      })
+      .catch(err => setError('Lỗi camera: Vui lòng cấp quyền truy cập camera.'));
+      
+    let lastVideoTime = -1;
+    function predictWebcam() {
+      if (videoRef.current && faceLandmarker && isActive) {
+        let startTimeMs = performance.now();
+        if (lastVideoTime !== videoRef.current.currentTime) {
+          lastVideoTime = videoRef.current.currentTime;
+          const results = faceLandmarker.detectForVideo(videoRef.current, startTimeMs);
+          
+          if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+            const landmarks = results.faceLandmarks[0];
+            const leftEye = landmarks[33]; // Person's left eye
+            const rightEye = landmarks[263]; // Person's right eye
+            
+            const dy = rightEye.y - leftEye.y;
+            // Since camera is mirrored for the user:
+            // Tilted left (their left ear to left shoulder) -> right eye is higher than left eye -> dy is positive
+            if (dy > 0.04) {
+               onTiltRef.current?.('left');
+            } else if (dy < -0.04) {
+               onTiltRef.current?.('right');
+            } else {
+               onTiltRef.current?.('none');
+            }
+          } else {
+             onTiltRef.current?.('none');
+          }
+        }
+      }
+      if (isActive) {
+        animationFrameId = requestAnimationFrame(predictWebcam);
+      }
+    }
+
+    return () => {
+      isActive = false;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      if (faceLandmarker) faceLandmarker.close();
+    };
+  }, []);
+
+  if (error) return <div className="text-rose-500 text-xs font-bold text-center px-4 z-30">{error}</div>;
+  
+  return (
+    <>
+      {!isLoaded && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/80"><div className="text-white text-xs font-bold animate-pulse">Đang tải mô hình AI...</div></div>}
+      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1] absolute inset-0 z-10 opacity-70" />
+    </>
+  );
+}
+
 export function GamePreview({ gameType, questions, onClose }: Props) {
+  
+  const [showGameCamera, setShowGameCamera] = useState(false);
+  const [capturedPoseImg, setCapturedPoseImg] = useState<string | null>(null);
+  const [tiltDir, setTiltDir] = useState<'left' | 'right' | 'none'>('none');
+  
+  // Game logic state
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answerStatus, setAnswerStatus] = useState<'none' | 'correct' | 'wrong'>('none');
+  const [lockedAnswer, setLockedAnswer] = useState<'left' | 'right' | 'none'>('none');
+
+  React.useEffect(() => {
+    if (gameType !== 'quiz_nghieng_dau') return;
+    if (answerStatus !== 'none' || tiltDir === 'none') return;
+    
+    // We detected a tilt! Let's lock it in after a small debounce or immediately.
+    // For immediate feel with a tiny delay to avoid accidental triggers:
+    const timer = setTimeout(() => {
+       const question = questions[currentQuestionIndex];
+       if (!question) return;
+       
+       const selectedIndex = tiltDir === 'left' ? 0 : 1;
+       let isCorrect = false;
+       
+       if (typeof question.correctAnswer === 'number') {
+           isCorrect = question.correctAnswer === selectedIndex;
+       } else if (typeof question.correctAnswer === 'string') {
+           isCorrect = question.correctAnswer === String.fromCharCode(65 + selectedIndex) || question.correctAnswer === String(selectedIndex);
+       } else if (Array.isArray(question.correctAnswer)) {
+           isCorrect = question.correctAnswer.includes(selectedIndex);
+       } else {
+           // Fallback for preview if no answer provided: just say it's correct for demonstration
+           isCorrect = true; 
+       }
+       
+       setAnswerStatus(isCorrect ? 'correct' : 'wrong');
+       setLockedAnswer(tiltDir);
+       
+       // Move to next question after 2 seconds
+       setTimeout(() => {
+          setAnswerStatus('none');
+          setLockedAnswer('none');
+          if (currentQuestionIndex < questions.length - 1) {
+             setCurrentQuestionIndex(prev => prev + 1);
+          } else {
+             setCurrentQuestionIndex(0); // loop
+          }
+       }, 2500);
+       
+    }, 100); // 100ms hold is much easier to trigger
+    
+    return () => clearTimeout(timer);
+  }, [tiltDir, answerStatus, gameType, currentQuestionIndex, questions]);
+
+
   const renderGameContent = () => {
     switch (gameType) {
-      case 'quiz_nghieng_dau':
+      case 'pose_matching':
         return (
           <div className="flex flex-col items-center justify-center h-full space-y-6">
-            <div className="w-64 h-64 bg-slate-800 rounded-3xl overflow-hidden relative border-4 border-indigo-500 shadow-2xl flex items-center justify-center">
+            <div className="w-full max-w-2xl bg-slate-800 rounded-3xl p-6 border border-slate-700 flex flex-col items-center text-center space-y-4">
+              <div className="flex items-center justify-between w-full border-b border-slate-700 pb-3">
+                <span className="text-xs font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-amber-400" /> Nhận diện tư thế mô phỏng
+                </span>
+                <span className="text-[11px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700 font-mono">
+                  Pose matching
+                </span>
+              </div>
+
+              <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden relative flex flex-col items-center justify-center border border-slate-700 shadow-inner">
+                {capturedPoseImg ? (
+                  <div className="relative w-full h-full">
+                    <img src={capturedPoseImg} alt="Pose" className="w-full h-full object-contain" />
+                    <div className="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-extrabold text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
+                      <UserCheck className="w-3.5 h-3.5" /> Đã ghi nhận tư thế
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-slate-500 text-xs flex flex-col items-center gap-2">
+                    <Camera className="w-8 h-8 text-slate-600 animate-pulse" />
+                    <span>Camera tự động khớp tư thế...</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2 w-full">
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setShowGameCamera(true)}
+                    className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl border border-indigo-400/30 flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+                  >
+                    <Camera className="w-4 h-4 text-emerald-300" /> Bật Camera mô phỏng tư thế
+                  </button>
+                  {capturedPoseImg && (
+                    <a
+                      href={capturedPoseImg}
+                      download="tu_the_game.jpg"
+                      className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all"
+                    >
+                      <Download className="w-4 h-4" /> Tải ảnh
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="w-full max-w-2xl text-center mb-4">
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">{questions[0]?.question || 'Câu hỏi mẫu: Bạn hãy làm động tác vươn vai?'}</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
+              {questions[0]?.options?.slice(0,4).map((opt: string, i: number) => (
+                <div key={i} className="flex-1 bg-slate-100 rounded-2xl p-4 text-slate-800 text-center font-bold text-lg border-2 border-slate-300 flex items-center justify-center min-h-[80px]">
+                  Tư thế {['A', 'B', 'C', 'D'][i]}: {opt}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 'quiz_nghieng_dau':
+        const currentQ = questions[currentQuestionIndex] || questions[0];
+        
+        return (
+          <div className="flex flex-col items-center justify-center h-full space-y-6">
+            <div className="flex items-center justify-between w-full max-w-2xl px-4">
+               <div className="text-slate-500 font-bold">Câu {currentQuestionIndex + 1}/{Math.max(questions.length, 1)}</div>
+               {answerStatus !== 'none' && (
+                  <div className={`font-black text-lg animate-bounce ${answerStatus === 'correct' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                     {answerStatus === 'correct' ? '🎉 CHÍNH XÁC!' : '❌ SAI RỒI!'}
+                  </div>
+               )}
+            </div>
+          
+            <div className={`w-64 h-64 bg-slate-800 rounded-3xl overflow-hidden relative border-4 shadow-2xl flex items-center justify-center transition-colors duration-300 ${tiltDir === 'left' ? 'border-blue-500 shadow-blue-500/50' : tiltDir === 'right' ? 'border-rose-500 shadow-rose-500/50' : 'border-indigo-500'}`}>
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10" />
-              <Camera className="w-16 h-16 text-white/50 z-20" />
-              <div className="absolute bottom-4 left-0 right-0 text-center z-20 text-white font-bold text-sm px-4">
-                [Khung Camera nhận diện cử động đầu]
+              <LiveCamera onTilt={answerStatus === 'none' ? setTiltDir : undefined} />
+              <Camera className="w-16 h-16 text-white/30 z-20" />
+              <div className="absolute bottom-4 left-0 right-0 text-center z-20 text-white font-bold text-[10px] px-2">
+                {answerStatus !== 'none' ? 'Đã khóa đáp án' : tiltDir === 'left' ? 'Đang nghiêng TRÁI' : tiltDir === 'right' ? 'Đang nghiêng PHẢI' : 'Camera đang bật (Preview)'}
               </div>
             </div>
             <div className="w-full max-w-2xl text-center mb-4">
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">{questions[0]?.question || 'Câu hỏi mẫu: Đâu là thủ đô của Việt Nam?'}</h3>
-              <p className="text-slate-500 text-sm">Nghiêng đầu sang trái hoặc phải để chọn đáp án</p>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">{currentQ?.question || 'Câu hỏi mẫu: Đâu là thủ đô của Việt Nam?'}</h3>
+              <p className="text-slate-500 text-sm">Nghiêng đầu sang trái hoặc phải (giữ 0.5s) để chọn đáp án</p>
             </div>
             <div className="flex w-full max-w-2xl gap-4">
-              <div className="flex-1 bg-blue-500 rounded-2xl p-6 text-white text-center font-bold text-xl shadow-[0_8px_0_#1e3a8a] transform transition-transform active:translate-y-2 active:shadow-none border-4 border-blue-400 flex flex-col justify-center min-h-[120px]">
+              <div className={`flex-1 rounded-2xl p-6 text-white text-center font-bold text-xl transition-all duration-300 border-4 flex flex-col justify-center min-h-[120px] 
+                ${lockedAnswer === 'left' ? (answerStatus === 'correct' ? 'bg-emerald-500 border-emerald-300' : 'bg-rose-500 border-rose-300') : 
+                  tiltDir === 'left' && answerStatus === 'none' ? 'bg-blue-600 border-blue-300 shadow-[0_4px_0_#1e3a8a] scale-105' : 'bg-blue-500 border-blue-400 shadow-[0_8px_0_#1e3a8a]'}
+              `}>
                 <span className="text-3xl mb-2">⬅️</span>
-                {questions[0]?.options?.[0] || 'Đáp án A'}
+                {currentQ?.options?.[0] || 'Đáp án A'}
               </div>
-              <div className="flex-1 bg-rose-500 rounded-2xl p-6 text-white text-center font-bold text-xl shadow-[0_8px_0_#be123c] transform transition-transform active:translate-y-2 active:shadow-none border-4 border-rose-400 flex flex-col justify-center min-h-[120px]">
+              <div className={`flex-1 rounded-2xl p-6 text-white text-center font-bold text-xl transition-all duration-300 border-4 flex flex-col justify-center min-h-[120px] 
+                ${lockedAnswer === 'right' ? (answerStatus === 'correct' ? 'bg-emerald-500 border-emerald-300' : 'bg-rose-500 border-rose-300') : 
+                  tiltDir === 'right' && answerStatus === 'none' ? 'bg-blue-600 border-blue-300 shadow-[0_4px_0_#1e3a8a] scale-105' : 'bg-blue-500 border-blue-400 shadow-[0_8px_0_#1e3a8a]'}
+              `}>
                 <span className="text-3xl mb-2">➡️</span>
-                {questions[0]?.options?.[1] || 'Đáp án B'}
+                {currentQ?.options?.[1] || 'Đáp án B'}
               </div>
             </div>
           </div>
@@ -68,59 +304,59 @@ export function GamePreview({ gameType, questions, onClose }: Props) {
         );
       case 'cuoc_dua_ngon_tay':
         return (
-          <div className="flex flex-col h-full bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-8 relative overflow-hidden border-4 border-sky-500 shadow-inner">
-            <div className="absolute top-10 left-0 right-0 flex justify-between px-12">
-              <div className="bg-white/80 backdrop-blur px-6 py-3 rounded-full font-black text-2xl text-rose-600 shadow-lg border-2 border-rose-200">Đội Đỏ: 450</div>
-              <div className="bg-white/80 backdrop-blur px-6 py-3 rounded-full font-black text-2xl text-blue-600 shadow-lg border-2 border-blue-200">Đội Xanh: 320</div>
+          <div className="flex flex-col h-full min-h-[450px] bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-4 sm:p-8 relative overflow-hidden border-4 border-sky-500 shadow-inner">
+            <div className="absolute top-4 sm:top-10 left-0 right-0 flex justify-between px-4 sm:px-12">
+              <div className="bg-white/80 backdrop-blur px-3 sm:px-6 py-1.5 sm:py-3 rounded-full font-black text-xs sm:text-2xl text-rose-600 shadow-lg border-2 border-rose-200">Đội Đỏ: 450</div>
+              <div className="bg-white/80 backdrop-blur px-3 sm:px-6 py-1.5 sm:py-3 rounded-full font-black text-xs sm:text-2xl text-blue-600 shadow-lg border-2 border-blue-200">Đội Xanh: 320</div>
             </div>
-            <div className="flex-1 flex flex-col items-center justify-center z-10 mt-20">
-              <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-2xl w-full text-center border-4 border-slate-800">
-                <h3 className="text-3xl font-black text-slate-800 mb-8">{questions[0]?.question || 'Câu hỏi mẫu sẽ hiển thị ở đây?'}</h3>
-                <div className="grid grid-cols-2 gap-4">
+            <div className="flex-1 flex flex-col items-center justify-center z-10 mt-12 sm:mt-20">
+              <div className="bg-white p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full text-center border-2 sm:border-4 border-slate-800">
+                <h3 className="text-lg sm:text-3xl font-black text-slate-800 mb-4 sm:mb-8">{questions[0]?.question || 'Câu hỏi mẫu sẽ hiển thị ở đây?'}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   {questions[0]?.options?.slice(0,4).map((opt: string, i: number) => (
-                    <button key={i} className={`p-6 rounded-2xl text-white font-bold text-xl shadow-[0_6px_0_rgba(0,0,0,0.2)] active:translate-y-2 active:shadow-none transition-all ${
+                    <button key={i} className={`p-3 sm:p-6 rounded-xl sm:rounded-2xl text-white font-bold text-sm sm:text-xl shadow-[0_4px_0_rgba(0,0,0,0.2)] active:translate-y-1 active:shadow-none transition-all ${
                       i===0 ? 'bg-rose-500 border-2 border-rose-700' : i===1 ? 'bg-blue-500 border-2 border-blue-700' : i===2 ? 'bg-amber-500 border-2 border-amber-700' : 'bg-emerald-500 border-2 border-emerald-700'
                     }`}>
                       {opt}
                     </button>
-                  )) || <div className="col-span-2 p-8 bg-slate-100 rounded-xl font-bold text-slate-500">Chưa có đáp án</div>}
+                  )) || <div className="col-span-2 p-4 bg-slate-100 rounded-xl font-bold text-slate-500">Chưa có đáp án</div>}
                 </div>
               </div>
             </div>
             {/* Track decorations */}
-            <div className="absolute bottom-0 left-0 right-0 h-32 bg-slate-800 border-t-8 border-slate-600 flex flex-col justify-center gap-4 px-8">
+            <div className="absolute bottom-0 left-0 right-0 h-24 sm:h-32 bg-slate-800 border-t-8 border-slate-600 flex flex-col justify-center gap-4 px-8">
               <div className="h-4 border-t-4 border-dashed border-white/50 w-full" />
               <div className="h-4 border-t-4 border-dashed border-white/50 w-full" />
             </div>
-            <div className="absolute bottom-20 left-20 w-16 h-16 bg-rose-500 rounded-full border-4 border-white shadow-lg animate-bounce" />
-            <div className="absolute bottom-6 left-40 w-16 h-16 bg-blue-500 rounded-full border-4 border-white shadow-lg animate-bounce" style={{ animationDelay: '0.2s' }} />
+            <div className="absolute bottom-16 sm:bottom-20 left-10 sm:left-20 w-10 h-10 sm:w-16 sm:h-16 bg-rose-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce" />
+            <div className="absolute bottom-4 sm:bottom-6 left-28 sm:left-40 w-10 h-10 sm:w-16 sm:h-16 bg-blue-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce" style={{ animationDelay: '0.2s' }} />
           </div>
         );
       case 'do_min':
         return (
-          <div className="flex flex-col items-center justify-center h-full bg-slate-200 p-8 rounded-3xl border-4 border-slate-400 shadow-[inset_0_4px_20px_rgba(0,0,0,0.1)]">
-            <div className="bg-slate-300 p-6 rounded-xl border-t-4 border-l-4 border-white border-b-4 border-r-4 border-slate-500 shadow-2xl">
-              <div className="bg-slate-800 text-red-500 font-mono text-4xl p-4 rounded mb-6 flex justify-between items-center border-[6px] border-slate-600 shadow-inner">
+          <div className="flex flex-col items-center justify-center h-full min-h-[400px] bg-slate-200 p-3 sm:p-8 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-slate-400 shadow-[inset_0_4px_20px_rgba(0,0,0,0.1)]">
+            <div className="bg-slate-300 p-3 sm:p-6 rounded-xl border-t-2 sm:border-t-4 border-l-2 sm:border-l-4 border-white border-b-2 sm:border-b-4 border-r-2 sm:border-r-4 border-slate-500 shadow-2xl max-w-full">
+              <div className="bg-slate-800 text-red-500 font-mono text-xl sm:text-4xl p-2 sm:p-4 rounded mb-3 sm:mb-6 flex justify-between items-center border-[4px] sm:border-[6px] border-slate-600 shadow-inner">
                 <span>042</span>
                 <span className="text-yellow-400">😊</span>
                 <span>12:05</span>
               </div>
-              <div className="grid grid-cols-5 gap-1 bg-slate-400 p-2 rounded">
+              <div className="grid grid-cols-5 gap-1 bg-slate-400 p-1.5 rounded">
                 {Array.from({length: 20}).map((_, i) => (
-                  <div key={i} className={`w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center font-bold text-xl ${
+                  <div key={i} className={`w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center font-bold text-sm sm:text-xl ${
                     i === 7 ? 'bg-slate-200 border border-slate-400 text-blue-600 shadow-inner' :
                     i === 12 ? 'bg-slate-200 border border-slate-400 text-emerald-600 shadow-inner' :
                     i === 14 ? 'bg-red-500 border border-slate-400 text-white shadow-inner' :
-                    'bg-slate-300 border-t-4 border-l-4 border-white border-b-4 border-r-4 border-slate-500 hover:bg-slate-200 cursor-pointer'
+                    'bg-slate-300 border-t-2 sm:border-t-4 border-l-2 sm:border-l-4 border-white border-b-2 sm:border-b-4 border-r-2 sm:border-r-4 border-slate-500 hover:bg-slate-200 cursor-pointer'
                   }`}>
                     {i === 7 ? '1' : i === 12 ? '2' : i === 14 ? '💣' : ''}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="mt-8 bg-white p-6 rounded-2xl shadow-lg border-2 border-slate-300 max-w-xl text-center">
-              <h3 className="font-bold text-slate-800 mb-2">Trả lời đúng để mở ô an toàn!</h3>
-              <p className="text-slate-500 text-sm">{questions[0]?.question || 'Câu hỏi mẫu sẽ hiển thị khi người chơi click vào một ô...'}</p>
+            <div className="mt-4 sm:mt-8 bg-white p-4 sm:p-6 rounded-2xl shadow-lg border-2 border-slate-300 max-w-xl text-center w-full">
+              <h3 className="font-bold text-slate-800 mb-1 sm:mb-2 text-xs sm:text-base">Trả lời đúng để mở ô an toàn!</h3>
+              <p className="text-slate-500 text-xs sm:text-sm">{questions[0]?.question || 'Câu hỏi mẫu sẽ hiển thị khi người chơi click vào một ô...'}</p>
             </div>
           </div>
         );
@@ -341,27 +577,39 @@ export function GamePreview({ gameType, questions, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8">
-      <div className="bg-slate-100 w-full max-w-6xl h-full max-h-[90vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
-        <div className="h-14 bg-slate-900 flex items-center justify-between px-6 shrink-0 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1.5">
-              <div className="w-3 h-3 rounded-full bg-rose-500" />
-              <div className="w-3 h-3 rounded-full bg-amber-500" />
-              <div className="w-3 h-3 rounded-full bg-emerald-500" />
+    <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-8">
+      <div className="bg-slate-100 w-full max-w-6xl h-full max-h-[95vh] sm:max-h-[90vh] rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
+        <div className="h-12 sm:h-14 bg-slate-900 flex items-center justify-between px-3 sm:px-6 shrink-0 border-b border-slate-800">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="flex gap-1.5 shrink-0">
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-rose-500" />
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-500" />
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500" />
             </div>
-            <span className="text-slate-300 font-bold text-sm ml-4 uppercase tracking-widest flex items-center gap-2">
-              <Play className="w-4 h-4 text-emerald-400" /> Chế độ Xem trước (Preview)
+            <span className="text-slate-300 font-bold text-xs sm:text-sm ml-2 sm:ml-4 uppercase tracking-wider flex items-center gap-1.5 truncate">
+              <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
+              <span className="truncate">Chế độ Xem trước</span>
             </span>
           </div>
-          <button onClick={onClose} className="p-1.5 bg-slate-800 hover:bg-rose-500 text-slate-400 hover:text-white rounded-full transition-colors group">
-            <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+          <button onClick={onClose} className="p-1.5 bg-slate-800 hover:bg-rose-500 text-slate-400 hover:text-white rounded-full transition-colors group shrink-0">
+            <X className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform" />
           </button>
         </div>
-        <div className="flex-1 p-4 sm:p-8 relative">
+        <div className="flex-1 p-2 sm:p-8 relative overflow-y-auto custom-scrollbar">
           {renderGameContent()}
         </div>
       </div>
+
+      {showGameCamera && (
+        <CameraCapture
+          mode="pose"
+          onCancel={() => setShowGameCamera(false)}
+          onCapture={(img) => {
+            setCapturedPoseImg(img);
+            setShowGameCamera(false);
+          }}
+        />
+      )}
     </div>
   );
 }

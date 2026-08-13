@@ -1,6 +1,8 @@
 {
   "name": "EduTeach",
   "description": "Nền tảng học tập trực tuyến kết nối giáo viên và học sinh với tính năng giao bài, chấm điểm và thông báo tự động.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "camera"
+  ],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
