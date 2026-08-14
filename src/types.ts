@@ -13,6 +13,7 @@ export interface User {
   phoneParent?: string;
   className?: string;
   connectionCode?: string;
+  points?: number; // Điểm tích lũy cá nhân
 }
 
 export interface QuizQuestion {
@@ -40,6 +41,7 @@ export interface Assignment {
   questions?: QuizQuestion[];
   simulationUrl?: string;
   gameType?: string; // ID game nếu type là 'game'
+  gameFormats?: string[]; // Dạng câu hỏi của game
   isMandatory?: boolean; // Nút bắt buộc
   flashcards?: { id: string; front: string; back: string }[];
   createdAt: string;

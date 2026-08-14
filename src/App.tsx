@@ -11,7 +11,7 @@ import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, Stude
 import { AnimatePresence, motion } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, updateDoc, increment } from 'firebase/firestore';
 
 import { SettingsView } from './views/SettingsView';
 import { AdminConsoleView } from './views/AdminConsoleView';
@@ -190,6 +190,23 @@ export default function App() {
     };
     try {
       await setDoc(doc(db, 'submissions', id), newSubmission);
+      
+      // Also update student's cumulative personal points!
+      if (submission.studentId) {
+        const studentRef = doc(db, 'users', submission.studentId);
+        const pointsToEarn = submission.grade ? Math.round(submission.grade * 10) : 10;
+        await updateDoc(studentRef, {
+          points: increment(pointsToEarn)
+        });
+        
+        // Update local currentUser state if it matches the current logged in student
+        if (currentUser && currentUser.id === submission.studentId) {
+          setCurrentUser(prev => prev ? {
+            ...prev,
+            points: (prev.points || 0) + pointsToEarn
+          } : null);
+        }
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `submissions/${id}`);
     }
