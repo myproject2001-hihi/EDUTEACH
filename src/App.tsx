@@ -16,6 +16,7 @@ import { collection, doc, onSnapshot, setDoc, updateDoc, increment } from 'fireb
 import { SettingsView } from './views/SettingsView';
 import { AdminConsoleView } from './views/AdminConsoleView';
 import { GuideOnboardingModal } from './components/GuideOnboardingModal';
+import { ClassSessionReminder } from './components/ClassSessionReminder';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -387,18 +388,21 @@ export default function App() {
           className="h-full w-full absolute inset-0 bg-[#f8fafc]"
         >
           {currentUser && (
-            <Layout 
-              user={currentUser} 
-              currentRole={role}
-              onRoleChange={setRole}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onUpdateUser={handleUpdateUser}
-              onLogout={handleLogout}
-              onOpenGuide={() => setShowGuideOnboarding(true)}
-            >
-              {renderContent()}
-            </Layout>
+            <>
+              <Layout 
+                user={currentUser} 
+                currentRole={role}
+                onRoleChange={setRole}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onUpdateUser={handleUpdateUser}
+                onLogout={handleLogout}
+                onOpenGuide={() => setShowGuideOnboarding(true)}
+              >
+                {renderContent()}
+              </Layout>
+              <ClassSessionReminder user={currentUser} classes={classes} />
+            </>
           )}
           
           {showGuideOnboarding && currentUser && (

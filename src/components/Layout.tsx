@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2 } from 'lucide-react';
 import { Role, User } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
@@ -24,6 +25,7 @@ interface LayoutProps {
 
 export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const activeRole = currentRole || user.role;
   const isAdmin = activeRole === 'admin';
   const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
@@ -312,10 +314,112 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
           </div>
           
           <div className="flex items-center gap-3 sm:gap-5 shrink-0">
-            <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-full transition-colors relative">
-              <BellRing className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`p-2 hover:bg-slate-50 rounded-full transition-colors relative ${
+                  showNotifications ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-400 hover:text-slate-600'
+                }`}
+                title="Thông báo"
+              >
+                <BellRing className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-indigo-600 rounded-full border-2 border-white animate-bounce"></span>
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    {/* Backdrop to close dropdown */}
+                    <div 
+                      className="fixed inset-0 z-30" 
+                      onClick={() => setShowNotifications(false)}
+                    />
+                    
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-40 overflow-hidden flex flex-col text-left"
+                    >
+                      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <span>🔔</span> Thông báo hệ thống
+                        </span>
+                        <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                          Mới
+                        </span>
+                      </div>
+
+                      <div className="p-4 space-y-4 max-h-[320px] overflow-y-auto custom-scrollbar">
+                        {/* Simulation Section */}
+                        <div className="p-3 bg-indigo-50/40 border border-indigo-100/50 rounded-xl space-y-2">
+                          <p className="text-[11px] text-indigo-700 font-bold flex items-center gap-1">
+                            <span>💡</span> Thử nghiệm tính năng nhắc lịch:
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                            Nhấp nút dưới đây để tạo giả lập 1 lớp học sắp bắt đầu sau 15 phút. Bạn sẽ nhận được thông báo Toast nhắc nhở tức thì.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if ((window as any).simulateClassReminder) {
+                                (window as any).simulateClassReminder("Chuyên đề Toán học: Hình học Oxyz");
+                              } else {
+                                alert("Tính năng nhắc lịch đang được khởi tạo, vui lòng thử lại sau!");
+                              }
+                              setShowNotifications(false);
+                            }}
+                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-600/10 uppercase tracking-wider active:scale-98"
+                          >
+                            🔔 Giả Lập Nhắc Lịch Học (Trước 15 Phút)
+                          </button>
+                        </div>
+
+                        {/* Recent Notices */}
+                        <div className="space-y-3">
+                          <div className="flex gap-3 items-start p-2 rounded-xl hover:bg-slate-50 transition-colors">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
+                              🎉
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">Cập nhật hệ thống thành công</p>
+                              <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                                Đã chuyển đổi giao diện tạo Bài tập & Game sang quy trình từng bước chuyên nghiệp!
+                              </p>
+                              <span className="text-[9px] text-slate-400 font-bold block mt-1">Vừa xong</span>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 items-start p-2 rounded-xl hover:bg-slate-50 transition-colors">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
+                              🎯
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">Hệ thống Huy hiệu tích lũy</p>
+                              <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
+                                Học sinh tích cực làm bài tập và chơi game để nâng cấp huy hiệu lên Huyền thoại học đường!
+                              </p>
+                              <span className="text-[9px] text-slate-400 font-bold block mt-1">1 giờ trước</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3 border-t border-slate-100 text-center bg-slate-50/30">
+                        <button 
+                          onClick={() => setShowNotifications(false)}
+                          className="text-[11px] text-slate-500 hover:text-indigo-600 font-bold transition-colors"
+                        >
+                          Đóng cửa sổ thông báo
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+
             <div 
               onClick={() => setShowProfileModal(true)}
               title="Xem thông tin cá nhân"

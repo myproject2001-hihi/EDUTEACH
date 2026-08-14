@@ -14,10 +14,11 @@ import {
   isSameMonth
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy, Award, Lock, Sparkles, Trophy, Shield, Coins } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { db } from '../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
+import { motion } from 'motion/react';
 import { UserAvatar } from '../components/UserAvatar';
 
 interface DashboardProps {
@@ -30,10 +31,87 @@ interface DashboardProps {
   onOpenGuide?: () => void;
 }
 
+const BADGES = [
+  {
+    id: 'sprout',
+    name: 'Mầm Học Tập',
+    emoji: '🌱',
+    threshold: 0,
+    color: 'from-emerald-400 to-emerald-600',
+    borderColor: 'border-emerald-200',
+    textColor: 'text-emerald-700',
+    bgLight: 'bg-emerald-50/50',
+    description: 'Chính thức bắt đầu hành trình tích lũy kiến thức.',
+    perk: 'Danh hiệu tân thủ'
+  },
+  {
+    id: 'quiz_warrior',
+    name: 'Chiến Binh Trắc Nghiệm',
+    emoji: '⚔️',
+    threshold: 100,
+    color: 'from-blue-400 to-indigo-600',
+    borderColor: 'border-indigo-200',
+    textColor: 'text-indigo-700',
+    bgLight: 'bg-indigo-50/50',
+    description: 'Hoàn thành bài tập trắc nghiệm và Game đạt điểm cao.',
+    perk: '+5% điểm thưởng tuần học'
+  },
+  {
+    id: 'simulation_expert',
+    name: 'Kỹ Sư Mô Phỏng',
+    emoji: '🧪',
+    threshold: 300,
+    color: 'from-cyan-400 to-blue-600',
+    borderColor: 'border-cyan-200',
+    textColor: 'text-cyan-700',
+    bgLight: 'bg-cyan-50/50',
+    description: 'Thực hành xuất sắc các bài tập mô phỏng tương tác.',
+    perk: 'Mở khóa avatar độc quyền'
+  },
+  {
+    id: 'game_master',
+    name: 'Cao Thủ Trí Tuệ',
+    emoji: '🎮',
+    threshold: 600,
+    color: 'from-fuchsia-400 to-fuchsia-600',
+    borderColor: 'border-fuchsia-200',
+    textColor: 'text-fuchsia-700',
+    bgLight: 'bg-fuchsia-50/50',
+    description: 'Chiến thắng các trò chơi tương tác kiểm tra bài học.',
+    perk: 'Bảng tên phát sáng đặc biệt'
+  },
+  {
+    id: 'score_legend',
+    name: 'Kỷ Lục Gia Tri Thức',
+    emoji: '🏆',
+    threshold: 1000,
+    color: 'from-amber-400 to-amber-600',
+    borderColor: 'border-amber-200',
+    textColor: 'text-amber-700',
+    bgLight: 'bg-amber-50/50',
+    description: 'Đặt chân vào top những học sinh xuất sắc nhất của lớp.',
+    perk: 'Vinh danh trên bảng tin lớp'
+  },
+  {
+    id: 'future_scientist',
+    name: 'Huyền Thoại Học Đường',
+    emoji: '👑',
+    threshold: 1800,
+    color: 'from-rose-400 to-rose-600',
+    borderColor: 'border-rose-200',
+    textColor: 'text-rose-700',
+    bgLight: 'bg-rose-50/50',
+    description: 'Chinh phục mọi thử thách, bài tập nâng cao và chuyên sâu.',
+    perk: 'Danh hiệu tối cao học đường'
+  }
+];
+
 export function DashboardView({ user, assignments: rawAssignments, submissions, classes: rawClasses, onNavigate, onSelectAssignment, onOpenGuide }: DashboardProps) {
   const isAdmin = user.role === 'admin';
   const isTeacher = user.role === 'teacher' || isAdmin;
   const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
+  const [isClaiming, setIsClaiming] = React.useState(false);
+  const [claimSuccess, setClaimSuccess] = React.useState(false);
 
   const assignments = React.useMemo(() => {
     if (isAdmin) return rawAssignments;
@@ -109,11 +187,23 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 blur-[80px] rounded-full pointer-events-none transform translate-x-1/3 -translate-y-1/3"></div>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 mb-3 backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 mb-3 backdrop-blur-md flex-wrap">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="text-xs font-semibold text-white">
-                {isTeacher ? `Giáo viên - ${className}` : className}
+                {isTeacher ? `Giáo viên - ${className}` : `Học sinh • Lớp ${className}`}
               </span>
+              {!isTeacher && (
+                <>
+                  <span className="text-white/40">•</span>
+                  <span className="text-xs font-extrabold text-amber-200 flex items-center gap-1">
+                    {(() => {
+                      const currentPoints = user.points || 0;
+                      const activeBadge = [...BADGES].reverse().find(b => currentPoints >= b.threshold);
+                      return activeBadge ? `${activeBadge.emoji} ${activeBadge.name}` : '🌱 Mầm Học Tập';
+                    })()}
+                  </span>
+                </>
+              )}
             </div>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
               Xin chào, <span className="text-indigo-200">{user.name}</span>!
@@ -339,6 +429,199 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 </ResponsiveContainer>
               </div>
             </div>
+          )}
+
+          {/* STUDENT VIEW: BADGES SYSTEM */}
+          {!isTeacher && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-6"
+            >
+              {/* Header block with stats summary */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                    <Award className="w-5.5 h-5.5 text-indigo-600 animate-pulse" />
+                    Bộ Sưu Tập Huy Hiệu
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">Đạt điểm tích lũy từ các hoạt động học tập để mở khóa huy hiệu danh giá</p>
+                </div>
+                
+                {/* Real-time points counter & daily bonus claim */}
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/60 p-3 rounded-2xl self-start sm:self-center">
+                  <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl">
+                    <Coins className="w-4 h-4 text-amber-500 shrink-0" />
+                    <span className="text-xs font-black text-slate-800">
+                      {(user.points || 0).toLocaleString()} <span className="text-[10px] text-slate-500 font-semibold">Xu</span>
+                    </span>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    disabled={isClaiming || claimSuccess}
+                    onClick={async () => {
+                      if (isClaiming || claimSuccess) return;
+                      setIsClaiming(true);
+                      try {
+                        const studentRef = doc(db, 'users', user.id);
+                        await updateDoc(studentRef, {
+                          points: increment(50)
+                        });
+                        setClaimSuccess(true);
+                        setTimeout(() => setClaimSuccess(false), 2500);
+                      } catch (err) {
+                        console.error("Lỗi khi cộng xu thử nghiệm:", err);
+                      } finally {
+                        setIsClaiming(false);
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 shadow-sm ${
+                      claimSuccess 
+                        ? 'bg-emerald-500 text-white shadow-emerald-200/30'
+                        : isClaiming 
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-indigo-200/30'
+                    }`}
+                  >
+                    {claimSuccess ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        <span>Đã cộng +50 xu!</span>
+                      </>
+                    ) : isClaiming ? (
+                      <span>Đang nhận...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <span>Nhận 50 xu chuyên cần</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Progress to next badge */}
+              {(() => {
+                const currentPoints = user.points || 0;
+                const nextBadge = BADGES.find(b => b.threshold > currentPoints);
+                const prevBadge = [...BADGES].reverse().find(b => currentPoints >= b.threshold);
+                
+                if (nextBadge && prevBadge) {
+                  const pointsRange = nextBadge.threshold - prevBadge.threshold;
+                  const currentInRange = currentPoints - prevBadge.threshold;
+                  const progressPct = Math.min(100, Math.max(0, Math.round((currentInRange / pointsRange) * 100)));
+                  
+                  return (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-slate-500 font-medium flex items-center gap-1">
+                          <Shield className="w-3.5 h-3.5 text-indigo-500" />
+                          Huy hiệu tiếp theo: <strong className="text-slate-800 font-bold">{nextBadge.emoji} {nextBadge.name}</strong>
+                        </span>
+                        <span className="text-indigo-600 font-extrabold">{currentPoints}/{nextBadge.threshold} xu ({progressPct}%)</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                        <motion.div 
+                          className="bg-indigo-600 h-3 rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progressPct}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-medium">Tích lũy thêm {nextBadge.threshold - currentPoints} xu nữa để mở khóa danh hiệu {nextBadge.name}!</p>
+                    </div>
+                  );
+                } else if (!nextBadge) {
+                  return (
+                    <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-100 rounded-2xl p-4 text-center space-y-2">
+                      <p className="text-xs font-extrabold text-amber-800 flex items-center justify-center gap-1.5">
+                        <Trophy className="w-4 h-4 text-amber-500" />
+                        Chúc mừng! Bạn đã mở khóa toàn bộ hệ thống huy hiệu!
+                      </p>
+                      <p className="text-[10px] text-amber-600 font-medium">Huyền Thoại Học Đường tối cao đã được khắc tên trên bảng xếp hạng xuất sắc nhất.</p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Grid of badges with staggering entrance animation */}
+              <motion.div 
+                variants={{
+                  hidden: { opacity: 0 },
+                  show: {
+                    opacity: 1,
+                    transition: {
+                      staggerChildren: 0.08
+                    }
+                  }
+                }}
+                initial="hidden"
+                animate="show"
+                className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"
+              >
+                {BADGES.map((badge) => {
+                  const currentPoints = user.points || 0;
+                  const isUnlocked = currentPoints >= badge.threshold;
+                  
+                  return (
+                    <motion.div
+                      key={badge.id}
+                      variants={{
+                        hidden: { opacity: 0, y: 15 },
+                        show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 100, damping: 15 } }
+                      }}
+                      whileHover={isUnlocked ? { y: -4, transition: { duration: 0.15 } } : {}}
+                      className={`p-4 border rounded-2xl relative overflow-hidden flex flex-col justify-between transition-all ${
+                        isUnlocked 
+                          ? `${badge.bgLight} ${badge.borderColor} border-2 shadow-sm` 
+                          : 'bg-slate-50/40 border-slate-200 grayscale opacity-60'
+                      }`}
+                    >
+                      {/* Decorative backdrop glow for unlocked premium badges */}
+                      {isUnlocked && badge.threshold >= 600 && (
+                        <div className={`absolute -right-6 -bottom-6 w-20 h-20 bg-gradient-to-br ${badge.color} opacity-10 blur-xl rounded-full`} />
+                      )}
+
+                      <div className="space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-3xl filter drop-shadow-sm select-none">{badge.emoji}</span>
+                          {isUnlocked ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              Đã đạt
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-1 text-slate-400">
+                              <Lock className="w-3.5 h-3.5" />
+                              <span className="text-[10px] font-bold">Cần {badge.threshold} xu</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <h4 className={`text-sm font-extrabold ${isUnlocked ? 'text-slate-800' : 'text-slate-500'}`}>
+                            {badge.name}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 mt-0.5 font-medium leading-normal">
+                            {badge.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Perk information */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100/80 flex items-center justify-between text-[10px] font-bold">
+                        <span className="text-slate-400 uppercase tracking-wider">Quyền lợi:</span>
+                        <span className={`${isUnlocked ? badge.textColor : 'text-slate-400'} truncate max-w-[130px]`}>
+                          {badge.perk}
+                        </span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </motion.div>
+            </motion.div>
           )}
 
         </div>

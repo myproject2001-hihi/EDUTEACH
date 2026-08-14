@@ -12,6 +12,8 @@ import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
+import { GameWizard } from '../components/GameWizard';
+import { FlashcardWizard } from '../components/FlashcardWizard';
 
 interface AssignmentsProps {
   user: User;
@@ -400,7 +402,8 @@ export function AssignmentsView({
   const [newSimUrl, setNewSimUrl] = useState('');
   const [selectedSimId, setSelectedSimId] = useState<string>('');
   const [newGameType, setNewGameType] = useState('quiz_nghieng_dau');
-  const [gameSubStep, setGameSubStep] = useState<1 | 2>(1);
+  const [gameSubStep, setGameSubStep] = useState<1 | 2 | 3>(1);
+  const [flashcardSubStep, setFlashcardSubStep] = useState<1 | 2>(1);
   const [selectedGameCategory, setSelectedGameCategory] = useState<string>('all');
   const [gameSearchQuery, setGameSearchQuery] = useState<string>('');
   const [newGameFormats, setNewGameFormats] = useState<string[]>(['multiple_choice', 'true_false']);
@@ -769,6 +772,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     setNewIsMandatory(false);
     setNewGameType('quiz_nghieng_dau');
     setGameSubStep(1);
+    setFlashcardSubStep(1);
     setNewGameFormats(['multiple_choice', 'true_false']);
   };
 
@@ -1119,6 +1123,9 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               setSelectedSimId('');
               setNewGameType('quiz_nghieng_dau');
               setNewIsMandatory(false);
+              setGameSubStep(1);
+              setFlashcardSubStep(1);
+              setCreateStep(1);
               setNewType(viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
               setShowCreateModal(true);
             }}
@@ -2079,487 +2086,37 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row gap-4 custom-scrollbar">
                     {/* Game Selection */}
                     {newType === 'game' && (
-                      <>
-                        <div className="w-full lg:w-1/2 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-y-auto custom-scrollbar min-h-[300px] lg:min-h-0 lg:h-full shrink-0 lg:shrink">
-                          <AnimatePresence mode="wait">
-                            {gameSubStep === 1 ? (
-                              /* Giao diện 1: Danh sách Game Học Tập */
-                              <motion.div 
-                                key="step-1"
-                                initial={{ opacity: 0, y: 15 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -15 }}
-                                transition={{ duration: 0.22, ease: "easeInOut" }}
-                                className="flex flex-col h-full space-y-4"
-                              >
-                                <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                  <div>
-                                    <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 1</span>
-                                    <h4 className="text-lg font-black text-slate-800 mt-1 flex items-center gap-2">
-                                      <span>🎮</span> Chọn Trò Chơi Học Tập
-                                    </h4>
-                                  </div>
-                                  <span className="text-xs text-slate-400 font-extrabold bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-xl">17 Trò chơi độc quyền</span>
-                                </div>
-
-                                {/* Search Bar & Categories */}
-                                <div className="space-y-3">
-                                  <div className="relative">
-                                    <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 text-sm">🔍</span>
-                                    <input 
-                                      type="text"
-                                      placeholder="Tìm kiếm nhanh trò chơi..."
-                                      value={gameSearchQuery}
-                                      onChange={(e) => setGameSearchQuery(e.target.value)}
-                                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold transition-all outline-none"
-                                    />
-                                    {gameSearchQuery && (
-                                      <button 
-                                        onClick={() => setGameSearchQuery('')}
-                                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                                      >
-                                        Xóa
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {/* Modern Category Tabs */}
-                                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin select-none">
-                                    {[
-                                      { id: 'all', name: 'Tất cả', emoji: '✨' },
-                                      { id: 'ai', name: 'AI & Tương Tác', emoji: '🤖' },
-                                      { id: 'speed', name: 'Tốc độ & Phản xạ', emoji: '⚡' },
-                                      { id: 'puzzle', name: 'Giải đố & Logic', emoji: '🧩' },
-                                      { id: 'adventure', name: 'Khám phá & Bản đồ', emoji: '🗺️' }
-                                    ].map(cat => {
-                                      const isCatSelected = selectedGameCategory === cat.id;
-                                      return (
-                                        <button
-                                          key={cat.id}
-                                          onClick={() => setSelectedGameCategory(cat.id)}
-                                          className={`px-3 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all flex items-center gap-1.5 border shrink-0 ${
-                                            isCatSelected 
-                                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/10 scale-102' 
-                                              : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200/80 hover:text-slate-800'
-                                          }`}
-                                        >
-                                          <span>{cat.emoji}</span>
-                                          <span>{cat.name}</span>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                                
-                                <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-                                  Click vào một trò chơi dưới đây để xem chi tiết. Nếu game hỗ trợ nhiều định dạng câu hỏi khác nhau, bạn sẽ được cấu hình thêm ở bước tiếp theo.
-                                </p>
-
-                                <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                                  <AnimatePresence>
-                                    {[
-                                      { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu', category: 'ai', desc: 'Sử dụng camera nghiêng đầu để trả lời A, B, C, D cực nhạy', emoji: '🧠', color: 'border-blue-100 hover:border-blue-500 bg-blue-50/20 hover:bg-blue-50/40' },
-                                      { id: 'pose_matching', name: 'Tư Thế Mô Phỏng', category: 'ai', desc: 'Mô phỏng tư thế hình học trước camera AI nhận diện cơ thể', emoji: '🧍', color: 'border-amber-100 hover:border-amber-500 bg-amber-50/20 hover:bg-amber-50/40' },
-                                      { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay', category: 'speed', desc: 'Đua xe trả lời đúng để bứt tốc vượt lên đối thủ trên đường đua', emoji: '🏎️', color: 'border-rose-100 hover:border-rose-500 bg-rose-50/20 hover:bg-rose-50/40' },
-                                      { id: 'do_min', name: 'Dò Mìn', category: 'puzzle', desc: 'Khám phá ô mìn an toàn thông qua giải các phép tính toán học', emoji: '💣', color: 'border-emerald-100 hover:border-emerald-500 bg-emerald-50/20 hover:bg-emerald-50/40' },
-                                      { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức', category: 'puzzle', desc: 'Đưa đoàn tàu vượt các ga học liệu cập bến ga cuối an toàn', emoji: '🚂', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },
-                                      { id: 'game_map', name: 'Game Map', category: 'adventure', desc: 'Bản đồ truy tìm kho báu toán học cổ xưa đầy thú vị', emoji: '🗺️', color: 'border-yellow-100 hover:border-yellow-500 bg-yellow-50/20 hover:bg-yellow-50/40' },
-                                      { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay', category: 'adventure', desc: 'Chạm từ chuyển động đúng chính tả và logic ngữ văn', emoji: '🛸', color: 'border-violet-100 hover:border-violet-500 bg-violet-50/20 hover:bg-violet-50/40' },
-                                      { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý', category: 'adventure', desc: 'Ghép nối vế trái logic với vế phải tạo câu đúng hoàn chỉnh', emoji: '🔗', color: 'border-teal-100 hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/40' },
-                                      { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật', category: 'puzzle', desc: 'Giải ô chữ giải mã từ khóa cốt lõi của bài học hôm nay', emoji: '🔐', color: 'border-green-100 hover:border-green-500 bg-green-50/20 hover:bg-green-50/40' },
-                                      { id: 'san_kho_bau', name: 'Săn Kho Báu', category: 'adventure', desc: 'Tìm rương vàng cổ vật thông qua thử thách toán thực tế', emoji: '🏴‍☠️', color: 'border-slate-100 hover:border-slate-500 bg-slate-50/30 hover:bg-slate-50/50' },
-                                      { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép', category: 'puzzle', desc: 'Lật câu hỏi khám phá bức tranh chủ đề bí mật đằng sau', emoji: '🧩', color: 'border-indigo-100 hover:border-indigo-500 bg-indigo-50/20 hover:bg-indigo-50/40' },
-                                      { id: 'domino', name: 'Đấu Trường Domino', category: 'puzzle', desc: 'Chuỗi logic ghép nối domino liên tiếp đầy kịch tính', emoji: '🀄', color: 'border-cyan-100 hover:border-cyan-500 bg-cyan-50/20 hover:bg-cyan-50/40' },
-                                      { id: 'dao_chu', name: 'Đảo Chữ Anagram', category: 'puzzle', desc: 'Xáo trộn ký tự để xếp lại thuật ngữ có nghĩa chuẩn xác nhất', emoji: '🔠', color: 'border-teal-100 hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/40' },
-                                      { id: 'mo_hop', name: 'Mở Hộp Bí Mật', category: 'puzzle', desc: 'Hộp quà chứa các thử thách toán học ngẫu nhiên bất ngờ', emoji: '🎁', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },
-                                      { id: 'gan_nhan_so_do', name: 'Gắn Nhãn Sơ Đồ', category: 'adventure', desc: 'Kéo các nhãn vào đúng chấm tròn sơ đồ minh họa hình học', emoji: '📊', color: 'border-purple-100 hover:border-purple-500 bg-purple-50/20 hover:bg-purple-50/40' },
-                                      { id: 'no_bong_bay', name: 'Nổ Bóng Bay', category: 'speed', desc: 'Chạm nổ những quả bóng bay mang đáp án đúng bay lượn', emoji: '🎈', color: 'border-pink-100 hover:border-pink-500 bg-pink-50/20 hover:bg-pink-50/40' },
-                                      { id: 'dap_chuot_chui', name: 'Đập Chuột Chũi', category: 'speed', desc: 'Đập búa vào chú chuột mang mệnh đề toán học chính xác', emoji: '🔨', color: 'border-amber-100 hover:border-amber-600 bg-amber-50/20 hover:bg-amber-50/40' }
-                                    ].filter(game => {
-                                      if (selectedGameCategory !== 'all' && game.category !== selectedGameCategory) {
-                                        return false;
-                                      }
-                                      if (gameSearchQuery && !game.name.toLowerCase().includes(gameSearchQuery.toLowerCase()) && !game.desc.toLowerCase().includes(gameSearchQuery.toLowerCase())) {
-                                        return false;
-                                      }
-                                      return true;
-                                    }).map(game => {
-                                      const isSelected = newGameType === game.id;
-                                      
-                                      const formatMap: Record<string, string[]> = {
-                                        quiz_nghieng_dau: ['multiple_choice', 'true_false'],
-                                        pose_matching: ['multiple_choice', 'true_false'],
-                                        cuoc_dua_ngon_tay: ['multiple_choice', 'true_false'],
-                                        do_min: ['multiple_choice', 'true_false', 'short_answer'],
-                                        doan_tau_tri_thuc: ['multiple_choice', 'true_false'],
-                                        game_map: ['multiple_choice', 'true_false'],
-                                        tu_ngu_biet_bay: ['multiple_choice', 'true_false'],
-                                        keo_tha_noi_y: ['matching'],
-                                        o_chu_khoa: ['short_answer'],
-                                        san_kho_bau: ['multiple_choice', 'true_false'],
-                                        lat_manh_ghep: ['multiple_choice', 'true_false'],
-                                        domino: ['matching'],
-                                        dao_chu: ['word_reorder'],
-                                        mo_hop: ['multiple_choice', 'true_false', 'short_answer'],
-                                        gan_nhan_so_do: ['matching'],
-                                        no_bong_bay: ['multiple_choice', 'true_false'],
-                                        dap_chuot_chui: ['multiple_choice', 'true_false']
-                                      };
-                                      const supportedFormats = formatMap[game.id] || ['multiple_choice'];
-                                      const isSingleFormat = supportedFormats.length === 1;
-
-                                      return (
-                                        <motion.div 
-                                          key={game.id}
-                                          layout
-                                          initial={{ opacity: 0, scale: 0.95 }}
-                                          animate={{ opacity: 1, scale: 1 }}
-                                          exit={{ opacity: 0, scale: 0.95 }}
-                                          whileHover={{ y: -4, transition: { duration: 0.12 } }}
-                                          whileTap={{ scale: 0.98 }}
-                                          onClick={() => {
-                                            setNewGameType(game.id);
-                                            if (isSingleFormat) {
-                                              setNewGameFormats(supportedFormats);
-                                            } else {
-                                              setNewGameFormats([supportedFormats[0]]); 
-                                              setGameSubStep(2); 
-                                            }
-                                          }}
-                                          className={`group cursor-pointer p-3 sm:p-4 rounded-2xl border-2 transition-all duration-300 flex items-start gap-3 ${game.color} ${
-                                            isSelected 
-                                              ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-500/20' 
-                                              : 'border-slate-100 bg-white shadow-sm hover:shadow-md'
-                                          }`}
-                                        >
-                                          <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-2xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform shrink-0">
-                                            {game.emoji}
-                                          </div>
-                                          <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                              <h5 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight">{game.name}</h5>
-                                            </div>
-                                            <p className="text-[10px] text-slate-500 font-medium mt-1 leading-normal line-clamp-2">
-                                              {game.desc}
-                                            </p>
-                                            
-                                            {/* Dynamic Badges for Question Formats */}
-                                            <div className="flex flex-wrap gap-1 mt-2.5">
-                                              {supportedFormats.map(fmtId => {
-                                                const fmtLabel = 
-                                                  fmtId === 'multiple_choice' ? 'Trắc nghiệm' :
-                                                  fmtId === 'true_false' ? 'Đúng/Sai' :
-                                                  fmtId === 'word_reorder' ? 'Sắp xếp' :
-                                                  fmtId === 'short_answer' ? 'Trả lời ngắn' : 'Ghép nối';
-                                                return (
-                                                  <span key={fmtId} className="text-[8px] bg-slate-100 border border-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded-md uppercase">
-                                                    {fmtLabel}
-                                                  </span>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        </motion.div>
-                                      );
-                                    })}
-                                  </AnimatePresence>
-                                </motion.div>
-
-                                {selectedGameCategory !== 'all' && (
-                                  <div className="col-span-1 sm:col-span-2 text-center py-6">
-                                    <p className="text-xs text-slate-400 font-semibold">
-                                      Đang lọc danh mục: <strong className="text-indigo-600">
-                                        {selectedGameCategory === 'ai' ? 'AI & Tương Tác' :
-                                         selectedGameCategory === 'speed' ? 'Tốc độ & Phản xạ' :
-                                         selectedGameCategory === 'puzzle' ? 'Giải đố & Logic' : 'Khám phá & Bản đồ'}
-                                      </strong>
-                                    </p>
-                                  </div>
-                                )}
-                              </motion.div>
-                            ) : (
-                              /* Giao diện 2: Chọn Dạng Câu Hỏi (Chỉ hiện nếu game có > 1 dạng) */
-                              <motion.div 
-                                key="step-2"
-                                initial={{ opacity: 0, y: 15 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -15 }}
-                                transition={{ duration: 0.22, ease: "easeInOut" }}
-                                className="flex flex-col h-full space-y-5"
-                              >
-                                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                                  <div>
-                                    <span className="text-[10px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 2</span>
-                                    <h4 className="text-base font-black text-slate-800 mt-1 flex items-center gap-2">
-                                      <span>⚙️</span> Cấu Hình Dạng Câu Hỏi
-                                    </h4>
-                                  </div>
-                                  <button 
-                                    onClick={() => setGameSubStep(1)}
-                                    className="text-[11px] font-extrabold text-slate-600 hover:text-indigo-600 flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 rounded-xl transition-all border border-slate-200/80 active:scale-95"
-                                  >
-                                    ⬅️ Quay lại chọn Game
-                                  </button>
-                                </div>
-
-                                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-2xl border border-indigo-100/50 flex items-center gap-3">
-                                  <span className="text-3xl animate-bounce">🎯</span>
-                                  <div>
-                                    <p className="text-[9px] text-indigo-600 font-extrabold uppercase tracking-wider">Trò chơi đã chọn:</p>
-                                    <p className="text-sm font-black text-slate-800">
-                                      {newGameType === 'quiz_nghieng_dau' ? 'Quiz Nghiêng Đầu' : 
-                                       newGameType === 'pose_matching' ? 'Tư Thế Mô Phỏng' :
-                                       newGameType === 'cuoc_dua_ngon_tay' ? 'Cuộc Đua Ngón Tay' :
-                                       newGameType === 'do_min' ? 'Dò Mìn' :
-                                       newGameType === 'doan_tau_tri_thuc' ? 'Đoàn Tàu Tri Thức' :
-                                       newGameType === 'game_map' ? 'Game Map' :
-                                       newGameType === 'tu_ngu_biet_bay' ? 'Từ Ngữ Biết Bay' :
-                                       newGameType === 'san_kho_bau' ? 'Săn Kho Báu' :
-                                       newGameType === 'lat_manh_ghep' ? 'Lật Mảnh Ghép' :
-                                       newGameType === 'mo_hop' ? 'Mở Hộp Bí Mật' :
-                                       newGameType === 'no_bong_bay' ? 'Nổ Bóng Bay' :
-                                       newGameType === 'dap_chuot_chui' ? 'Đập Chuột Chũi' : 'Trò Chơi Học Tập'}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-3.5">
-                                  <p className="text-xs text-slate-500 font-black uppercase tracking-wider">
-                                    Chọn các dạng câu hỏi được phép xuất hiện (Có thể chọn 1 hoặc nhiều dạng):
-                                  </p>
-                                  
-                                  <div className="space-y-2.5">
-                                    {[
-                                      { id: 'multiple_choice', name: '1. Dạng Trắc nghiệm nhiều phương án', sub: 'Học sinh chọn 1 đáp án chính xác nhất trong 3-4 phương án', emoji: '🔘', number: 1, color: 'hover:border-indigo-400' },
-                                      { id: 'true_false', name: '2. Dạng Đúng/sai', sub: 'Mệnh đề kiểm tra kiến thức chỉ có hai lựa chọn Đúng hoặc Sai', emoji: '⚖️', number: 2, color: 'hover:border-blue-400' },
-                                      { id: 'word_reorder', name: '3. Dạng Sắp xếp từ/chữ', sub: 'Kéo thả, sắp xếp các từ xáo trộn thành câu hoàn chỉnh, đúng logic', emoji: '🔠', number: 3, color: 'hover:border-amber-400' },
-                                      { id: 'short_answer', name: '4. Dạng Trả lời ngắn', sub: 'Học sinh tự điền từ khóa hoặc số kết quả trực tiếp bằng bàn phím', emoji: '📝', number: 4, color: 'hover:border-teal-400' },
-                                      { id: 'matching', name: '5. Dạng Nối các thành phần', sub: 'Kết nối vế trái với vế phải tạo mối liên hệ đúng đắn', emoji: '🔗', number: 5, color: 'hover:border-rose-400' }
-                                    ].filter(fmt => {
-                                      const supportMap: Record<string, string[]> = {
-                                        quiz_nghieng_dau: ['multiple_choice', 'true_false'],
-                                        pose_matching: ['multiple_choice', 'true_false'],
-                                        cuoc_dua_ngon_tay: ['multiple_choice', 'true_false', 'word_reorder'],
-                                        do_min: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
-                                        doan_tau_tri_thuc: ['multiple_choice', 'true_false', 'word_reorder', 'matching'],
-                                        game_map: ['multiple_choice', 'true_false', 'short_answer'],
-                                        tu_ngu_biet_bay: ['multiple_choice', 'true_false', 'word_reorder'],
-                                        keo_tha_noi_y: ['matching'],
-                                        o_chu_khoa: ['short_answer'],
-                                        san_kho_bau: ['multiple_choice', 'true_false', 'matching'],
-                                        lat_manh_ghep: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
-                                        domino: ['matching'],
-                                        dao_chu: ['word_reorder'],
-                                        mo_hop: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
-                                        gan_nhan_so_do: ['matching'],
-                                        no_bong_bay: ['multiple_choice', 'true_false'],
-                                        dap_chuot_chui: ['multiple_choice', 'true_false']
-                                      };
-                                      return (supportMap[newGameType] || ['multiple_choice']).includes(fmt.id);
-                                    }).map(fmt => {
-                                      const isChecked = newGameFormats.includes(fmt.id);
-                                      return (
-                                        <motion.div 
-                                          key={fmt.id}
-                                          whileHover={{ y: -1 }}
-                                          whileTap={{ scale: 0.99 }}
-                                          onClick={() => {
-                                            if (isChecked) {
-                                              if (newGameFormats.length > 1) {
-                                                setNewGameFormats(newGameFormats.filter(id => id !== fmt.id));
-                                              }
-                                            } else {
-                                              setNewGameFormats([...newGameFormats, fmt.id]);
-                                            }
-                                          }}
-                                          className={`p-3.5 bg-white border-2 rounded-2xl cursor-pointer flex items-center justify-between transition-all hover:shadow-sm duration-200 ${
-                                            isChecked 
-                                              ? 'border-indigo-600 bg-indigo-50/20 shadow-sm' 
-                                              : 'border-slate-100 hover:border-slate-300'
-                                          }`}
-                                        >
-                                          <div className="flex items-start gap-3">
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
-                                              isChecked ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/15' : 'bg-slate-50 border border-slate-100 text-slate-700'
-                                            }`}>
-                                              {fmt.emoji}
-                                            </div>
-                                            <div>
-                                              <span className="text-xs sm:text-sm font-extrabold text-slate-800 block">{fmt.name}</span>
-                                              <span className="text-[10px] text-slate-400 font-medium leading-normal block mt-0.5">{fmt.sub}</span>
-                                            </div>
-                                          </div>
-                                          <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                                            isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200'
-                                          }`}>
-                                            {isChecked && '✓'}
-                                          </div>
-                                        </motion.div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => setGameSubStep(1)}
-                                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-2xl transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2 uppercase tracking-wider"
-                                >
-                                  🎯 Xác nhận dạng câu hỏi và hoàn thành
-                                </button>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        <div className="w-full lg:w-1/2 bg-white p-3 sm:p-5 lg:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[320px] lg:min-h-0 lg:h-full">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 mb-3 gap-2 shrink-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-1.5">
-                                <span>📝</span> Mã nguồn câu hỏi Game
-                              </h4>
-                              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                                {rawQuestionCode.split('\n').length} dòng
-                              </span>
-                            </div>
-                            <button onClick={() => setShowGamePreview(true)} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-100 text-emerald-700 font-bold rounded-xl text-xs sm:text-sm border border-emerald-200 hover:bg-emerald-200 flex items-center justify-center gap-2 shrink-0">
-                              <Play className="w-4 h-4" /> Xem trước
-                            </button>
-                          </div>
-
-                          <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[160px]">
-                            <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4">
-                              {Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 10) }, (_, i) => i + 1).map(num => (
-                                <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
-                              ))}
-                            </div>
-                            <textarea
-                              value={rawQuestionCode}
-                              onChange={(e) => setRawQuestionCode(e.target.value)}
-                              placeholder="Nhập nội dung câu hỏi..."
-                              className="flex-1 w-full p-3 sm:p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
-                              spellCheck={false}
-                            />
-                          </div>
-
-                          <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
-                            <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
-                            <div className="flex flex-wrap gap-2">
-                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
-                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
-                            </div>
-                          </div>
-                        </div>
-                      </>
+                      <GameWizard
+                        gameSubStep={gameSubStep}
+                        setGameSubStep={setGameSubStep}
+                        newGameType={newGameType}
+                        setNewGameType={setNewGameType}
+                        selectedGameCategory={selectedGameCategory}
+                        setSelectedGameCategory={setSelectedGameCategory}
+                        gameSearchQuery={gameSearchQuery}
+                        setGameSearchQuery={setGameSearchQuery}
+                        newGameFormats={newGameFormats}
+                        setNewGameFormats={setNewGameFormats}
+                        rawQuestionCode={rawQuestionCode}
+                        setRawQuestionCode={setRawQuestionCode}
+                        setShowGamePreview={setShowGamePreview}
+                      />
                     )}
 
                     {/* Flashcard Configuration */}
                     {newType === 'flashcard' && (
-                      <div className="w-full flex flex-col lg:h-full gap-4 overflow-y-auto lg:overflow-hidden">
-                        <div className="flex-[2] min-h-[280px] bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col lg:overflow-hidden shrink-0 lg:shrink">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 mb-3 shrink-0 gap-2">
-                            <h4 className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-2">
-                              <span>🗂️</span> Tạo danh sách thẻ (Flashcards)
-                            </h4>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <button 
-                                type="button"
-                                onClick={() => setShowFlashcardPreview(true)}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold rounded-xl text-xs sm:text-sm border border-emerald-200 flex items-center gap-1.5 transition-colors shadow-sm"
-                                title="Xem trước trải nghiệm học lật thẻ của học sinh"
-                              >
-                                <Eye className="w-4 h-4 text-emerald-700" /> Xem trước bộ thẻ
-                              </button>
-                              <button 
-                                type="button"
-                                onClick={handleDownloadSampleFlashcards}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs sm:text-sm border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors"
-                                title="Tải file text mẫu (.txt)"
-                              >
-                                <Download className="w-4 h-4" /> Tải file mẫu
-                              </button>
-                              <label className="px-3 sm:px-4 py-1.5 sm:py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs sm:text-sm border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors">
-                                <Upload className="w-4 h-4" /> Nhập từ file
-                                <input type="file" accept=".txt,.csv" hidden onChange={handleImportFlashcards} />
-                              </label>
-                              <button type="button" onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} className="px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-100 text-blue-700 font-bold rounded-xl text-xs sm:text-sm border border-blue-200 hover:bg-blue-200 flex items-center gap-1.5 transition-colors">
-                                <Plus className="w-4 h-4" /> Thêm thẻ
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Guidance Banner */}
-                          <div className="mb-3 p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2 shrink-0">
-                            <HelpCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                            <div className="leading-relaxed">
-                              <span className="font-bold">Cú pháp file .txt hoặc .csv: </span> 
-                               Mỗi dòng 1 thẻ. <strong>Mặt trước</strong> và <strong>Mặt sau</strong> cách nhau bởi 
-                               <code className="mx-1 px-1.5 py-0.5 bg-white border border-amber-300 rounded font-mono text-[11px] font-bold text-amber-800"> - </code> (dấu gạch ngang), 
-                               <code className="mx-1 px-1.5 py-0.5 bg-white border border-amber-300 rounded font-mono text-[11px] font-bold text-amber-800">,</code> (dấu phẩy), hoặc TAB.
-                              <div className="mt-1 text-[11px] text-amber-700 font-mono bg-amber-100/60 px-2 py-1 rounded border border-amber-200/60">
-                                Ví dụ:<br/>
-                                Apple - Quả táo<br/>
-                                Cat,Con mèo<br/>
-                                Thủ đô Việt Nam? - Hà Nội
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex-1 lg:overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                            {newFlashcards.map((card, index) => (
-                              <div key={card.id} className="p-3 sm:p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group">
-                                <button onClick={() => setNewFlashcards(newFlashcards.filter(c => c.id !== card.id))} className="absolute top-2 right-2 p-1.5 bg-white text-rose-500 rounded-lg opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity border border-slate-200 hover:bg-rose-50">
-                                  <X className="w-4 h-4" />
-                                </button>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                  <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
-                                    <textarea value={card.front} onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 resize-none h-20" placeholder="Nhập mặt trước..." />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Mặt sau (Đáp án / Giải nghĩa)</label>
-                                    <textarea value={card.back} onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 resize-none h-20" placeholder="Nhập mặt sau..." />
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex-1 min-h-[220px] bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col shrink-0">
-                          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                            <span className="text-xs sm:text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                              <span>📝</span> Mã nguồn câu hỏi kiểm tra Flashcard
-                            </span>
-                            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                              {rawQuestionCode.split('\n').length} dòng
-                            </span>
-                          </div>
-
-                          <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[140px]">
-                            <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4">
-                              {Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 8) }, (_, i) => i + 1).map(num => (
-                                <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
-                              ))}
-                            </div>
-                            <textarea
-                              value={rawQuestionCode}
-                              onChange={(e) => setRawQuestionCode(e.target.value)}
-                              placeholder="Nhập nội dung câu hỏi trắc nghiệm kiểm tra sau khi học..."
-                              className="flex-1 w-full p-3 sm:p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
-                              spellCheck={false}
-                            />
-                          </div>
-
-                          <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
-                            <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
-                            <div className="flex flex-wrap gap-2">
-                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
-                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                      <FlashcardWizard
+                        flashcardSubStep={flashcardSubStep}
+                        setFlashcardSubStep={setFlashcardSubStep}
+                        newFlashcards={newFlashcards}
+                        setNewFlashcards={setNewFlashcards}
+                        rawQuestionCode={rawQuestionCode}
+                        setRawQuestionCode={setRawQuestionCode}
+                        setShowFlashcardPreview={setShowFlashcardPreview}
+                        setShowGamePreview={setShowGamePreview}
+                        handleDownloadSampleFlashcards={handleDownloadSampleFlashcards}
+                        handleImportFlashcards={handleImportFlashcards}
+                      />
                     )}
 
                     {/* 1. OFFLINE WORKSPACE (File Upload Type) */}
