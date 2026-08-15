@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun } from 'lucide-react';
-import { Role, User, Assignment, Submission, SystemNotification } from '../types';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video } from 'lucide-react';
+import { Role, User, Assignment, Submission, SystemNotification, ClassSession } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 
 export function getAvatarInitial(name?: string): string {
@@ -24,6 +24,7 @@ interface LayoutProps {
   assignments?: Assignment[];
   submissions?: Submission[];
   systemNotifications?: SystemNotification[];
+  classes?: ClassSession[];
 }
 
 function formatRelativeTime(dateString: string): string {
@@ -41,8 +42,46 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, assignments, submissions, systemNotifications = [] }: LayoutProps) {
+export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<'unread' | 'all'>('unread');
+
+  const handleMarkAsRead = (notifId: string) => {
+    const currentRead = user.readNotifications || [];
+    if (!currentRead.includes(notifId)) {
+      const updatedUser = {
+        ...user,
+        readNotifications: [...currentRead, notifId]
+      };
+      if (onUpdateUser) {
+        onUpdateUser(updatedUser);
+      }
+    }
+  };
+
+  const handleMarkAllAsRead = () => {
+    const allIds = systemNotifications.map(n => n.id);
+    const currentRead = user.readNotifications || [];
+    const merged = Array.from(new Set([...currentRead, ...allIds]));
+    if (onUpdateUser) {
+      onUpdateUser({
+        ...user,
+        readNotifications: merged
+      });
+    }
+  };
+
+  const unreadNotifications = React.useMemo(() => {
+    return systemNotifications.filter(n => !user.readNotifications?.includes(n.id));
+  }, [systemNotifications, user.readNotifications]);
+
+  const displayedNotifications = React.useMemo(() => {
+    if (notifFilter === 'unread') {
+      return unreadNotifications;
+    }
+    return systemNotifications;
+  }, [notifFilter, unreadNotifications, systemNotifications]);
+
   const activeRole = currentRole || user.role;
   const isAdmin = activeRole === 'admin';
   const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
@@ -62,7 +101,153 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     });
   }, [assignments, submissions, isTeacher, user.id]);
 
-  const hasUnread = upcomingAssignments.length > 0;
+  interface PopupAlert {
+    id: string;
+    type: 'class' | 'assignment';
+    title: string;
+    subtitle: string;
+    tag: string;
+    timerText: string;
+    link?: string;
+    subject?: string;
+    originalId: string;
+  }
+
+  const [activeAlert, setActiveAlert] = useState<PopupAlert | null>(null);
+  const [dismissedAlerts, setDismissedAlerts] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('dismissed_alerts') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const handleDismissAlert = (alertId: string) => {
+    const updated = [...dismissedAlerts, alertId];
+    setDismissedAlerts(updated);
+    localStorage.setItem('dismissed_alerts', JSON.stringify(updated));
+    setActiveAlert(null);
+  };
+
+  const upcomingClasses = React.useMemo(() => {
+    if (!classes) return [];
+    const now = Date.now();
+    return classes.filter(session => {
+      try {
+        const start = new Date(session.startTime).getTime();
+        const end = new Date(session.endTime).getTime();
+        
+        // Starts in less than 15 minutes, or is active right now
+        const isUpcoming = start > now && (start - now <= 15 * 60 * 1000);
+        const isActive = now >= start && now <= end;
+        
+        return isUpcoming || isActive;
+      } catch {
+        return false;
+      }
+    });
+  }, [classes]);
+
+  const hasUnread = upcomingAssignments.length > 0 || upcomingClasses.length > 0 || unreadNotifications.length > 0;
+
+  // Periodically check for triggering popup alerts on screen
+  React.useEffect(() => {
+    const checkAlerts = () => {
+      const now = Date.now();
+      
+      // 1. Check classes starting in less than 15 minutes, or active
+      if (classes && classes.length > 0) {
+        for (const session of classes) {
+          try {
+            const start = new Date(session.startTime).getTime();
+            const end = new Date(session.endTime).getTime();
+            const alertId = `class_${session.id}`;
+            
+            const isUpcoming = start > now && (start - now <= 15 * 60 * 1000);
+            const isActive = now >= start && now <= end;
+            
+            if ((isUpcoming || isActive) && !dismissedAlerts.includes(alertId)) {
+              const minutesLeft = Math.ceil((start - now) / 60000);
+              const timerText = isActive ? 'Đang diễn ra' : `Bắt đầu sau ${Math.max(1, minutesLeft)} phút`;
+              
+              setActiveAlert({
+                id: alertId,
+                type: 'class',
+                title: session.title,
+                subtitle: `Môn học: ${session.subject || 'Toán Học'}`,
+                tag: 'LỊCH HỌC',
+                timerText,
+                link: session.link,
+                subject: session.subject,
+                originalId: session.id
+              });
+              return; // Show one at a time
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+
+      // 2. Check assignments due in less than 24 hours that are not yet submitted
+      if (assignments && assignments.length > 0) {
+        for (const assignment of assignments) {
+          try {
+            if (!assignment.dueDate) continue;
+            const due = new Date(assignment.dueDate).getTime();
+            const alertId = `assign_${assignment.id}`;
+            
+            const isDueSoon = due > now && (due - now <= 24 * 60 * 60 * 1000);
+            const hasSubmitted = submissions?.some(s => s.assignmentId === assignment.id && s.studentId === user.id);
+            
+            if (isDueSoon && !hasSubmitted && !dismissedAlerts.includes(alertId)) {
+              const hoursLeft = Math.ceil((due - now) / (60 * 60 * 1000));
+              const timerText = `Hạn nộp: Còn ${hoursLeft} giờ`;
+              
+              setActiveAlert({
+                id: alertId,
+                type: 'assignment',
+                title: assignment.title,
+                subtitle: `Dạng bài: ${assignment.type === 'game' ? 'Game' : assignment.type === 'online_test' ? 'Trắc nghiệm' : 'Tự luận'}`,
+                tag: 'BÀI TẬP SẮP HẠN',
+                timerText,
+                subject: assignment.classSessionTitle || 'Chuyên đề',
+                originalId: assignment.id
+              });
+              return; // Show one at a time
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+    };
+
+    checkAlerts();
+    const interval = setInterval(checkAlerts, 10000);
+    return () => clearInterval(interval);
+  }, [classes, assignments, submissions, dismissedAlerts, user.id]);
+
+  React.useEffect(() => {
+    (window as any).simulateClassReminder = (className: string) => {
+      setActiveAlert({
+        id: 'sim_class_' + Date.now(),
+        type: 'class',
+        title: className || 'Chuyên đề Toán học: Hình học Oxyz',
+        subtitle: 'Môn học: Toán Đại Số',
+        tag: 'CHẠY THỬ',
+        timerText: 'Bắt đầu sau 15 phút',
+        link: 'https://meet.google.com/abc-defg-hij',
+        subject: 'Toán Đại Số',
+        originalId: 'sim_session_123'
+      });
+    };
+    return () => {
+      try {
+        delete (window as any).simulateClassReminder;
+      } catch (e) {}
+    };
+  }, []);
 
   const [academicYear, setAcademicYear] = useState(() => {
     return localStorage.getItem('academic_year') || 'Khóa 2024 - 2025';
@@ -156,7 +341,10 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
   const navItems = [
     { id: 'dashboard', label: 'Trang chủ', icon: LayoutDashboard },
     ...(isAdmin ? [{ id: 'admin', label: 'Quản trị hệ thống', icon: ShieldCheck }] : []),
-    ...(isTeacher ? [{ id: 'students', label: 'Học sinh', icon: Users }] : []),
+    ...(isTeacher ? [
+      { id: 'students', label: 'Học sinh', icon: Users },
+      { id: 'notifications-manager', label: 'Quản lý thông báo', icon: BellRing }
+    ] : []),
     { id: 'flashcards', label: 'Flashcard', icon: Library },
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
     { id: 'games', label: 'Chơi và học', icon: Gamepad2 },
@@ -311,13 +499,42 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                       transition={{ duration: 0.15 }}
                       className="fixed md:absolute top-16 md:top-auto left-4 right-4 md:left-auto md:right-0 mt-2 w-auto md:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[60] overflow-hidden flex flex-col text-left origin-top-right"
                     >
-                      <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <span>🔔</span> Thông báo hệ thống
-                        </span>
-                        <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                          Mới
-                        </span>
+                      <div className="p-4 border-b border-slate-100 bg-slate-50/50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🔔</span> Thông báo hệ thống
+                          </span>
+                          {unreadNotifications.length > 0 && (
+                            <button
+                              onClick={handleMarkAllAsRead}
+                              className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 transition-all"
+                            >
+                              Đọc tất cả ({unreadNotifications.length})
+                            </button>
+                          )}
+                        </div>
+                        <div className="flex bg-slate-100 p-1 rounded-lg gap-1">
+                          <button
+                            onClick={() => setNotifFilter('unread')}
+                            className={`flex-1 text-center py-1 text-xs font-bold rounded-md transition-all ${
+                              notifFilter === 'unread'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            Chưa đọc ({unreadNotifications.length})
+                          </button>
+                          <button
+                            onClick={() => setNotifFilter('all')}
+                            className={`flex-1 text-center py-1 text-xs font-bold rounded-md transition-all ${
+                              notifFilter === 'all'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                          >
+                            Tất cả ({systemNotifications.length})
+                          </button>
+                        </div>
                       </div>
 
                       <div className="p-4 space-y-4 max-h-[320px] overflow-y-auto custom-scrollbar">
@@ -344,6 +561,43 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                             🔔 Giả Lập Nhắc Lịch Học (Trước 15 Phút)
                           </button>
                         </div>
+
+                        {/* Upcoming Classes Notices */}
+                        {upcomingClasses.length > 0 && (
+                          <div className="space-y-3">
+                            <h6 className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-1">Lịch học sắp diễn ra</h6>
+                            {upcomingClasses.map(session => {
+                              const start = new Date(session.startTime).getTime();
+                              const now = Date.now();
+                              const isOngoing = now >= start;
+                              const text = isOngoing ? 'Đang diễn ra' : `Bắt đầu sau ${Math.max(1, Math.ceil((start - now) / 60000))} phút`;
+                              return (
+                                <div key={session.id} className="flex gap-3 items-start p-2 rounded-xl bg-indigo-50 border border-indigo-100/50 hover:bg-indigo-50 transition-colors">
+                                  <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5 animate-pulse">
+                                    📹
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 truncate">{session.title}</p>
+                                    <p className="text-[10px] text-slate-600 font-medium truncate mt-0.5 leading-relaxed">
+                                      Môn học: {session.subject || 'Toán học'}
+                                    </p>
+                                    <div className="flex items-center justify-between mt-1">
+                                      <span className="text-[10px] text-indigo-600 font-extrabold">{text}</span>
+                                      <a
+                                        href={session.link}
+                                        target="_blank"
+                                        referrerPolicy="no-referrer"
+                                        className="text-[9px] bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-2 py-0.5 rounded transition-all"
+                                      >
+                                        Vào học
+                                      </a>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
 
                         {/* Upcoming Assignments Notices */}
                         {upcomingAssignments.length > 0 && (
@@ -372,40 +626,80 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                         {/* Recent Notices */}
                         <div className="space-y-3">
                           <h6 className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-1">Từ Hệ Thống</h6>
-                          {systemNotifications.length === 0 ? (
-                            <div className="text-center py-4 text-xs text-slate-400">
-                              Chưa có thông báo nào từ hệ thống.
+                          {displayedNotifications.length === 0 ? (
+                            <div className="text-center py-6 text-xs text-slate-400">
+                              Chưa có thông báo nào {notifFilter === 'unread' ? 'chưa đọc' : ''}.
                             </div>
                           ) : (
-                            systemNotifications.map((notif) => {
-                              const badgeEmoji = notif.badge?.split(' ')[0] || '📢';
-                              
-                              let bgBadgeColor = "bg-slate-50 border-slate-100 text-slate-600";
-                              if (notif.badgeColor === "emerald" || notif.type === "system_update") {
-                                bgBadgeColor = "bg-emerald-50 border-emerald-100 text-emerald-600";
-                              } else if (notif.badgeColor === "indigo" || notif.type === "badge_info") {
-                                bgBadgeColor = "bg-indigo-50 border-indigo-100 text-indigo-600";
-                              } else if (notif.badgeColor === "amber" || notif.type === "class_reminder") {
-                                bgBadgeColor = "bg-amber-50 border-amber-100 text-amber-600";
-                              }
+                            <AnimatePresence initial={false}>
+                              {displayedNotifications.map((notif) => {
+                                const badgeEmoji = notif.badge?.split(' ')[0] || '📢';
+                                const isUnread = !user.readNotifications?.includes(notif.id);
+                                
+                                let bgBadgeColor = "bg-slate-50 border-slate-100 text-slate-600";
+                                if (notif.badgeColor === "emerald" || notif.type === "system_update") {
+                                  bgBadgeColor = "bg-emerald-50 border-emerald-100 text-emerald-600";
+                                } else if (notif.badgeColor === "indigo" || notif.type === "badge_info") {
+                                  bgBadgeColor = "bg-indigo-50 border-indigo-100 text-indigo-600";
+                                } else if (notif.badgeColor === "amber" || notif.type === "class_reminder") {
+                                  bgBadgeColor = "bg-amber-50 border-amber-100 text-amber-600";
+                                }
 
-                              return (
-                                <div key={notif.id} className="flex gap-3 items-start p-2 rounded-xl hover:bg-slate-50/70 transition-colors">
-                                  <div className={`w-8 h-8 rounded-lg ${bgBadgeColor} border flex items-center justify-center shrink-0 mt-0.5 font-bold text-sm`}>
-                                    {badgeEmoji}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-slate-800 break-words">{notif.title}</p>
-                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed break-words">
-                                      {notif.content}
-                                    </p>
-                                    <span className="text-[9px] text-slate-400 font-bold block mt-1">
-                                      {formatRelativeTime(notif.createdAt)}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })
+                                return (
+                                  <motion.div
+                                    key={notif.id}
+                                    layout
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.2 }}
+                                    className={`flex gap-3 items-start p-2.5 rounded-xl hover:bg-slate-50/70 transition-colors relative group ${
+                                      isUnread ? 'bg-indigo-50/10 border border-indigo-100/20' : ''
+                                    }`}
+                                  >
+                                    <div className={`w-8 h-8 rounded-lg ${bgBadgeColor} border flex items-center justify-center shrink-0 mt-0.5 font-bold text-sm relative`}>
+                                      {badgeEmoji}
+                                      {isUnread && (
+                                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-indigo-600 rounded-full border border-white"></span>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <p className={`text-xs text-slate-800 break-words ${isUnread ? 'font-black' : 'font-bold'}`}>
+                                          {notif.title}
+                                        </p>
+                                        {isUnread && (
+                                          <button
+                                            onClick={() => handleMarkAsRead(notif.id)}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/50 rounded-lg text-[9px] font-extrabold flex items-center gap-0.5 whitespace-nowrap shrink-0"
+                                            title="Đánh dấu đã đọc"
+                                          >
+                                            <Check className="w-3 h-3 stroke-[3]" />
+                                            Đã đọc
+                                          </button>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed break-words">
+                                        {notif.content}
+                                      </p>
+                                      <div className="flex items-center justify-between mt-1.5">
+                                        <span className="text-[9px] text-slate-400 font-bold">
+                                          {formatRelativeTime(notif.createdAt)}
+                                        </span>
+                                        {isUnread && (
+                                          <button
+                                            onClick={() => handleMarkAsRead(notif.id)}
+                                            className="md:hidden text-indigo-600 font-extrabold text-[9px] hover:underline"
+                                          >
+                                            Đã đọc
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })}
+                            </AnimatePresence>
                           )}
                         </div>
                       </div>
@@ -903,6 +1197,90 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
           </div>
         </div>
       )}
+
+      {/* Dynamic Popups Alert (similar to image.png) */}
+      <AnimatePresence>
+        {activeAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-6 right-6 md:right-8 z-[100] max-w-[480px] w-[calc(100vw-32px)] bg-white border border-slate-200/80 rounded-[24px] shadow-[0_20px_50px_rgba(79,70,229,0.15)] p-5 md:p-6 flex flex-col space-y-4"
+          >
+            {/* Header Content */}
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-4">
+                {/* Rounded Bell Container */}
+                <div className="w-12 h-12 rounded-[16px] bg-indigo-50 border border-indigo-100/50 flex items-center justify-center text-indigo-600 shrink-0">
+                  <BellRing className="w-6 h-6 animate-pulse" />
+                </div>
+                
+                {/* Text Content */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-md">
+                      {activeAlert.tag}
+                    </span>
+                    <span className="text-xs text-slate-400 font-bold">
+                      {activeAlert.timerText}
+                    </span>
+                  </div>
+                  <h4 className="text-base font-black text-slate-900 leading-snug break-words">
+                    {activeAlert.title}
+                  </h4>
+                  <p className="text-xs text-slate-500 font-bold">
+                    {activeAlert.subtitle}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Close Button X */}
+              <button
+                type="button"
+                onClick={() => handleDismissAlert(activeAlert.id)}
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 w-full">
+              {activeAlert.type === 'class' ? (
+                <a
+                  href={activeAlert.link}
+                  target="_blank"
+                  referrerPolicy="no-referrer"
+                  onClick={() => handleDismissAlert(activeAlert.id)}
+                  className="flex-1 py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-indigo-200 hover:shadow-lg flex items-center justify-center gap-1.5"
+                >
+                  <Video className="w-4 h-4 shrink-0" />
+                  Vào học ngay
+                </a>
+              ) : (
+                <button
+                  onClick={() => {
+                    handleDismissAlert(activeAlert.id);
+                    onTabChange('assignments');
+                  }}
+                  className="flex-1 py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-indigo-200 hover:shadow-lg flex items-center justify-center gap-1.5"
+                >
+                  <BookOpen className="w-4 h-4 shrink-0" />
+                  Làm bài ngay
+                </button>
+              )}
+              
+              <button
+                type="button"
+                onClick={() => handleDismissAlert(activeAlert.id)}
+                className="py-3 px-5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-black text-xs sm:text-sm rounded-xl transition-all"
+              >
+                Bỏ qua
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

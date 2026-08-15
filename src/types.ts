@@ -14,6 +14,7 @@ export interface User {
   className?: string;
   connectionCode?: string;
   points?: number; // Điểm tích lũy cá nhân
+  readNotifications?: string[]; // IDs of notifications marked as read
 }
 
 export interface QuizQuestion {

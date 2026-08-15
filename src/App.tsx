@@ -18,6 +18,7 @@ import { AdminConsoleView } from './views/AdminConsoleView';
 import { GuideOnboardingModal } from './components/GuideOnboardingModal';
 import { ClassSessionReminder } from './components/ClassSessionReminder';
 import { AssignmentReminder } from './components/AssignmentReminder';
+import { NotificationsManagerView } from './views/NotificationsManagerView';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -224,6 +225,19 @@ export default function App() {
     };
     try {
       await setDoc(doc(db, 'assignments', id), assignment);
+
+      // Automatically publish system notification for new assignment
+      const notifId = `auto_assign_pub_${Date.now()}`;
+      const newNotif: SystemNotification = {
+        id: notifId,
+        title: 'Bài tập mới được giao',
+        content: `Giáo viên vừa giao bài tập mới: "${assignment.title}". Hạn nộp: ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleString('vi-VN') : 'Không giới hạn'}.`,
+        type: 'class_reminder',
+        badge: '📚 Bài mới',
+        badgeColor: 'indigo',
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'system_notifications', notifId), newNotif);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `assignments/${id}`);
     }
@@ -266,6 +280,23 @@ export default function App() {
         grade,
         feedback
       });
+
+      // Automatically publish a system notification for grading
+      const sub = submissions.find(s => s.id === submissionId);
+      const assign = assignments.find(a => a.id === sub?.assignmentId);
+      if (sub && assign) {
+        const notifId = `auto_grade_${Date.now()}`;
+        const newNotif: SystemNotification = {
+          id: notifId,
+          title: 'Bài tập đã được chấm điểm',
+          content: `Bài tập "${assign.title}" của bạn đã được chấm điểm: ${grade} điểm. Hãy kiểm tra kết quả ngay!`,
+          type: 'class_reminder',
+          badge: '📝 Chấm bài',
+          badgeColor: 'amber',
+          createdAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'system_notifications', notifId), newNotif);
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `submissions/${submissionId}`);
     }
@@ -292,6 +323,19 @@ export default function App() {
     };
     try {
       await setDoc(doc(db, 'class_sessions', classData.id), classData);
+
+      // Automatically publish system notification for new class session
+      const notifId = `auto_class_pub_${Date.now()}`;
+      const newNotif: SystemNotification = {
+        id: notifId,
+        title: 'Lịch học trực tuyến mới',
+        content: `Buổi học trực tuyến "${classData.title}" đã được lên lịch lúc ${new Date(classData.startTime).toLocaleString('vi-VN')}.`,
+        type: 'class_reminder',
+        badge: '⏰ Lịch học',
+        badgeColor: 'amber',
+        createdAt: new Date().toISOString()
+      };
+      await setDoc(doc(db, 'system_notifications', notifId), newNotif);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `class_sessions/${classData.id}`);
     }
@@ -387,6 +431,8 @@ export default function App() {
         );
       case 'schedule':
         return <ScheduleView user={currentUser} classes={classes} onAddClass={handleAddClass} />;
+      case 'notifications-manager':
+        return isTeacherOrAdmin ? <NotificationsManagerView user={currentUser} /> : null;
       case 'students':
         return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} /> : null;
       case 'simulations':
@@ -448,6 +494,7 @@ export default function App() {
                 assignments={assignments}
                 submissions={submissions}
                 systemNotifications={systemNotifications}
+                classes={classes}
               >
                 {renderContent()}
               </Layout>
