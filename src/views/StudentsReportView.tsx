@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProgress } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -95,7 +95,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Quản lý Học sinh & Tiến độ
@@ -136,6 +136,13 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
               placeholder="Khóa 2024 - 2025"
             />
           </div>
+          
+          <button
+            onClick={() => window.print()}
+            className="ml-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-2 print:hidden shadow-sm"
+          >
+            <Download className="w-4 h-4" /> Xuất PDF
+          </button>
         </div>
       </div>
 
@@ -214,9 +221,9 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Roster Table / Requests Container */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col">
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           {/* Sub tabs header */}
-          <div className="border-b border-slate-100 bg-slate-50/50 p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="border-b border-slate-100 bg-slate-50/50 p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 print:hidden">
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
               <button
                 type="button"
@@ -318,7 +325,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                 </div>
               ) : (
                 <div className="space-y-3.5">
-                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed">
                     <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
                       <ShieldAlert className="w-4 h-4 text-indigo-600" />
                       Quy trình phê duyệt an toàn
@@ -465,9 +472,38 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                 </div>
 
                 {selectedStudent.monthlyProgress && (
-                  <div className="pt-2 space-y-2">
-                    <p className="font-bold text-slate-800">Tiến độ điểm số theo từng tháng:</p>
-                    <div className="space-y-2">
+                  <div className="pt-2 space-y-3">
+                    <p className="font-bold text-slate-800">Biểu đồ tiến độ học tập:</p>
+                    <div className="h-60 w-full bg-slate-50 border border-slate-100 rounded-xl p-3">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={selectedStudent.monthlyProgress} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                          <XAxis 
+                            dataKey="month" 
+                            tick={{fontSize: 10, fill: '#64748b', fontWeight: 'bold'}} 
+                            axisLine={false} 
+                            tickLine={false} 
+                            dy={10}
+                          />
+                          <YAxis 
+                            domain={[0, 10]} 
+                            tick={{fontSize: 10, fill: '#64748b', fontWeight: 'bold'}} 
+                            axisLine={false} 
+                            tickLine={false} 
+                            dx={-10}
+                          />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                          />
+                          <Legend wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', paddingTop: '10px' }} iconType="circle" />
+                          <Line type="monotone" name="Trung bình" dataKey="average" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                          <Line type="monotone" name="Trắc nghiệm" dataKey="quizScore" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                          <Line type="monotone" name="Mô phỏng" dataKey="simScore" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    <div className="space-y-2 mt-4">
                       {selectedStudent.monthlyProgress.map((m, idx) => (
                         <div key={idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-[11px]">
                           <span className="font-bold text-slate-800">{m.month}</span>

@@ -346,7 +346,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
 
             {/* Note Display for Selected Day */}
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
-              <div className="flex justify-between items-center pb-1 border-b border-slate-200/50">
+              <div className="flex justify-between items-center pb-1 border-b border-slate-200">
                 <p className="text-xs font-bold text-slate-800">
                   Ngày {format(new Date(selectedDate), 'dd/MM/yyyy')}
                 </p>
@@ -396,7 +396,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
 
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ghi chú nhắc nhở:</p>
-                <div className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/60 leading-relaxed italic">
+                <div className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed italic">
                   {userNotes[selectedDate] ? (
                     <p className="font-medium text-slate-700 not-italic">
                       📌 {userNotes[selectedDate]}
@@ -407,7 +407,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
                 </div>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-slate-200/50">
+              <div className="space-y-2 pt-2 border-t border-slate-200">
                 <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   {userNotes[selectedDate] ? 'Sửa ghi chú nhắc nhở:' : 'Thêm ghi chú/nhắc nhở mới:'}
                 </label>

@@ -58,6 +58,13 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
+
+    // System notifications collection
+    match /system_notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow write: if isTeacher();
+    }
+
     match /settings/{document=**} {
       allow read, write: if isTeacher();
     }

@@ -64,7 +64,7 @@ export function UserAvatar({ name = '', firstName, avatar, size = 'md', classNam
         src={avatar}
         alt={name || 'Avatar'}
         onError={() => setImgError(true)}
-        className={`${sizeClasses} rounded-full object-cover border border-slate-200/80 shadow-sm shrink-0 ${className}`}
+        className={`${sizeClasses} rounded-full object-cover border border-slate-200 shadow-sm shrink-0 ${className}`}
       />
     );
   }

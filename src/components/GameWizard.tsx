@@ -1,7 +1,73 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
+
+const FORMAT_TEMPLATES: Record<string, string> = {
+  multiple_choice: "Câu 1: Thủ đô của Việt Nam là gì?\nA. Hà Nội\nB. TP. Hồ Chí Minh\nC. Đà Nẵng\nD. Huế\nĐáp án: A",
+  true_false: "Câu 2: Mặt trời quay quanh trái đất.\nĐáp án: Sai",
+  word_reorder: "Câu 3: Sắp xếp các từ thành câu hoàn chỉnh:\nĐáp án: Học | đi | đôi | với | hành",
+  short_answer: "Câu 4: Căn bậc hai của 144 là bao nhiêu?\nĐáp án: 12",
+  matching: "Câu 5: Nối các từ đồng nghĩa\nTo lớn - Vĩ đại\nXinh đẹp - Tuyệt trần"
+};
+
+const FORMAT_NAMES: Record<string, string> = {
+  multiple_choice: "Trắc nghiệm nhiều phương án",
+  true_false: "Đúng / Sai",
+  word_reorder: "Sắp xếp từ / chữ",
+  short_answer: "Trả lời ngắn",
+  matching: "Nối các thành phần"
+};
+
+const GenericFormatForm = ({ formatId, blockText, onChange, onApplyTemplate }: any) => {
+  const lineCount = Math.max(blockText.split('\n').length, 5);
+  return (
+    <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden flex flex-col shadow-sm flex-1">
+      <div className="bg-slate-50 border-b border-slate-200 p-2.5 px-4 flex items-center justify-between shrink-0">
+        <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+          Khung nhập: {FORMAT_NAMES[formatId] || formatId}
+        </span>
+        <button
+          type="button"
+          onClick={() => onApplyTemplate(formatId)}
+          className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors shadow-sm"
+        >
+          Dùng mẫu chuẩn
+        </button>
+      </div>
+      <div className="flex flex-1 min-h-[140px]">
+        <div className="w-10 bg-slate-50/50 border-r border-slate-100 text-right pt-3 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-3 shrink-0">
+          {Array.from({ length: lineCount }, (_, i) => i + 1).map(num => (
+            <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
+          ))}
+        </div>
+        <textarea
+          value={blockText}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`Nhập câu hỏi dạng ${FORMAT_NAMES[formatId]}...`}
+          className="flex-1 w-full p-3 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium bg-transparent"
+          spellCheck={false}
+        />
+      </div>
+    </div>
+  );
+};
+
+const MultipleChoiceForm = (props: any) => <GenericFormatForm {...props} />;
+const TrueFalseForm = (props: any) => <GenericFormatForm {...props} />;
+const WordReorderForm = (props: any) => <GenericFormatForm {...props} />;
+const ShortAnswerForm = (props: any) => <GenericFormatForm {...props} />;
+const MatchingForm = (props: any) => <GenericFormatForm {...props} />;
+const EssayForm = (props: any) => <GenericFormatForm {...props} />;
+
+const FORMAT_COMPONENTS: Record<string, React.FC<any>> = {
+  multiple_choice: MultipleChoiceForm,
+  true_false: TrueFalseForm,
+  word_reorder: WordReorderForm,
+  short_answer: ShortAnswerForm,
+  matching: MatchingForm,
+  essay: EssayForm
+};
 
 interface GameWizardProps {
   gameSubStep: 1 | 2 | 3;
@@ -34,6 +100,47 @@ export const GameWizard: React.FC<GameWizardProps> = ({
   setRawQuestionCode,
   setShowGamePreview,
 }) => {
+  const [questionBlocks, setQuestionBlocks] = useState<Record<string, string>>({});
+  const [activeFormat, setActiveFormat] = useState<string>('');
+
+  // Initialize blocks when formats change
+  useEffect(() => {
+    setQuestionBlocks(prev => {
+      let changed = false;
+      const next = { ...prev };
+      newGameFormats.forEach(fmt => {
+        if (next[fmt] === undefined) {
+          next[fmt] = FORMAT_TEMPLATES[fmt] || '';
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+
+    if (newGameFormats.length > 0 && !newGameFormats.includes(activeFormat)) {
+      setActiveFormat(newGameFormats[0]);
+    }
+  }, [newGameFormats]);
+
+  // Sync to rawQuestionCode
+  useEffect(() => {
+    // Only combine currently selected formats
+    if (Object.keys(questionBlocks).length > 0) {
+      const code = newGameFormats
+        .map(fmt => questionBlocks[fmt] || '')
+        .filter(t => t.trim().length > 0)
+        .join('\n\n');
+      setRawQuestionCode(code);
+    }
+  }, [questionBlocks, newGameFormats, setRawQuestionCode]);
+
+  const handleApplyTemplate = (fmt: string) => {
+    setQuestionBlocks(prev => ({
+      ...prev,
+      [fmt]: FORMAT_TEMPLATES[fmt] || ''
+    }));
+  };
+
   const supportMap: Record<string, string[]> = {
     quiz_nghieng_dau: ['multiple_choice', 'true_false'],
     pose_matching: ['multiple_choice', 'true_false'],
@@ -87,48 +194,50 @@ export const GameWizard: React.FC<GameWizardProps> = ({
   const selectedGame = gamesList.find(g => g.id === newGameType) || gamesList[0];
 
   return (
-    <div id="game-wizard-container" className="w-full h-full flex flex-col overflow-hidden bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
+    <div id="game-wizard-container" className="flex-1 flex flex-col md:overflow-hidden bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
       {/* Stepper Header */}
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-4 border-b border-slate-100 pb-4 select-none shrink-0">
-        <button
-          type="button"
-          onClick={() => setGameSubStep(1)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold transition-all ${gameSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100 scale-102' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-        >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black">1</span>
-          Chọn Game
-        </button>
-        <span className="text-slate-300 text-xs sm:inline hidden">➔</span>
-        <button
-          type="button"
-          disabled={!newGameType}
-          onClick={() => {
-            const formats = supportMap[newGameType] || ['multiple_choice'];
-            if (formats.length > 1) {
-              setGameSubStep(2);
-            } else {
-              setGameSubStep(3);
-            }
-          }}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold transition-all ${gameSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100 scale-102' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-50'}`}
-        >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black">2</span>
-          Cấu Hình Dạng
-        </button>
-        <span className="text-slate-300 text-xs sm:inline hidden">➔</span>
-        <button
-          type="button"
-          disabled={!newGameType}
-          onClick={() => setGameSubStep(3)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold transition-all ${gameSubStep === 3 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100 scale-102' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 disabled:opacity-50'}`}
-        >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black">3</span>
-          Nhập Đề Câu Hỏi
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 border-b border-slate-100 pb-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto custom-scrollbar flex-1 pb-1 sm:pb-0">
+          <button
+            type="button"
+            onClick={() => setGameSubStep(1)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${gameSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">1</span>
+            Chọn Game
+          </button>
+          <span className="text-slate-300 text-xs shrink-0">➔</span>
+          <button
+            type="button"
+            disabled={!newGameType}
+            onClick={() => {
+              const formats = supportMap[newGameType] || ['multiple_choice'];
+              if (formats.length > 1) {
+                setGameSubStep(2);
+              } else {
+                setGameSubStep(3);
+              }
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${gameSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 disabled:opacity-50'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">2</span>
+            Dạng Câu
+          </button>
+          <span className="text-slate-300 text-xs shrink-0">➔</span>
+          <button
+            type="button"
+            disabled={!newGameType}
+            onClick={() => setGameSubStep(3)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${gameSubStep === 3 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100 disabled:opacity-50'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">3</span>
+            Nhập Đề
+          </button>
+        </div>
       </div>
 
       {/* Step Contents */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-0 flex flex-col">
+      <div className="flex-1 md:overflow-hidden min-h-0 flex flex-col">
         <AnimatePresence mode="wait">
           {gameSubStep === 1 && (
             <motion.div 
@@ -137,46 +246,36 @@ export const GameWizard: React.FC<GameWizardProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="space-y-4 flex flex-col h-full"
+              className="flex-1 min-h-0 flex flex-col space-y-3"
             >
-              <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-                <div>
-                  <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 1</span>
-                  <h4 className="text-lg font-black text-slate-800 mt-1 flex items-center gap-2">
-                    <span>🎮</span> Chọn Trò Chơi Học Tập
-                  </h4>
-                </div>
-                <span className="text-xs text-slate-400 font-extrabold bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-xl">17 Trò chơi tương tác</span>
-              </div>
-
-              {/* Search & Categories */}
-              <div className="space-y-3 shrink-0">
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 text-sm">🔍</span>
+              {/* Search & Categories - Compact */}
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="relative w-full sm:max-w-xs shrink-0">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400 text-xs">🔍</span>
                   <input 
                     type="text"
-                    placeholder="Tìm kiếm nhanh trò chơi..."
+                    placeholder="Tìm nhanh..."
                     value={gameSearchQuery}
                     onChange={(e) => setGameSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold transition-all outline-none"
+                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold transition-all outline-none h-full"
                   />
                   {gameSearchQuery && (
                     <button 
                       onClick={() => setGameSearchQuery('')}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                      className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold"
                     >
-                      Xóa
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin select-none">
+                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none select-none flex-1">
                   {[
                     { id: 'all', name: 'Tất cả', emoji: '✨' },
-                    { id: 'ai', name: 'AI & Tương Tác', emoji: '🤖' },
-                    { id: 'speed', name: 'Tốc độ & Phản xạ', emoji: '⚡' },
-                    { id: 'puzzle', name: 'Giải đố & Logic', emoji: '🧩' },
-                    { id: 'adventure', name: 'Khám phá & Bản đồ', emoji: '🗺️' }
+                    { id: 'ai', name: 'AI', emoji: '🤖' },
+                    { id: 'speed', name: 'Tốc độ', emoji: '⚡' },
+                    { id: 'puzzle', name: 'Giải đố', emoji: '🧩' },
+                    { id: 'adventure', name: 'Bản đồ', emoji: '🗺️' }
                   ].map(cat => {
                     const isCatSelected = selectedGameCategory === cat.id;
                     return (
@@ -186,8 +285,8 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                         onClick={() => setSelectedGameCategory(cat.id)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all flex items-center gap-1.5 border shrink-0 ${
                           isCatSelected 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/10 scale-102' 
-                            : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200/80 hover:text-slate-800'
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
+                            : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-800'
                         }`}
                       >
                         <span>{cat.emoji}</span>
@@ -199,60 +298,62 @@ export const GameWizard: React.FC<GameWizardProps> = ({
               </div>
 
               {/* Grid List */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 overflow-y-auto max-h-[48vh] pr-1 pb-4 custom-scrollbar">
-                {filteredGames.map(game => {
-                  const isSelected = newGameType === game.id;
-                  const supportedFormats = supportMap[game.id] || ['multiple_choice'];
-                  const isSingleFormat = supportedFormats.length === 1;
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 pb-4 custom-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {filteredGames.map(game => {
+                    const isSelected = newGameType === game.id;
+                    const supportedFormats = supportMap[game.id] || ['multiple_choice'];
+                    const isSingleFormat = supportedFormats.length === 1;
 
-                  return (
-                    <motion.div 
-                      key={game.id}
-                      whileHover={{ y: -4, transition: { duration: 0.12 } }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setNewGameType(game.id);
-                        if (isSingleFormat) {
-                          setNewGameFormats(supportedFormats);
-                          setGameSubStep(3);
-                        } else {
-                          setNewGameFormats([supportedFormats[0]]);
-                          setGameSubStep(2);
-                        }
-                      }}
-                      className={`group cursor-pointer p-3.5 rounded-2xl border-2 transition-all duration-300 flex items-start gap-3 ${game.color} ${
-                        isSelected 
-                          ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-500/20' 
-                          : 'border-slate-100 bg-white shadow-sm hover:shadow-md'
-                      }`}
-                    >
-                      <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-2xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform shrink-0">
-                        {game.emoji}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h5 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight">{game.name}</h5>
-                        <p className="text-[10px] text-slate-500 font-medium mt-1 leading-normal line-clamp-2">
-                          {game.desc}
-                        </p>
-                        
-                        <div className="flex flex-wrap gap-1 mt-2.5">
-                          {supportedFormats.map(fmtId => {
-                            const fmtLabel = 
-                              fmtId === 'multiple_choice' ? 'Trắc nghiệm' :
-                              fmtId === 'true_false' ? 'Đúng/Sai' :
-                              fmtId === 'word_reorder' ? 'Sắp xếp' :
-                              fmtId === 'short_answer' ? 'Trả lời ngắn' : 'Ghép nối';
-                            return (
-                              <span key={fmtId} className="text-[8px] bg-white border border-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded-md uppercase">
-                                {fmtLabel}
-                              </span>
-                            );
-                          })}
+                    return (
+                      <motion.div 
+                        key={game.id}
+                        whileHover={{ y: -4, transition: { duration: 0.12 } }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setNewGameType(game.id);
+                          if (isSingleFormat) {
+                            setNewGameFormats(supportedFormats);
+                            setGameSubStep(3);
+                          } else {
+                            setNewGameFormats([supportedFormats[0]]);
+                            setGameSubStep(2);
+                          }
+                        }}
+                        className={`group cursor-pointer p-3.5 rounded-2xl border-2 transition-all duration-300 flex items-start gap-3 ${game.color} ${
+                          isSelected 
+                            ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-500/20' 
+                            : 'border-slate-100 bg-white shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-2xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform shrink-0">
+                          {game.emoji}
                         </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                        <div className="min-w-0 flex-1">
+                          <h5 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight">{game.name}</h5>
+                          <p className="text-[10px] text-slate-500 font-medium mt-1 leading-normal line-clamp-2">
+                            {game.desc}
+                          </p>
+                          
+                          <div className="flex flex-wrap gap-1 mt-2.5">
+                            {supportedFormats.map(fmtId => {
+                              const fmtLabel = 
+                                fmtId === 'multiple_choice' ? 'Trắc nghiệm' :
+                                fmtId === 'true_false' ? 'Đúng/Sai' :
+                                fmtId === 'word_reorder' ? 'Sắp xếp' :
+                                fmtId === 'short_answer' ? 'Trả lời ngắn' : 'Ghép nối';
+                              return (
+                                <span key={fmtId} className="text-[8px] bg-white border border-slate-200 text-slate-600 font-bold px-1.5 py-0.5 rounded-md uppercase">
+                                  {fmtLabel}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
               </div>
             </motion.div>
           )}
@@ -264,96 +365,90 @@ export const GameWizard: React.FC<GameWizardProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="space-y-4 max-w-3xl mx-auto w-full flex flex-col h-full justify-center py-4"
+              className="flex-1 min-h-0 flex flex-col space-y-4 max-w-3xl mx-auto w-full py-2"
             >
-              <div className="border-b border-slate-100 pb-3 flex items-center justify-between shrink-0">
-                <div>
-                  <span className="text-[10px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 2</span>
-                  <h4 className="text-base font-black text-slate-800 mt-1 flex items-center gap-2">
-                    <span>⚙️</span> Cấu Hình Dạng Câu Hỏi
-                  </h4>
+              <div className="flex-1 min-h-0 flex flex-col space-y-3">
+                <div className="border-b border-slate-100 pb-2 mb-1 shrink-0 flex justify-between items-center">
+                  <div>
+                    <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 2</span>
+                    <h4 className="text-sm font-black text-slate-800 mt-1 flex items-center gap-2">
+                      <span>⚙️</span> Cấu Hình Dạng Câu Hỏi
+                    </h4>
+                  </div>
+                  <button
+                    onClick={() => setGameSubStep(1)}
+                    className="text-xs font-bold text-slate-500 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 px-2.5 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-200 transition-colors flex items-center gap-1.5"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Đổi Game</span>
+                  </button>
                 </div>
-                <button 
-                  type="button"
-                  onClick={() => setGameSubStep(1)}
-                  className="text-[11px] font-extrabold text-slate-600 hover:text-indigo-600 flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 rounded-xl transition-all border border-slate-200/80 active:scale-95"
-                >
-                  ⬅️ Đổi Game khác
-                </button>
-              </div>
 
-              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-2xl border border-indigo-100/50 flex items-center gap-3 shrink-0">
-                <span className="text-3xl animate-pulse">{selectedGame.emoji}</span>
-                <div>
-                  <p className="text-[9px] text-indigo-600 font-extrabold uppercase tracking-wider">Trò chơi đã chọn:</p>
-                  <p className="text-sm font-black text-slate-800">{selectedGame.name}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3.5 flex-1 overflow-y-auto max-h-[35vh] pr-1 custom-scrollbar">
-                <p className="text-xs text-slate-500 font-black uppercase tracking-wider">
-                  Chọn các dạng câu hỏi được phép xuất hiện (Có thể chọn nhiều dạng):
-                </p>
-                
-                <div className="space-y-2.5">
-                  {[
-                    { id: 'multiple_choice', name: '1. Dạng Trắc nghiệm nhiều phương án', sub: 'Học sinh chọn 1 đáp án chính xác nhất trong 3-4 phương án', emoji: '🔘' },
-                    { id: 'true_false', name: '2. Dạng Đúng/sai', sub: 'Mệnh đề kiểm tra kiến thức chỉ có hai lựa chọn Đúng hoặc Sai', emoji: '⚖️' },
-                    { id: 'word_reorder', name: '3. Dạng Sắp xếp từ/chữ', sub: 'Kéo thả, sắp xếp các từ xáo trộn thành câu hoàn chỉnh, đúng logic', emoji: '🔠' },
-                    { id: 'short_answer', name: '4. Dạng Trả lời ngắn', sub: 'Học sinh tự điền từ khóa hoặc số kết quả trực tiếp bằng bàn phím', emoji: '📝' },
-                    { id: 'matching', name: '5. Dạng Nối các thành phần', sub: 'Kết nối vế trái với vế phải tạo mối liên hệ đúng đắn', emoji: '🔗' }
-                  ].filter(fmt => (supportMap[newGameType] || ['multiple_choice']).includes(fmt.id))
-                   .map(fmt => {
-                    const isChecked = newGameFormats.includes(fmt.id);
-                    return (
-                      <motion.div 
-                        key={fmt.id}
-                        whileHover={{ y: -1 }}
-                        whileTap={{ scale: 0.99 }}
-                        onClick={() => {
-                          if (isChecked) {
-                            if (newGameFormats.length > 1) {
-                              setNewGameFormats(newGameFormats.filter(id => id !== fmt.id));
+                <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+                  <p className="text-xs text-slate-500 font-bold mb-3">
+                    Chọn các dạng câu hỏi được phép xuất hiện:
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pb-2">
+                    {[
+                      { id: 'multiple_choice', name: 'Trắc nghiệm', sub: 'Chọn 1 đáp án đúng', emoji: '🔘' },
+                      { id: 'true_false', name: 'Đúng/sai', sub: 'Chỉ có Đúng hoặc Sai', emoji: '⚖️' },
+                      { id: 'word_reorder', name: 'Sắp xếp', sub: 'Sắp xếp từ thành câu', emoji: '🔠' },
+                      { id: 'short_answer', name: 'Trả lời ngắn', sub: 'Học sinh tự điền kết quả', emoji: '📝' },
+                      { id: 'matching', name: 'Ghép nối', sub: 'Nối các thành phần', emoji: '🔗' }
+                    ].filter(fmt => (supportMap[newGameType] || ['multiple_choice']).includes(fmt.id))
+                     .map(fmt => {
+                      const isChecked = newGameFormats.includes(fmt.id);
+                      return (
+                        <motion.div 
+                          key={fmt.id}
+                          whileHover={{ y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            if (isChecked) {
+                              if (newGameFormats.length > 1) {
+                                setNewGameFormats(newGameFormats.filter(id => id !== fmt.id));
+                              }
+                            } else {
+                              setNewGameFormats([...newGameFormats, fmt.id]);
                             }
-                          } else {
-                            setNewGameFormats([...newGameFormats, fmt.id]);
-                          }
-                        }}
-                        className={`p-3.5 bg-white border-2 rounded-2xl cursor-pointer flex items-center justify-between transition-all hover:shadow-sm duration-200 ${
-                          isChecked 
-                            ? 'border-indigo-600 bg-indigo-50/20 shadow-sm' 
-                            : 'border-slate-100 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${
-                            isChecked ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 border border-slate-100 text-slate-700'
+                          }}
+                          className={`p-3 border-2 rounded-xl cursor-pointer flex items-center gap-3 transition-all hover:shadow-sm duration-200 ${
+                            isChecked 
+                              ? 'border-indigo-600 bg-indigo-50/50' 
+                              : 'border-slate-200 bg-white hover:border-indigo-300'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0 ${
+                            isChecked ? 'bg-white shadow-sm' : 'bg-slate-50 border border-slate-100'
                           }`}>
                             {fmt.emoji}
                           </div>
-                          <div>
-                            <span className="text-xs sm:text-sm font-extrabold text-slate-800 block">{fmt.name}</span>
-                            <span className="text-[10px] text-slate-400 font-medium leading-normal block mt-0.5">{fmt.sub}</span>
+                          <div className="flex-1 min-w-0">
+                            <span className={`text-xs sm:text-sm font-bold block truncate ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>{fmt.name}</span>
+                            <span className="text-[10px] text-slate-500 block truncate mt-0.5">{fmt.sub}</span>
                           </div>
-                        </div>
-                        <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center font-bold text-[10px] shrink-0 ${
-                          isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-200'
-                        }`}>
-                          {isChecked && '✓'}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                            isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300'
+                          }`}>
+                            {isChecked && '✓'}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setGameSubStep(3)}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 uppercase tracking-wide"
+                  >
+                    Tiếp tục nhập đề ➔
+                  </button>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setGameSubStep(3)}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 uppercase tracking-wider shrink-0 mt-2"
-              >
-                🎯 Xác nhận & Tiếp tục nhập đề
-              </button>
             </motion.div>
           )}
 
@@ -364,7 +459,7 @@ export const GameWizard: React.FC<GameWizardProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="space-y-4 flex flex-col h-full w-full"
+              className="flex-1 min-h-0 flex flex-col space-y-4 w-full"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0">
                 <div className="flex items-center gap-2">
@@ -394,29 +489,51 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                 </div>
               </div>
 
-              {/* Text Area */}
-              <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[220px]">
-                <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4 shrink-0">
-                  {Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 12) }, (_, i) => i + 1).map(num => (
-                    <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
-                  ))}
-                </div>
-                <textarea
-                  value={rawQuestionCode}
-                  onChange={(e) => setRawQuestionCode(e.target.value)}
-                  placeholder="Nhập nội dung câu hỏi..."
-                  className="flex-1 w-full p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
-                  spellCheck={false}
-                />
+              {/* Format Tab Selector */}
+              <div className="flex flex-wrap gap-2 shrink-0 pb-2">
+                {newGameFormats.map(fmt => (
+                  <button
+                    key={fmt}
+                    onClick={() => setActiveFormat(fmt)}
+                    className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-sm border ${
+                      activeFormat === fmt 
+                        ? 'bg-indigo-600 text-white border-indigo-600' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    {FORMAT_NAMES[fmt] || fmt}
+                  </button>
+                ))}
               </div>
 
-              {/* Templates */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
-                <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu đề bài:</p>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1 (Trắc nghiệm lịch sử)</button>
-                  <button type="button" onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2 (Đúng / sai Toán)</button>
-                </div>
+              {/* State-based rendering of the input form using a switch statement */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4 flex flex-col">
+                {(() => {
+                  const CurrentForm = FORMAT_COMPONENTS[activeFormat];
+                  if (!CurrentForm) return null;
+
+                  const blockText = questionBlocks[activeFormat] || '';
+                  const onChange = (val: string) => setQuestionBlocks(prev => ({ ...prev, [activeFormat]: val }));
+
+                  switch (activeFormat) {
+                    case 'multiple_choice':
+                    case 'true_false':
+                    case 'word_reorder':
+                    case 'short_answer':
+                    case 'matching':
+                    case 'essay':
+                      return (
+                        <CurrentForm 
+                          formatId={activeFormat}
+                          blockText={blockText}
+                          onChange={onChange}
+                          onApplyTemplate={handleApplyTemplate}
+                        />
+                      );
+                    default:
+                      return null;
+                  }
+                })()}
               </div>
             </motion.div>
           )}

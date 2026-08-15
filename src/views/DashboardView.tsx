@@ -183,19 +183,20 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
     <div className="space-y-8 max-w-7xl mx-auto pb-6">
       
       {/* 1. KHUNG XIN CHÀO (Greeting Banner) */}
-      <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 rounded-3xl p-6 sm:p-8 border border-indigo-500/30 relative overflow-hidden shadow-lg shadow-indigo-200 text-white">
-        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/10 blur-[80px] rounded-full pointer-events-none transform translate-x-1/3 -translate-y-1/3"></div>
+      <div className="bg-gradient-to-br from-slate-900/85 via-indigo-950/80 to-slate-900/85 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/10 relative overflow-hidden shadow-xl shadow-indigo-950/20 text-white">
+        <div className="absolute top-0 right-0 w-[350px] h-[350px] bg-indigo-500/15 blur-[60px] rounded-full pointer-events-none transform translate-x-1/4 -translate-y-1/4"></div>
+        <div className="absolute -bottom-10 -left-10 w-[250px] h-[250px] bg-blue-500/15 blur-[50px] rounded-full pointer-events-none"></div>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 mb-3 backdrop-blur-md flex-wrap">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-900/40 border border-indigo-500/30 mb-4 backdrop-blur-sm flex-wrap">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-xs font-semibold text-white">
+              <span className="text-xs font-bold text-indigo-200">
                 {isTeacher ? `Giáo viên - ${className}` : `Học sinh • Lớp ${className}`}
               </span>
               {!isTeacher && (
                 <>
-                  <span className="text-white/40">•</span>
-                  <span className="text-xs font-extrabold text-amber-200 flex items-center gap-1">
+                  <span className="text-indigo-500/50">•</span>
+                  <span className="text-xs font-extrabold text-amber-300 flex items-center gap-1">
                     {(() => {
                       const currentPoints = user.points || 0;
                       const activeBadge = [...BADGES].reverse().find(b => currentPoints >= b.threshold);
@@ -205,10 +206,10 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 </>
               )}
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight">
-              Xin chào, <span className="text-indigo-200">{user.name}</span>!
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Xin chào, <span className="text-indigo-400 font-black">{user.name}</span>!
             </h2>
-            <p className="text-indigo-100 text-sm md:text-base mt-2 max-w-2xl leading-relaxed">
+            <p className="text-slate-300 text-sm md:text-base mt-2.5 max-w-2xl leading-relaxed font-medium">
               {isTeacher 
                 ? 'Chúc cô một ngày làm việc tràn đầy năng lượng! Dưới đây là tổng quan các nhiệm vụ dạy học và tình trạng làm bài của lớp.' 
                 : 'Chúc em có một ngày học tập thật tốt! Hãy hoàn thành nhiệm vụ buổi học trước khi vào buổi học tiếp theo nhé.'}
@@ -218,7 +219,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
           {!isTeacher && onOpenGuide && (
             <button
               onClick={onOpenGuide}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 border border-white/30 text-white font-bold text-xs transition-all backdrop-blur-md shadow-md shrink-0 self-start sm:self-center hover:scale-105 active:scale-95"
+              className="inline-flex items-center gap-2 px-4.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-indigo-600/20 shrink-0 self-start sm:self-center hover:scale-105 active:scale-95 border border-indigo-500"
             >
               <BookOpen className="w-4 h-4 text-amber-300" />
               <span>📖 Hướng Dẫn Vào Lớp Học</span>
@@ -235,7 +236,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
           
           {/* STUDENT VIEW: NHIỆM VỤ (Assignments task list) */}
           {!isTeacher ? (
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -271,7 +272,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                           ? 'bg-emerald-50/50 border-emerald-200 hover:border-emerald-300' 
                           : isPastDue
                           ? 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
-                          : 'bg-slate-50/70 border-slate-200 hover:border-indigo-300 hover:shadow-sm'
+                          : 'bg-slate-50 border-slate-200 hover:border-indigo-300 hover:shadow-sm'
                       }`}
                     >
                       <div className="flex items-start gap-3.5 flex-1 min-w-0">
@@ -319,7 +320,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
             </div>
           ) : (
             /* TEACHER VIEW: KHUNG TÌNH TRẠNG HỌC SINH HOÀN THÀNH BÀI TẬP */
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -381,7 +382,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                     const rate = Math.round((subs.length / effectiveTotalStudents) * 100);
 
                     return (
-                      <div key={a.id} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                      <div key={a.id} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-bold text-slate-900 truncate">{a.title}</p>
                           <p className="text-xs text-slate-500 mt-0.5">Hạn: {format(new Date(a.dueDate), 'HH:mm dd/MM/yyyy', { locale: vi })}</p>
@@ -404,7 +405,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
 
           {/* STUDENT VIEW: TIẾN ĐỘ HỌC TẬP (Quiz + Simulation Monthly Progress Chart) */}
           {!isTeacher && (
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -437,7 +438,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-6"
+              className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6"
             >
               {/* Header block with stats summary */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -450,7 +451,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 </div>
                 
                 {/* Real-time points counter & daily bonus claim */}
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200/60 p-3 rounded-2xl self-start sm:self-center">
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-2xl self-start sm:self-center">
                   <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl">
                     <Coins className="w-4 h-4 text-amber-500 shrink-0" />
                     <span className="text-xs font-black text-slate-800">
@@ -577,7 +578,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                       className={`p-4 border rounded-2xl relative overflow-hidden flex flex-col justify-between transition-all ${
                         isUnlocked 
                           ? `${badge.bgLight} ${badge.borderColor} border-2 shadow-sm` 
-                          : 'bg-slate-50/40 border-slate-200 grayscale opacity-60'
+                          : 'bg-slate-50 border-slate-200 grayscale opacity-60'
                       }`}
                     >
                       {/* Decorative backdrop glow for unlocked premium badges */}
@@ -630,7 +631,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
         <div className="space-y-8">
           
           {/* DYNAMIC INTERACTIVE CALENDAR */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm flex flex-col space-y-5">
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col space-y-5">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
@@ -706,7 +707,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                             ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
                             : isCurrentMonth
                             ? 'text-slate-700 hover:bg-slate-50'
-                            : 'text-slate-300 hover:bg-slate-50/50'
+                            : 'text-slate-300 hover:bg-slate-50'
                         }`}
                       >
                         <span>{format(day, 'd')}</span>
@@ -757,7 +758,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
               })()}
 
               {/* Study Note scheduled for selected date */}
-              <div className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200/60 leading-relaxed italic">
+              <div className="text-xs text-slate-600 bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed italic">
                 {dashboardNotes[format(selectedDate, 'yyyy-MM-dd')] ? (
                   <p className="font-medium text-slate-700 not-italic">
                     📌 {dashboardNotes[format(selectedDate, 'yyyy-MM-dd')]}
@@ -769,7 +770,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
 
               {/* Add Note inline form for Teacher */}
               {isTeacher && (
-                <div className="space-y-1.5 pt-2 border-t border-slate-200/50">
+                <div className="space-y-1.5 pt-2 border-t border-slate-200">
                   <input 
                     type="text" 
                     value={newNoteText}
@@ -807,7 +808,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 <h4 className="font-extrabold text-slate-900 text-base mb-1">{nextClass.title}</h4>
                 <p className="text-xs text-indigo-900 font-semibold mb-4">{nextClass.subject || 'Môn Toán'}</p>
                 
-                <div className="space-y-2 text-xs text-slate-600 mb-5 bg-white/95 p-3 rounded-2xl border border-indigo-100">
+                <div className="space-y-2 text-xs text-slate-600 mb-5 bg-white p-3 rounded-2xl border border-indigo-100">
                   <div className="flex items-center gap-2 font-bold text-slate-800">
                     <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
                     <span>{format(new Date(nextClass.startTime), 'EEEE, dd/MM - HH:mm', { locale: vi })}</span>

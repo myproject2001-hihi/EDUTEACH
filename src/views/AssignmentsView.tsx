@@ -453,6 +453,7 @@ export function AssignmentsView({
   const [examTimeRemaining, setExamTimeRemaining] = useState(900); // 15 mins (900s)
   const [isNotFullscreen, setIsNotFullscreen] = useState(false);
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false);
+  const [showStandardSubmitModal, setShowStandardSubmitModal] = useState(false);
   const [showDisqualifiedModal, setShowDisqualifiedModal] = useState(false);
 
   const lastViolationTimeRef = React.useRef(0);
@@ -932,7 +933,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
             mobileExamTab === 'questions' ? 'block' : 'hidden lg:block'
           }`}>
             {selectedAssignment.questions?.map((q, idx) => (
-              <div key={q.id} className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-3 shadow-sm">
+              <div key={q.id} className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 shadow-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm">
                     {idx + 1}
@@ -1570,7 +1571,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           </div>
 
                           {/* Formats or Exam Detail block */}
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-4 max-w-md mx-auto text-left py-3 border-t border-b border-slate-200/60 my-4 relative z-10">
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-4 max-w-md mx-auto text-left py-3 border-t border-b border-slate-200 my-4 relative z-10">
                             <div className="space-y-0.5">
                               <p className="text-[10px] text-slate-400 font-bold uppercase">Thời gian làm bài</p>
                               <p className="text-sm font-black text-slate-800">15 phút</p>
@@ -1581,7 +1582,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                             </div>
                             
                             {isGame && (
-                              <div className="col-span-2 pt-2 border-t border-slate-200/40 space-y-1.5">
+                              <div className="col-span-2 pt-2 border-t border-slate-200 space-y-1.5">
                                 <p className="text-[10px] text-slate-400 font-bold uppercase">Dạng bài thi được giáo viên bật:</p>
                                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                                   {['multiple_choice', 'true_false', 'word_reorder', 'short_answer', 'matching'].filter(id => {
@@ -1607,7 +1608,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                               </div>
                             )}
 
-                            <div className="space-y-0.5 col-span-2 pt-2 border-t border-slate-200/40 text-center">
+                            <div className="space-y-0.5 col-span-2 pt-2 border-t border-slate-200 text-center">
                               <p className="text-[11px] text-emerald-700 font-bold flex items-center justify-center gap-1">
                                 <span>✓</span> Hệ thống tự động lưu kết quả nộp bài & cộng xu tích lũy
                               </p>
@@ -1810,7 +1811,10 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
 
                     // --- FILE UPLOAD TYPE ---
                     return (
-                      <form onSubmit={handleStudentSubmit} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-5">
+                      <form onSubmit={(e) => {
+                        e.preventDefault();
+                        setShowStandardSubmitModal(true);
+                      }} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-5">
                         <h3 className="font-bold text-slate-900 text-base">Làm bài tập và nộp bài</h3>
 
                         <div className="space-y-3">
@@ -2041,7 +2045,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
 
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden h-[95vh] sm:h-[90vh] flex flex-col relative transition-all">
+          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-5xl shadow-2xl overflow-y-auto md:overflow-hidden h-[95vh] md:h-[90vh] flex flex-col relative transition-all">
             <button 
               onClick={() => setShowCreateModal(false)} 
               className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[60] p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-500 rounded-full transition-colors"
@@ -2050,20 +2054,20 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
             </button>
 
             {/* Main Editor Area */}
-            <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50">
+            <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col bg-slate-50/50">
               
               {createStep === 1 ? (
-                <div className="flex-1 overflow-hidden flex flex-col p-3 sm:p-5">
-                  <div className="mb-3 sm:mb-4 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">
-                        {viewMode === 'games' ? '1. Chọn Game Học Tập' : viewMode === 'flashcards' ? '1. Cấu hình Flashcard' : '1. Chọn hình thức và cấu hình đề bài'}
-                      </h4>
-                      <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                        {viewMode === 'games' ? 'Chọn 1 trong các game dưới đây.' : viewMode === 'flashcards' ? 'Nhập bộ câu hỏi cho Flashcard.' : 'Bấm để chọn 1 trong 3 hình thức bài tập dưới đây.'}
-                      </p>
-                    </div>
-                    {viewMode === 'assignments' && (
+                <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col p-3 sm:p-5">
+                  {viewMode === 'assignments' && (
+                    <div className="mb-3 sm:mb-4 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">
+                          1. Chọn hình thức và cấu hình đề bài
+                        </h4>
+                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
+                          Bấm để chọn 1 trong 3 hình thức bài tập dưới đây.
+                        </p>
+                      </div>
                       <div className="flex flex-wrap sm:flex-nowrap gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 overflow-x-auto custom-scrollbar">
                         {(['file_upload', 'online_test', 'simulation', 'lesson_check'] as const).map(t => (
                           <button 
@@ -2080,10 +2084,10 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           </button>
                         ))}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row gap-4 custom-scrollbar">
+                  <div className={`flex-1 flex flex-col lg:flex-row gap-4 custom-scrollbar ${newType === 'game' || newType === 'flashcard' ? 'md:overflow-hidden' : 'overflow-y-auto lg:overflow-hidden'}`}>
                     {/* Game Selection */}
                     {newType === 'game' && (
                       <GameWizard
@@ -2235,7 +2239,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                                     
                                   </div>
 
-                                  <div className="p-3 bg-slate-50/70 border border-slate-200/70 rounded-xl text-[13px] font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
+                                  <div className="p-3 bg-slate-50/70 border border-slate-200 rounded-xl text-[13px] font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
                                     <MarkdownMath content={pq.question} />
                                   </div>
 
@@ -2621,7 +2625,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                             <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">BÀI THI TỰ LUẬN - PHƯƠNG TRÌNH BẬC 2</h2>
                             <p className="text-xs text-slate-500 font-medium italic mt-0.5">Tiết 23: Bài tập rèn luyện nâng cao hệ số</p>
                           </div>
-                          <div className="flex justify-between items-center text-xs mt-2 text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+                          <div className="flex justify-between items-center text-xs mt-2 text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div>
                               <span>Học sinh: <strong>{previewSub.studentName || 'Lê Thị Bình'}</strong></span>
                               <span className="mx-3">|</span>
@@ -2772,7 +2776,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       )}
 
                       {/* Page Footer */}
-                      <div className="absolute bottom-6 left-10 right-10 text-center text-[10px] text-slate-400 font-mono border-t border-slate-200/50 pt-3">
+                      <div className="absolute bottom-6 left-10 right-10 text-center text-[10px] text-slate-400 font-mono border-t border-slate-200 pt-3">
                         <span>Trang 1 / 1 — Học sinh {previewSub.studentName || 'Lê Thị Bình'}</span>
                       </div>
                     </div>
@@ -2821,6 +2825,21 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
           </div>
         </div>
       )}
+
+      {/* Standard Assignment Submit Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showStandardSubmitModal}
+        onClose={() => setShowStandardSubmitModal(false)}
+        onConfirm={() => {
+          handleStudentSubmit();
+          setShowStandardSubmitModal(false);
+        }}
+        title="Xác nhận nộp bài"
+        message="Bạn có chắc chắn muốn nộp bài ngay bây giờ? Sau khi nộp, bạn sẽ không thể chỉnh sửa lại bài làm của mình."
+        confirmText="Xác nhận nộp bài"
+        cancelText="Quay lại chỉnh sửa"
+        variant="info"
+      />
 
       {/* Disqualification Center-Zoom Modal */}
       <ConfirmModal

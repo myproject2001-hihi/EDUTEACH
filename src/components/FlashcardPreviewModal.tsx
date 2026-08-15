@@ -292,7 +292,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     className={`h-2 rounded-full transition-all ${
                       currentIndex === idx 
                         ? 'w-6 bg-indigo-500 shadow-sm shadow-indigo-500/50' 
-                        : 'w-2 bg-slate-700 hover:bg-slate-500'
+                        : 'w-2 bg-slate-700 hover:bg-slate-50'
                     }`}
                   />
                 </button>

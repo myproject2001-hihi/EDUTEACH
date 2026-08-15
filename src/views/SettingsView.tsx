@@ -66,7 +66,7 @@ export function SettingsView({ user }: SettingsViewProps) {
 
   return (
     <div className="max-w-4xl mx-auto pb-10 space-y-6">
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Settings className="w-7 h-7 text-indigo-600" />
@@ -85,7 +85,7 @@ export function SettingsView({ user }: SettingsViewProps) {
         </div>
       )}
 
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 space-y-6">
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-slate-900 border-b pb-2">1. Thông tin chung</h3>

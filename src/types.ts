@@ -108,3 +108,14 @@ export interface StudentProgress {
   monthlyProgress?: MonthlyProgress[];
 }
 
+export interface SystemNotification {
+  id: string;
+  title: string;
+  content: string;
+  type: 'system_update' | 'badge_info' | 'class_reminder' | 'announcement';
+  badge: string;
+  badgeColor?: string;
+  createdAt: string;
+}
+
+

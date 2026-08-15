@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { User, Role, Assignment, ClassSession, HTMLSimulation } from '../types';
+import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotification } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw } from 'lucide-react';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 
@@ -15,13 +15,23 @@ interface AdminConsoleViewProps {
 }
 
 export function AdminConsoleView({ user, assignments, classes, simulations }: AdminConsoleViewProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingResets, setLoadingResets] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'teacher' | 'student'>('all');
+
+  // Notification manager state
+  const [notifList, setNotifList] = useState<SystemNotification[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(true);
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifContent, setNotifContent] = useState('');
+  const [notifType, setNotifType] = useState<'system_update' | 'badge_info' | 'class_reminder' | 'announcement'>('system_update');
+  const [notifBadge, setNotifBadge] = useState('🎉 Cập nhật');
+  const [notifBadgeColor, setNotifBadgeColor] = useState('emerald');
+  const [publishingNotif, setPublishingNotif] = useState(false);
 
   // Modal / Form state for user role change or password reset
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -73,9 +83,24 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
       setLoadingResets(false);
     });
 
+    // Sync all system notifications
+    const unsubNotifs = onSnapshot(collection(db, 'system_notifications'), (snapshot) => {
+      const list: SystemNotification[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as SystemNotification);
+      });
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setNotifList(list);
+      setLoadingNotifs(false);
+    }, (err) => {
+      console.error(err);
+      setLoadingNotifs(false);
+    });
+
     return () => {
       unsubUsers();
       unsubResets();
+      unsubNotifs();
     };
   }, []);
 
@@ -195,6 +220,47 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
       showNotify('error', `Không thể xóa tài khoản người dùng: ${err.message || 'Lỗi hệ thống'}`);
     } finally {
       setDeletingUser(false);
+    }
+  };
+
+  const handlePublishNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifContent.trim()) {
+      showNotify('error', 'Vui lòng điền đầy đủ tiêu đề và nội dung thông báo!');
+      return;
+    }
+    setPublishingNotif(true);
+    try {
+      const newNotif: SystemNotification = {
+        id: 'notif_' + Date.now(),
+        title: notifTitle.trim(),
+        content: notifContent.trim(),
+        type: notifType,
+        badge: notifBadge,
+        badgeColor: notifBadgeColor,
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'system_notifications', newNotif.id), newNotif);
+      showNotify('success', 'Đã xuất bản thông báo hệ thống mới thành công!');
+      // Reset form
+      setNotifTitle('');
+      setNotifContent('');
+    } catch (err: any) {
+      console.error(err);
+      showNotify('error', `Lỗi khi xuất bản thông báo: ${err.message || 'Lỗi hệ thống'}`);
+    } finally {
+      setPublishingNotif(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
+    try {
+      await deleteDoc(doc(db, 'system_notifications', id));
+      showNotify('success', 'Đã xóa thông báo thành công.');
+    } catch (err: any) {
+      console.error(err);
+      showNotify('error', `Lỗi khi xóa thông báo: ${err.message}`);
     }
   };
 
@@ -372,6 +438,18 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             <BookOpen className="w-4 h-4" />
             Tài Nguyên Hệ Thống (Bài tập/Lớp/Mô phỏng)
           </button>
+
+          <button
+            onClick={() => setActiveTab('notifications')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'notifications'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <BellRing className="w-4 h-4" />
+            Thông báo Hệ thống ({notifList.length})
+          </button>
         </div>
 
         <button
@@ -387,31 +465,31 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
       {/* TAB 1: USER MANAGEMENT */}
       {activeTab === 'users' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-            <div className="relative w-full sm:w-80">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
+            <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Tìm tên, lớp, mã kết nối..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm"
               />
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="text-xs font-bold text-slate-500">Lọc vai trò:</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 mr-2">Lọc vai trò:</span>
               {(['all', 'admin', 'teacher', 'student'] as const).map((r) => (
                 <button
                   key={r}
                   onClick={() => setRoleFilter(r)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${
                     roleFilter === r
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
-                  {r === 'all' ? 'Tất cả' : r === 'admin' ? 'Admin' : r === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                  {r === 'all' ? 'Tất cả' : r === 'admin' ? '🛡️ Admin' : r === 'teacher' ? '👨‍🏫 Giáo viên' : '🎓 Học sinh'}
                 </button>
               ))}
             </div>
@@ -427,51 +505,53 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="min-w-[850px] w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      <th className="py-3 px-4">Người dùng</th>
-                      <th className="py-3 px-4">Vai trò</th>
-                      <th className="py-3 px-4">Lớp / Mã kết nối</th>
-                      <th className="py-3 px-4">SĐT HS / Phụ huynh</th>
-                      <th className="py-3 px-4 text-right">Thao tác Quản trị</th>
+                      <th className="py-4 px-5 whitespace-nowrap">Người dùng</th>
+                      <th className="py-4 px-5 whitespace-nowrap">Vai trò</th>
+                      <th className="py-4 px-5 whitespace-nowrap">Lớp / Mã kết nối</th>
+                      <th className="py-4 px-5 whitespace-nowrap">SĐT HS / Phụ huynh</th>
+                      <th className="py-4 px-5 text-right whitespace-nowrap">Thao tác Quản trị</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs font-medium">
                     {filteredUsers.map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3.5 px-4 flex items-center gap-3">
-                          <UserAvatar name={u.name} firstName={u.firstName} avatar={u.avatar} size="md" />
-                          <div>
-                            <p className="font-bold text-slate-900 text-sm">{u.name}</p>
-                            <p className="text-[11px] text-slate-400 font-mono">ID: {u.id.substring(0, 8)}...</p>
+                        <td className="py-4 px-5">
+                          <div className="flex items-center gap-3">
+                            <UserAvatar name={u.name} firstName={u.firstName} avatar={u.avatar} size="md" />
+                            <div>
+                              <p className="font-extrabold text-slate-900 text-sm whitespace-nowrap">{u.name}</p>
+                              <p className="text-[11px] text-slate-400 font-mono">ID: {u.id.substring(0, 8)}...</p>
+                            </div>
                           </div>
                         </td>
 
-                        <td className="py-3.5 px-4">
+                        <td className="py-4 px-5">
                           {u.isSuperAdmin ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">
                               👑 Quản trị viên chính
                             </span>
                           ) : u.role === 'admin' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 whitespace-nowrap">
                               🛡️ Quản trị viên
                             </span>
                           ) : u.role === 'teacher' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
                               👨‍🏫 Giáo viên
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
                               🎓 Học sinh
                             </span>
                           )}
                         </td>
 
-                        <td className="py-3.5 px-4 text-slate-600">
+                        <td className="py-4 px-5 text-slate-600 whitespace-nowrap">
                           {u.className || u.connectionCode ? (
-                            <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">
+                            <span className="font-mono text-indigo-600 font-extrabold bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 inline-block">
                               {u.className || u.connectionCode}
                             </span>
                           ) : (
@@ -479,12 +559,12 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                           )}
                         </td>
 
-                        <td className="py-3.5 px-4 text-slate-600">
-                          <p>{u.phoneStudent || '—'}</p>
+                        <td className="py-4 px-5 text-slate-600 whitespace-nowrap">
+                          <p className="font-bold text-slate-800">{u.phoneStudent || '—'}</p>
                           {u.phoneParent && <p className="text-[11px] text-slate-400">PH: {u.phoneParent}</p>}
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-4 px-5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => {
@@ -494,7 +574,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                                 setEditLastName(getLastName(u.name, u.lastName));
                                 setEditFirstName(getFirstName(u.name, u.firstName));
                               }}
-                              className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded-xl transition-colors flex items-center gap-1"
+                              className="px-3.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded-xl transition-colors flex items-center gap-1 border border-indigo-100/50"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                               Đổi vai trò
@@ -503,7 +583,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                             {u.id !== user.id && (
                               <button
                                 onClick={() => setDeleteConfirmUser({ id: u.id, name: u.name })}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-100"
                                 title="Xóa tài khoản"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -717,6 +797,216 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: SYSTEM NOTIFICATIONS */}
+      {activeTab === 'notifications' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Create Notification Form */}
+          <div className="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <BellRing className="w-5 h-5 text-indigo-600" />
+                Đăng thông báo mới
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Xây dựng và gửi thông báo trực tiếp đến bảng tin của hệ thống</p>
+            </div>
+
+            {/* Presets to quickly fill form */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase">Mẫu thông báo sẵn có:</label>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  {
+                    label: '🎉 Cập nhật hệ thống',
+                    title: 'Cập nhật hệ thống thành công',
+                    content: 'Đã hoàn tất cập nhật các tính năng và cải thiện trải nghiệm làm bài tập cho học sinh!',
+                    type: 'system_update',
+                    badge: '🎉 Cập nhật',
+                    badgeColor: 'emerald'
+                  },
+                  {
+                    label: '🎯 Huy hiệu học tập',
+                    title: 'Hệ thống Huy hiệu thi đua mới',
+                    content: 'Làm bài tập đúng giờ để nhận huy hiệu Chiến binh Chăm chỉ và Huyền thoại học đường!',
+                    type: 'badge_info',
+                    badge: '🎯 Huy hiệu',
+                    badgeColor: 'indigo'
+                  },
+                  {
+                    label: '💡 Nhắc nhở nộp bài',
+                    title: 'Nhắc nhở hoàn thành bài tập còn hạn',
+                    content: 'Hãy kiểm tra danh sách bài tập chưa hoàn thành và nộp bài đúng giờ nhé các em!',
+                    type: 'class_reminder',
+                    badge: '💡 Nhắc nhở',
+                    badgeColor: 'amber'
+                  }
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setNotifTitle(preset.title);
+                      setNotifContent(preset.content);
+                      setNotifType(preset.type as any);
+                      setNotifBadge(preset.badge);
+                      setNotifBadgeColor(preset.badgeColor);
+                    }}
+                    className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-[11px] font-bold text-slate-700 rounded-lg transition-all"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <form onSubmit={handlePublishNotification} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">Tiêu đề thông báo</label>
+                <input
+                  type="text"
+                  required
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="Nhập tiêu đề thông báo..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">Nội dung chi tiết</label>
+                <textarea
+                  required
+                  rows={4}
+                  value={notifContent}
+                  onChange={(e) => setNotifContent(e.target.value)}
+                  placeholder="Nhập nội dung chi tiết của bản cập nhật hoặc nhắc nhở..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Loại thông báo</label>
+                  <select
+                    value={notifType}
+                    onChange={(e) => setNotifType(e.target.value as any)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-700 bg-white"
+                  >
+                    <option value="system_update">⚙️ Cập nhật hệ thống</option>
+                    <option value="badge_info">🏆 Thông tin thi đua</option>
+                    <option value="class_reminder">⏰ Lịch học / Nhắc nhở</option>
+                    <option value="announcement">📢 Thông báo chung</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Màu sắc Thẻ</label>
+                  <select
+                    value={notifBadgeColor}
+                    onChange={(e) => setNotifBadgeColor(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-700 bg-white"
+                  >
+                    <option value="emerald">🟢 Emerald (Xanh lục)</option>
+                    <option value="indigo">🔵 Indigo (Xanh dương)</option>
+                    <option value="amber">🟡 Amber (Vàng nhạt)</option>
+                    <option value="slate">⚪ Gray (Màu xám)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">Badge (Biểu tượng & chữ)</label>
+                <input
+                  type="text"
+                  required
+                  value={notifBadge}
+                  onChange={(e) => setNotifBadge(e.target.value)}
+                  placeholder="Ví dụ: 🎉 Cập nhật"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={publishingNotif}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5"
+              >
+                {publishingNotif ? 'Đang gửi...' : 'Xuất bản thông báo'}
+              </button>
+            </form>
+          </div>
+
+          {/* Existing Notifications List */}
+          <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <Search className="w-5 h-5 text-indigo-600" />
+                Quản lý thông báo đang hoạt động ({notifList.length})
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">Danh sách toàn bộ thông báo hệ thống được đồng bộ hóa thời gian thực</p>
+            </div>
+
+            {loadingNotifs ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
+                <p className="text-xs text-slate-400 mt-2">Đang tải thông báo...</p>
+              </div>
+            ) : notifList.length === 0 ? (
+              <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl">
+                <BellRing className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-500">Chưa có thông báo nào được đăng tải</p>
+                <p className="text-xs text-slate-400 mt-1">Sử dụng form bên trái để xuất bản thông báo đầu tiên của bạn.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                {notifList.map((notif) => {
+                  const badgeEmoji = notif.badge?.split(' ')[0] || '📢';
+                  let bgCol = "bg-slate-50 border-slate-100 text-slate-600";
+                  if (notif.badgeColor === "emerald" || notif.type === "system_update") {
+                    bgCol = "bg-emerald-50 border-emerald-100 text-emerald-600";
+                  } else if (notif.badgeColor === "indigo" || notif.type === "badge_info") {
+                    bgCol = "bg-indigo-50 border-indigo-100 text-indigo-600";
+                  } else if (notif.badgeColor === "amber" || notif.type === "class_reminder") {
+                    bgCol = "bg-amber-50 border-amber-100 text-amber-600";
+                  }
+
+                  return (
+                    <div key={notif.id} className="p-4 bg-slate-50/50 hover:bg-slate-50 border border-slate-200/80 rounded-2xl flex items-start gap-4 transition-all">
+                      <div className={`w-10 h-10 rounded-xl ${bgCol} border flex items-center justify-center font-bold text-lg shrink-0 mt-0.5`}>
+                        {badgeEmoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-sm">{notif.title}</h4>
+                            <p className="text-xs text-slate-500 mt-0.5 font-medium leading-relaxed">{notif.content}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNotification(notif.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                            title="Xóa thông báo"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-3 mt-3">
+                          <span className="text-[10px] bg-slate-200/60 border border-slate-300/40 text-slate-600 px-2 py-0.5 rounded-md font-bold">
+                            {notif.badge}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">
+                            Đăng ngày: {new Date(notif.createdAt).toLocaleString('vi-VN')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

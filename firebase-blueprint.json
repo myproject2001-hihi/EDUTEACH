@@ -84,6 +84,18 @@
         "attendanceRate": "number",
         "monthlyProgress": "array (optional)"
       }
+    },
+    "system_notifications": {
+      "description": "System updates and notifications",
+      "fields": {
+        "id": "string",
+        "title": "string",
+        "content": "string",
+        "type": "string ('system_update' | 'badge_info' | 'class_reminder' | 'announcement')",
+        "badge": "string",
+        "badgeColor": "string (optional)",
+        "createdAt": "string"
+      }
     }
   }
 }

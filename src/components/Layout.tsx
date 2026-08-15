@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2 } from 'lucide-react';
-import { Role, User } from '../types';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun } from 'lucide-react';
+import { Role, User, Assignment, Submission, SystemNotification } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 
 export function getAvatarInitial(name?: string): string {
@@ -21,14 +21,48 @@ interface LayoutProps {
   onUpdateUser?: (user: User) => void;
   onLogout?: () => void;
   onOpenGuide?: () => void;
+  assignments?: Assignment[];
+  submissions?: Submission[];
+  systemNotifications?: SystemNotification[];
 }
 
-export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide }: LayoutProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+function formatRelativeTime(dateString: string): string {
+  try {
+    const diff = Date.now() - new Date(dateString).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Vừa xong';
+    if (minutes < 60) return `${minutes} phút trước`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} giờ trước`;
+    const days = Math.floor(hours / 24);
+    return `${days} ngày trước`;
+  } catch (e) {
+    return 'Vừa xong';
+  }
+}
+
+export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, assignments, submissions, systemNotifications = [] }: LayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const activeRole = currentRole || user.role;
   const isAdmin = activeRole === 'admin';
   const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
+
+  const upcomingAssignments = React.useMemo(() => {
+    if (isTeacher || !assignments) return [];
+    const now = new Date().getTime();
+    const next24h = now + 24 * 60 * 60 * 1000;
+    
+    return assignments.filter(a => {
+      if (!a.dueDate) return false;
+      const dueTime = new Date(a.dueDate).getTime();
+      if (dueTime < now || dueTime > next24h) return false;
+      
+      const hasSubmitted = submissions?.some(s => s.assignmentId === a.id && s.studentId === user.id);
+      return !hasSubmitted;
+    });
+  }, [assignments, submissions, isTeacher, user.id]);
+
+  const hasUnread = upcomingAssignments.length > 0;
 
   const [academicYear, setAcademicYear] = useState(() => {
     return localStorage.getItem('academic_year') || 'Khóa 2024 - 2025';
@@ -132,14 +166,13 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
   const handleTabClick = (tabId: string) => {
     onTabChange(tabId);
-    setMobileMenuOpen(false);
   };
 
   return (
     <div className="flex h-screen w-full overflow-hidden font-sans text-slate-800 bg-[#f8fafc]">
       
       {/* Desktop Sidebar Navigation */}
-      <aside className="hidden md:flex group w-20 hover:w-64 bg-white text-slate-600 flex-col border-r border-slate-200 absolute z-50 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] hover:shadow-[12px_0_32px_rgba(0,0,0,0.05)] overflow-hidden h-full left-0 top-0">
+      <aside className="hidden md:flex group w-20 hover:w-64 bg-white text-slate-600 flex-col border-r border-slate-200 absolute z-50 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] hover:shadow-[12px_0_32px_rgba(0,0,0,0.05)] overflow-hidden h-full left-0 top-0 print:hidden">
         <nav className="flex-1 px-3 space-y-2 overflow-y-auto mt-6 custom-scrollbar">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -183,77 +216,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
         </div>
       </aside>
 
-      {/* Mobile Slide-Over Drawer */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden">
-          <div 
-            className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="relative w-4/5 max-w-xs bg-white h-full flex flex-col p-5 shadow-2xl z-10 border-r border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <button 
-                onClick={() => setMobileMenuOpen(false)} 
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <nav className="flex-1 space-y-2 mt-6 overflow-y-auto">
-              {navItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabClick(item.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm rounded-xl transition-all font-medium ${
-                      isActive
-                        ? 'bg-indigo-50 text-indigo-600 border border-indigo-100 font-bold'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-                    <span>{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="mt-auto pt-4 border-t border-slate-100 space-y-3">
-              <div 
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setShowProfileModal(true);
-                }}
-                title="Xem thông tin cá nhân"
-                className="p-3 bg-slate-50 hover:bg-indigo-50/50 rounded-xl border border-slate-100 hover:border-indigo-100 flex items-center gap-3 cursor-pointer transition-colors"
-              >
-                <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
-                  <p className="text-xs text-slate-500 capitalize">
-                    {activeRole === 'admin' ? 'Quản trị viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative ml-0 md:ml-20 transition-all duration-300 bg-[#f8fafc] pb-16 md:pb-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative ml-0 md:ml-20 print:ml-0 transition-all duration-300 bg-[#f8fafc] pb-16 md:pb-0 print:pb-0">
         {/* Top Header */}
-        <header className="h-16 sm:h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 z-10 sticky top-0 shadow-sm">
+        <header className="h-16 sm:h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 z-40 sticky top-0 shadow-sm print:hidden">
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <button 
-              onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors shrink-0"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
             <h2 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">
               {navItems.find(item => item.id === activeTab)?.label || 'Bảng điều khiển'}
             </h2>
@@ -323,7 +290,9 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 title="Thông báo"
               >
                 <BellRing className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-indigo-600 rounded-full border-2 border-white animate-bounce"></span>
+                {hasUnread && (
+                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white animate-pulse"></span>
+                )}
               </button>
 
               <AnimatePresence>
@@ -340,7 +309,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-80 sm:w-96 bg-white border border-slate-200/80 rounded-2xl shadow-xl z-40 overflow-hidden flex flex-col text-left"
+                      className="fixed md:absolute top-16 md:top-auto left-4 right-4 md:left-auto md:right-0 mt-2 w-auto md:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[60] overflow-hidden flex flex-col text-left origin-top-right"
                     >
                       <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -376,33 +345,68 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                           </button>
                         </div>
 
+                        {/* Upcoming Assignments Notices */}
+                        {upcomingAssignments.length > 0 && (
+                          <div className="space-y-3">
+                            <h6 className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-1">Bài Tập Sắp Hết Hạn</h6>
+                            {upcomingAssignments.map(assignment => {
+                              const hoursLeft = Math.max(1, Math.ceil((new Date(assignment.dueDate!).getTime() - Date.now()) / (60 * 60 * 1000)));
+                              return (
+                                <div key={assignment.id} className="flex gap-3 items-start p-2 rounded-xl bg-orange-50/50 border border-orange-100/50 hover:bg-orange-50 transition-colors">
+                                  <div className="w-8 h-8 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0 mt-0.5 animate-pulse">
+                                    ⏰
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-bold text-slate-800">{assignment.title}</p>
+                                    <p className="text-[10px] text-slate-600 font-medium mt-0.5 leading-relaxed">
+                                      {assignment.classSessionTitle ? `${assignment.classSessionTitle} - ` : ''}Dạng: {assignment.type === 'game' ? 'Game' : assignment.type === 'online_test' ? 'Trắc nghiệm' : 'Tự luận'}
+                                    </p>
+                                    <span className="text-[10px] text-orange-600 font-extrabold block mt-1">Còn {hoursLeft} giờ</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {/* Recent Notices */}
                         <div className="space-y-3">
-                          <div className="flex gap-3 items-start p-2 rounded-xl hover:bg-slate-50 transition-colors">
-                            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0 mt-0.5">
-                              🎉
+                          <h6 className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-1">Từ Hệ Thống</h6>
+                          {systemNotifications.length === 0 ? (
+                            <div className="text-center py-4 text-xs text-slate-400">
+                              Chưa có thông báo nào từ hệ thống.
                             </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-800">Cập nhật hệ thống thành công</p>
-                              <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
-                                Đã chuyển đổi giao diện tạo Bài tập & Game sang quy trình từng bước chuyên nghiệp!
-                              </p>
-                              <span className="text-[9px] text-slate-400 font-bold block mt-1">Vừa xong</span>
-                            </div>
-                          </div>
+                          ) : (
+                            systemNotifications.map((notif) => {
+                              const badgeEmoji = notif.badge?.split(' ')[0] || '📢';
+                              
+                              let bgBadgeColor = "bg-slate-50 border-slate-100 text-slate-600";
+                              if (notif.badgeColor === "emerald" || notif.type === "system_update") {
+                                bgBadgeColor = "bg-emerald-50 border-emerald-100 text-emerald-600";
+                              } else if (notif.badgeColor === "indigo" || notif.type === "badge_info") {
+                                bgBadgeColor = "bg-indigo-50 border-indigo-100 text-indigo-600";
+                              } else if (notif.badgeColor === "amber" || notif.type === "class_reminder") {
+                                bgBadgeColor = "bg-amber-50 border-amber-100 text-amber-600";
+                              }
 
-                          <div className="flex gap-3 items-start p-2 rounded-xl hover:bg-slate-50 transition-colors">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5">
-                              🎯
-                            </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-800">Hệ thống Huy hiệu tích lũy</p>
-                              <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed">
-                                Học sinh tích cực làm bài tập và chơi game để nâng cấp huy hiệu lên Huyền thoại học đường!
-                              </p>
-                              <span className="text-[9px] text-slate-400 font-bold block mt-1">1 giờ trước</span>
-                            </div>
-                          </div>
+                              return (
+                                <div key={notif.id} className="flex gap-3 items-start p-2 rounded-xl hover:bg-slate-50/70 transition-colors">
+                                  <div className={`w-8 h-8 rounded-lg ${bgBadgeColor} border flex items-center justify-center shrink-0 mt-0.5 font-bold text-sm`}>
+                                    {badgeEmoji}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 break-words">{notif.title}</p>
+                                    <p className="text-[10px] text-slate-500 font-medium mt-0.5 leading-relaxed break-words">
+                                      {notif.content}
+                                    </p>
+                                    <span className="text-[9px] text-slate-400 font-bold block mt-1">
+                                      {formatRelativeTime(notif.createdAt)}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
 
@@ -444,7 +448,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       </main>
 
       {/* Mobile & Tablet Touch Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-1.5 flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1 sm:gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-1.5 flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1 sm:gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] print:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -463,15 +467,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             </button>
           );
         })}
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all shrink-0 min-w-[62px] text-slate-500 hover:text-slate-800"
-        >
-          <div className="p-1 rounded-xl">
-            <Menu className="w-5 h-5" />
-          </div>
-          <span className="text-[10px] mt-0.5 truncate max-w-[68px]">Menu</span>
-        </button>
       </nav>
 
       {/* Profile Modal */}
@@ -768,7 +763,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               {/* Account Switching Action (Dành cho Giáo viên & Quản trị viên để thử nghiệm) */}
               {!isEditing && (user.role === 'teacher' || user.role === 'admin') && (
                 <div className="pt-2 border-t border-slate-100">
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 flex flex-col gap-3">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col gap-3">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-indigo-600" />
                       <p className="text-xs font-bold text-slate-900">Tính năng thử nghiệm đa vai trò</p>

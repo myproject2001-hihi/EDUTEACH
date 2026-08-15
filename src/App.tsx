@@ -7,7 +7,7 @@ import { StudentsReportView } from './views/StudentsReportView';
 import { SimulationsView } from './views/SimulationsView';
 import { AuthView } from './views/AuthView';
 import { currentUserMock } from './mockData';
-import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress } from './types';
+import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress, SystemNotification } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -17,6 +17,7 @@ import { SettingsView } from './views/SettingsView';
 import { AdminConsoleView } from './views/AdminConsoleView';
 import { GuideOnboardingModal } from './components/GuideOnboardingModal';
 import { ClassSessionReminder } from './components/ClassSessionReminder';
+import { AssignmentReminder } from './components/AssignmentReminder';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -31,6 +32,7 @@ export default function App() {
   const [classes, setClasses] = useState<ClassSession[]>([]);
   const [progressData, setProgressData] = useState<StudentProgress[]>([]);
   const [simulations, setSimulations] = useState<HTMLSimulation[]>([]);
+  const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [initializingAuth, setInitializingAuth] = useState(true);
 
@@ -147,12 +149,57 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, 'student_progress');
     });
 
+    // Listen to system notifications
+    const unsubscribeNotifications = onSnapshot(collection(db, 'system_notifications'), async (snapshot) => {
+      const list: SystemNotification[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as SystemNotification);
+      });
+      
+      if (list.length === 0) {
+        // Seed default notifications
+        const defaults: SystemNotification[] = [
+          {
+            id: 'notif_1',
+            title: 'Cập nhật hệ thống thành công',
+            content: 'Đã chuyển đổi giao diện tạo Bài tập & Game sang quy trình từng bước chuyên nghiệp!',
+            type: 'system_update',
+            badge: '🎉 Cập nhật',
+            badgeColor: 'emerald',
+            createdAt: new Date(Date.now() - 5 * 60 * 1000).toISOString()
+          },
+          {
+            id: 'notif_2',
+            title: 'Hệ thống Huy hiệu tích lũy',
+            content: 'Học sinh tích cực làm bài tập và chơi game để nâng cấp huy hiệu lên Huyền thoại học đường!',
+            type: 'badge_info',
+            badge: '🎯 Huy hiệu',
+            badgeColor: 'indigo',
+            createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString()
+          }
+        ];
+        for (const item of defaults) {
+          try {
+            await setDoc(doc(db, 'system_notifications', item.id), item);
+          } catch (e) {
+            console.error('Seeding notifications failed:', e);
+          }
+        }
+      } else {
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setSystemNotifications(list);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'system_notifications');
+    });
+
     return () => {
       unsubscribeAssignments();
       unsubscribeSubmissions();
       unsubscribeSimulations();
       unsubscribeClasses();
       unsubscribeProgress();
+      unsubscribeNotifications();
     };
   }, [isAuthenticated]);
 
@@ -385,7 +432,7 @@ export default function App() {
           initial={{ opacity: 0, scale: 1.05 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-          className="h-full w-full absolute inset-0 bg-[#f8fafc]"
+          className="h-full w-full absolute inset-0 bg-[#f8fafc] transition-colors duration-300"
         >
           {currentUser && (
             <>
@@ -398,10 +445,14 @@ export default function App() {
                 onUpdateUser={handleUpdateUser}
                 onLogout={handleLogout}
                 onOpenGuide={() => setShowGuideOnboarding(true)}
+                assignments={assignments}
+                submissions={submissions}
+                systemNotifications={systemNotifications}
               >
                 {renderContent()}
               </Layout>
               <ClassSessionReminder user={currentUser} classes={classes} />
+              <AssignmentReminder user={currentUser} assignments={assignments} submissions={submissions} />
             </>
           )}
           

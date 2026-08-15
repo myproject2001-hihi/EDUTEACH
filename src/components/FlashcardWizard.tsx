@@ -35,30 +35,32 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   handleImportFlashcards,
 }) => {
   return (
-    <div id="flashcard-wizard-container" className="w-full h-full flex flex-col overflow-hidden bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
+    <div id="flashcard-wizard-container" className="flex-1 flex flex-col md:overflow-hidden bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
       {/* Stepper Header */}
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 mb-4 border-b border-slate-100 pb-4 select-none shrink-0">
-        <button
-          type="button"
-          onClick={() => setFlashcardSubStep(1)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold transition-all ${flashcardSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100 scale-102' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-        >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black">1</span>
-          Thiết Lập Bộ Thẻ
-        </button>
-        <span className="text-slate-300 text-xs sm:inline hidden">➔</span>
-        <button
-          type="button"
-          onClick={() => setFlashcardSubStep(2)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-extrabold transition-all ${flashcardSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100 scale-102' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-        >
-          <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-black">2</span>
-          Thiết Lập Câu Hỏi Kiểm Tra
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 border-b border-slate-100 pb-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto custom-scrollbar flex-1 pb-1 sm:pb-0">
+          <button
+            type="button"
+            onClick={() => setFlashcardSubStep(1)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">1</span>
+            Thiết Lập Bộ Thẻ
+          </button>
+          <span className="text-slate-300 text-xs shrink-0">➔</span>
+          <button
+            type="button"
+            onClick={() => setFlashcardSubStep(2)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">2</span>
+            Câu Hỏi Trắc Nghiệm
+          </button>
+        </div>
       </div>
 
       {/* Step Contents */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-0 flex flex-col">
+      <div className="flex-1 md:overflow-hidden min-h-0 flex flex-col">
         <AnimatePresence mode="wait">
           {flashcardSubStep === 1 && (
             <motion.div 
@@ -67,9 +69,9 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="space-y-4 flex flex-col h-full"
+              className="flex-1 min-h-0 flex flex-col space-y-3"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0 bg-white p-3 rounded-2xl border shadow-sm">
                 <div>
                   <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 1</span>
                   <h4 className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 flex items-center gap-2">
@@ -116,7 +118,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               </div>
 
               {/* Scrolling List of Cards */}
-              <div className="flex-1 overflow-y-auto max-h-[48vh] space-y-4 pr-1 pb-4 custom-scrollbar">
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-4 custom-scrollbar">
                 {newFlashcards.map((card, index) => (
                   <div key={card.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group hover:border-indigo-200 transition-colors">
                     <div className="absolute top-3 right-3 flex items-center gap-2">
@@ -169,7 +171,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="space-y-4 flex flex-col h-full w-full"
+              className="flex-1 min-h-0 flex flex-col space-y-4 w-full"
             >
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-1 shrink-0">
                 <div className="flex items-center gap-2">

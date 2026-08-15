@@ -187,7 +187,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
         {filteredSims.map(sim => (
           <div 
             key={sim.id} 
-            className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden hover:shadow-md transition-all group flex flex-col justify-between"
+            className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-all group flex flex-col justify-between"
           >
             <div>
               <div 

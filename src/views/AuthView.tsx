@@ -504,7 +504,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
               setLoading(false);
             }
           }}>
-            <div className="space-y-4 bg-slate-50/80 p-4 sm:p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div className="space-y-4 bg-slate-50/80 p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="space-y-1">
                 <label className="block text-xs font-bold text-slate-700">Tên đăng nhập</label>
                 <div className="relative group">
@@ -1137,7 +1137,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                     onClick={() => setRecoveryTab('request')}
                     className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
                       recoveryTab === 'request'
-                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
@@ -1148,7 +1148,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                     onClick={() => setRecoveryTab('lookup')}
                     className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
                       recoveryTab === 'lookup'
-                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/60'
+                        ? 'bg-white text-indigo-600 shadow-sm border border-slate-200'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
@@ -1353,7 +1353,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                       Trong trường hợp khẩn cấp (như cần mật khẩu gấp để vào làm bài thi, nộp bài, hoặc chấm điểm), học sinh, phụ huynh và giáo viên có thể liên hệ trực tiếp với Giáo viên chủ nhiệm hoặc Ban quản trị qua Zalo để được duyệt nhanh nhất.
                     </p>
                     
-                    <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-4 text-xs text-slate-600 space-y-2">
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 space-y-2">
                       <p className="font-semibold text-slate-800 flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-indigo-500" />
                         Hướng dẫn xử lý nhanh:
