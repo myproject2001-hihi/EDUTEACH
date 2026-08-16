@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Star, Keyboard } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 import { cleanQuestionText } from '../views/AssignmentsView';
+import grassTexture from '../assets/images/minesweeper_grass_texture_1786870331143.jpg';
 
 interface Answer {
   id: string;
@@ -757,13 +758,10 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
             isShaking ? 'shake-hard' : ''
           } ${isGameOver ? 'pointer-events-none opacity-90' : ''}`}
           style={{
-            backgroundColor: '#86efac',
-            backgroundImage: `
-              radial-gradient(#4ade80 18%, transparent 18%),
-              radial-gradient(#4ade80 18%, transparent 18%)
-            `,
-            backgroundSize: '28px 28px',
-            backgroundPosition: '0 0, 14px 14px'
+            backgroundColor: '#4ade80',
+            backgroundImage: `url(${grassTexture})`,
+            backgroundSize: '200px 200px',
+            backgroundRepeat: 'repeat'
           }}
         >
           {/* Answer Nodes on field */}
