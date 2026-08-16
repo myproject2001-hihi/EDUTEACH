@@ -855,14 +855,43 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     }
   };
 
-  if (selectedAssignment && (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && isExamStarted) {
+  // Active Game Mode Screen
+  if (selectedAssignment && selectedAssignment.type === 'game' && isExamStarted) {
+    return (
+      <div className="fixed inset-0 bg-slate-900/90 z-[9999] flex flex-col justify-center items-center p-2 sm:p-6 overflow-hidden">
+        <div className="w-full max-w-6xl h-full max-h-[760px] bg-white rounded-3xl overflow-hidden shadow-2xl border border-indigo-100 flex flex-col">
+          <GamePreview
+            gameType={selectedAssignment.gameType || 'do_min'}
+            questions={selectedAssignment.questions && selectedAssignment.questions.length > 0 ? selectedAssignment.questions : parseRawCodeToQuestions(rawQuestionCode).parsedQuestions}
+            isStudentMode={!isTeacher}
+            onClose={() => setIsExamStarted(false)}
+            onSubmitWork={(finalScore, correctCount, answers) => {
+              const submissionData = {
+                assignmentId: selectedAssignment.id,
+                studentId: user.id,
+                studentName: user.name,
+                content: `Đã hoàn thành trò chơi học tập với điểm số ${finalScore}.`,
+                quizAnswers: answers,
+                grade: Math.min(10, Math.round((correctCount / (selectedAssignment.questions?.length || 1)) * 10)),
+                status: 'submitted' as const
+              };
+              onSubmitWork(submissionData);
+              setIsExamStarted(false);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedAssignment && (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'flashcard') && isExamStarted) {
     return (
       <div className="fixed inset-0 bg-[#F4F6F9] z-[9999] overflow-hidden flex flex-col h-screen w-screen">
         {/* Header Exam */}
         <div className="bg-emerald-800 text-white px-6 py-4 flex items-center justify-between shadow-md shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-white font-black text-xl tracking-tight">
-              {selectedAssignment.type === 'game' ? 'Trò Chơi Học Tập' : selectedAssignment.type === 'flashcard' ? 'Thẻ Ghi Nhớ' : 'Hệ Thống Đề Thi Trắc Nghiệm'}
+              {selectedAssignment.type === 'flashcard' ? 'Thẻ Ghi Nhớ' : 'Hệ Thống Đề Thi Trắc Nghiệm'}
             </span>
             <div className="h-4 w-[1px] bg-emerald-600/60 hidden sm:block"></div>
             <span className="text-xs font-semibold bg-emerald-700/60 px-2.5 py-1 rounded-lg border border-emerald-600/30 text-emerald-100 hidden sm:inline-block">

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Star, Volume2, Shield, Keyboard, Zap, Play } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, Star, Keyboard } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 
 interface Answer {
@@ -14,8 +13,9 @@ interface Answer {
 
 interface Question {
   question: string;
-  options?: string[]; // compatibility
-  answers?: Answer[]; // custom
+  options?: string[];
+  answers?: Answer[];
+  [key: string]: any;
 }
 
 interface MinesweeperGameProps {
@@ -25,8 +25,9 @@ interface MinesweeperGameProps {
   onSubmitWork?: (score: number, correctAnswers: number, answersMap: Record<string, number>) => void;
 }
 
-interface FireworkParticle {
-  id: string;
+// Particle Pool Interface
+interface PooledParticle {
+  active: boolean;
   x: number;
   y: number;
   tx: number;
@@ -34,32 +35,208 @@ interface FireworkParticle {
   color: string;
 }
 
-interface ExplosionEffect {
-  id: string;
+// Explosion Pool Interface
+interface PooledExplosion {
+  active: boolean;
   x: number;
   y: number;
 }
 
+const PARTICLE_POOL_SIZE = 20;
+const EXPLOSION_POOL_SIZE = 2;
+
+// Memoized Answer Nodes to prevent re-rendering Math/Markdown on every movement frame
+const AnswerNodesList = React.memo(({ answers, onNodeClick }: { answers: Answer[]; onNodeClick: (e: React.MouseEvent, ans: Answer) => void }) => {
+  return (
+    <>
+      {answers.map((ans, idx) => (
+        <div
+          key={ans.id || idx}
+          onClick={(e) => onNodeClick(e, ans)}
+          className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center cursor-pointer group z-10 transition-transform active:scale-95"
+          style={{
+            left: `${ans.x}%`,
+            top: `${ans.y}%`,
+          }}
+        >
+          {/* Floating Balloon Pin */}
+          <div className="relative flex flex-col items-center">
+            <div className="w-11 h-11 rounded-full border-4 border-white flex items-center justify-center text-white font-black text-sm shadow-xl transition-all duration-200 bg-indigo-600 group-hover:scale-110 group-hover:bg-indigo-700">
+              {ans.displayId}
+            </div>
+            
+            {/* Answer Banner tag */}
+            <div className="mt-1.5 px-3.5 py-1 bg-white border border-indigo-100 rounded-full text-xs font-extrabold text-indigo-950 shadow-md whitespace-nowrap group-hover:border-indigo-300 transition-all max-w-[200px] truncate text-center">
+              <MarkdownMath content={ans.text} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
+  );
+});
+
+// Memoized Soldier Avatar to isolate frame renders
+const SoldierAvatar = React.memo(({ x, y }: { x: number; y: number }) => {
+  return (
+    <div 
+      className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
+      style={{
+        left: `${x}%`,
+        top: `${y}%`,
+        willChange: 'left, top'
+      }}
+    >
+      <div className="relative w-12 h-12 flex flex-col items-center justify-center">
+        {/* Helmet cap circle */}
+        <div className="absolute top-0 w-10 h-10 bg-emerald-600 rounded-full border-2 border-emerald-800 shadow-2xl z-20 flex items-center justify-center">
+          {/* Yellow star insignia */}
+          <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full border border-yellow-600 animate-pulse" />
+        </div>
+        {/* Wide rim of pith helmet */}
+        <div className="absolute top-1.5 w-12 h-7 bg-emerald-700 rounded-full border border-emerald-800 z-10" />
+        {/* Backpack bag */}
+        <div className="absolute bottom-0 w-8 h-4 bg-amber-600 rounded-md border border-amber-700 z-0" />
+        {/* Torso */}
+        <div className="absolute top-4 w-9 h-6 bg-emerald-500 rounded-xl border border-emerald-700 z-10" />
+      </div>
+    </div>
+  );
+});
+
+// Object Pooled Particle Canvas Overlay
+const ParticleOverlay = React.memo(({ particles }: { particles: PooledParticle[] }) => {
+  return (
+    <>
+      {particles.map((p, idx) => {
+        if (!p.active) return null;
+        return (
+          <div
+            key={idx}
+            className="absolute w-2.5 h-2.5 rounded-full pointer-events-none transition-all duration-1000 ease-out"
+            style={{
+              left: `${p.x}px`,
+              top: `${p.y}px`,
+              backgroundColor: p.color,
+              boxShadow: `0 0 8px ${p.color}`,
+              transform: `translate3d(${p.tx}px, ${p.ty}px, 0) scale(0.2)`,
+              opacity: p.active ? 1 : 0,
+              willChange: 'transform, opacity'
+            }}
+          />
+        );
+      })}
+    </>
+  );
+});
+
+// Object Pooled Explosion Overlay
+const ExplosionOverlay = React.memo(({ explosions }: { explosions: PooledExplosion[] }) => {
+  return (
+    <>
+      {explosions.map((exp, idx) => {
+        if (!exp.active) return null;
+        return (
+          <div
+            key={idx}
+            className="absolute rounded-full pointer-events-none z-30"
+            style={{
+              left: `${exp.x}px`,
+              top: `${exp.y}px`,
+              width: '80px',
+              height: '80px',
+              marginLeft: '-40px',
+              marginTop: '-40px',
+              background: 'radial-gradient(circle, #ffe600 10%, #ff5d00 45%, #ff0000 75%, transparent 100%)',
+              animation: 'pop-big 0.6s cubic-bezier(0.15, 0.9, 0.3, 1.2) forwards',
+              willChange: 'transform, opacity'
+            }}
+          />
+        );
+      })}
+    </>
+  );
+});
+
 export function MinesweeperGame({ questions, onClose, isStudentMode = false, onSubmitWork }: MinesweeperGameProps) {
-  // Convert basic questions to have answers property if they only have options
+  // Normalize external questions robustly
   const gameQuestions = React.useMemo(() => {
-    return questions.map((q) => {
-      if (q.answers && q.answers.length > 0) return q;
-      // Convert options array to answers format
-      const options = q.options || ['Đúng', 'Sai'];
-      const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer 
-                       : typeof q.correctOption === 'number' ? q.correctOption 
-                       : typeof q.answerIndex === 'number' ? q.answerIndex
-                       : 0;
-      const answersList = options.map((opt: string, idx: number) => {
-        return {
-          id: String.fromCharCode(65 + idx), // A, B, C, D
-          text: opt,
-          isCorrect: idx === correctIdx
-        };
-      });
+    if (!questions || questions.length === 0) {
+      return [
+        {
+          question: 'Câu 1: Cho hai số a = 5, b = 3. Tính a + b?',
+          answers: [
+            { id: 'A', text: '8', isCorrect: true },
+            { id: 'B', text: '15', isCorrect: false },
+            { id: 'C', text: '2', isCorrect: false },
+            { id: 'D', text: '12', isCorrect: false }
+          ]
+        },
+        {
+          question: 'Câu 2: Công thức tính diện tích hình tròn có bán kính R là?',
+          answers: [
+            { id: 'A', text: 'S = πR²', isCorrect: true },
+            { id: 'B', text: 'S = 2πR', isCorrect: false },
+            { id: 'C', text: 'S = πD', isCorrect: false },
+            { id: 'D', text: 'S = 4πR²', isCorrect: false }
+          ]
+        }
+      ];
+    }
+
+    return questions.map((q, qIdx) => {
+      let qText = q.question || q.text || q.title || `Câu ${qIdx + 1}.`;
+      if (q.numStr && !qText.includes(q.numStr)) {
+        qText = `${q.numStr} ${qText}`;
+      }
+
+      let rawOptions: string[] = [];
+      if (Array.isArray(q.options) && q.options.length > 0) {
+        rawOptions = q.options;
+      } else if (Array.isArray(q.answers) && q.answers.length > 0) {
+        rawOptions = q.answers.map((a: any) => (typeof a === 'string' ? a : (a.text || a.title || '')));
+      } else if (Array.isArray(q.subOptions) && q.subOptions.length > 0) {
+        rawOptions = q.subOptions;
+      } else {
+        rawOptions = ['Đúng', 'Sai'];
+      }
+
+      const validOptions = rawOptions.filter(opt => opt !== undefined && opt !== null && String(opt).trim() !== '');
+      const options = validOptions.length >= 2 ? validOptions : (rawOptions.length >= 2 ? rawOptions : ['Đúng', 'Sai']);
+
+      let correctIdx = 0;
+      if (typeof q.correctAnswer === 'number') {
+        correctIdx = q.correctAnswer;
+      } else if (typeof q.correctOption === 'number') {
+        correctIdx = q.correctOption;
+      } else if (typeof q.answerIndex === 'number') {
+        correctIdx = q.answerIndex;
+      } else if (typeof q.correctAnswer === 'string') {
+        const ca = q.correctAnswer.trim();
+        const u = ca.toUpperCase();
+        if (u === 'A' || ca === '0') correctIdx = 0;
+        else if (u === 'B' || ca === '1') correctIdx = 1;
+        else if (u === 'C' || ca === '2') correctIdx = 2;
+        else if (u === 'D' || ca === '3') correctIdx = 3;
+        else {
+          const matchOpt = options.findIndex((opt: string) => String(opt).trim().toLowerCase() === ca.toLowerCase());
+          if (matchOpt !== -1) correctIdx = matchOpt;
+        }
+      } else if (Array.isArray(q.correctAnswer) && q.correctAnswer.length > 0) {
+        correctIdx = Number(q.correctAnswer[0]) || 0;
+      } else if (Array.isArray(q.answers) && q.answers.length > 0) {
+        const foundCorrect = q.answers.findIndex((a: any) => typeof a === 'object' && a.isCorrect === true);
+        if (foundCorrect !== -1) correctIdx = foundCorrect;
+      }
+
+      const answersList = options.map((opt: string, idx: number) => ({
+        id: String.fromCharCode(65 + idx),
+        text: String(opt),
+        isCorrect: idx === correctIdx
+      }));
+
       return {
-        question: q.question || q.text || '',
+        question: qText,
         answers: answersList
       };
     });
@@ -78,6 +255,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const isGameOverRef = useRef(false);
   const isProcessingAnswerRef = useRef(false);
   const isAutoMovingRef = useRef(false);
+  const lastFrameTimeRef = useRef<number>(0);
   
   // Soldier position (percentage %)
   const [playerPos, setPlayerPos] = useState({ x: 50, y: 80 });
@@ -85,22 +263,41 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   
   // Screen shake animation
   const [isShaking, setIsShaking] = useState(false);
+
+  // Object Pools
+  const particlePoolRef = useRef<PooledParticle[]>(
+    Array.from({ length: PARTICLE_POOL_SIZE }, () => ({
+      active: false,
+      x: 0,
+      y: 0,
+      tx: 0,
+      ty: 0,
+      color: '#f59e0b'
+    }))
+  );
+  const [particlePool, setParticlePool] = useState<PooledParticle[]>(particlePoolRef.current);
+
+  const explosionPoolRef = useRef<PooledExplosion[]>(
+    Array.from({ length: EXPLOSION_POOL_SIZE }, () => ({
+      active: false,
+      x: 0,
+      y: 0
+    }))
+  );
+  const [explosionPool, setExplosionPool] = useState<PooledExplosion[]>(explosionPoolRef.current);
   
-  // VFX state arrays
-  const [fireworks, setFireworks] = useState<FireworkParticle[]>([]);
-  const [explosions, setExplosions] = useState<ExplosionEffect[]>([]);
-  
-  // Shuffled and positioned answers for the current question
+  // Current question answers
   const [currentAnswers, setCurrentAnswers] = useState<Answer[]>([]);
+  const currentAnswersRef = useRef<Answer[]>([]);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
   const keysPressedRef = useRef<Record<string, boolean>>({});
 
-  const playerSpeed = 1.6; // Percent per frame (~96% per second at 60fps)
-  const hitRadius = 45; // Collision radius in pixels
+  const playerSpeed = 1.8;
+  const hitRadius = 45;
 
-  // Helper sync setters
+  // Sync setters
   const setAutoMoving = (val: boolean) => {
     isAutoMovingRef.current = val;
     setIsAutoMoving(val);
@@ -116,12 +313,11 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     setIsGameOver(val);
   };
 
-  // Sync state coordinates to ref
   useEffect(() => {
     playerPosRef.current = playerPos;
   }, [playerPos]);
 
-  // Load a new question and generate random coordinates for options on the grass field
+  // Load a new question
   const loadQuestion = (index: number) => {
     if (index >= gameQuestions.length) {
       setGameOver(true);
@@ -135,14 +331,12 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       animationFrameIdRef.current = null;
     }
 
-    // Reset player position back to start base
     setPlayerPos({ x: 50, y: 80 });
     playerPosRef.current = { x: 50, y: 80 };
 
     const q = gameQuestions[index];
     const originalAnswers = q?.answers || [];
 
-    // Position presets (percentage coordinates around the field)
     const presetPositions = [
       { x: 25, y: 25 },
       { x: 75, y: 25 },
@@ -153,10 +347,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       { x: 85, y: 42 }
     ];
 
-    // Shuffle positions
     const shuffledPositions = [...presetPositions].sort(() => Math.random() - 0.5);
-    
-    // Shuffle the answers
     const shuffledAnswers = [...originalAnswers].sort(() => Math.random() - 0.5);
     const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -167,19 +358,19 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       y: shuffledPositions[idx]?.y || 50
     }));
 
+    currentAnswersRef.current = formattedAnswers;
     setCurrentAnswers(formattedAnswers);
   };
 
-  // Load first question on mount
   useEffect(() => {
     if (gameQuestions.length > 0) {
       loadQuestion(0);
     }
   }, [gameQuestions]);
 
-  // Auto-move navigation handler
+  // Throttled Auto-move navigation handler
   const startAutoMove = (targetX: number, targetY: number, onArrival?: () => void) => {
-    if (isGameOverRef.current || isProcessingAnswerRef.current) return;
+    if (isGameOver || isGameOverRef.current || isProcessingAnswer || isProcessingAnswerRef.current) return;
     
     setAutoMoving(true);
 
@@ -188,12 +379,19 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       animationFrameIdRef.current = null;
     }
 
-    const stepMove = () => {
-      if (isGameOverRef.current || isProcessingAnswerRef.current) {
+    const stepMove = (timestamp: number) => {
+      if (isGameOver || isGameOverRef.current || isProcessingAnswer || isProcessingAnswerRef.current) {
         setAutoMoving(false);
         animationFrameIdRef.current = null;
         return;
       }
+
+      // Delta-time throttle ~60 FPS
+      if (timestamp - lastFrameTimeRef.current < 14) {
+        animationFrameIdRef.current = requestAnimationFrame(stepMove);
+        return;
+      }
+      lastFrameTimeRef.current = timestamp;
 
       const current = playerPosRef.current;
       const dx = targetX - current.x;
@@ -222,12 +420,19 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     animationFrameIdRef.current = requestAnimationFrame(stepMove);
   };
 
-  // Keyboard navigation loop
-  const movePlayerWithKeys = () => {
-    if (isGameOverRef.current || isProcessingAnswerRef.current) {
+  // Throttled Keyboard navigation loop
+  const movePlayerWithKeys = (timestamp: number) => {
+    if (isGameOver || isGameOverRef.current || isProcessingAnswer || isProcessingAnswerRef.current) {
       animationFrameIdRef.current = null;
       return;
     }
+
+    // Delta-time throttle ~60 FPS
+    if (timestamp - lastFrameTimeRef.current < 14) {
+      animationFrameIdRef.current = requestAnimationFrame(movePlayerWithKeys);
+      return;
+    }
+    lastFrameTimeRef.current = timestamp;
 
     let moved = false;
     const current = playerPosRef.current;
@@ -254,7 +459,6 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       moved = true;
     }
 
-    // Limit screen bounds
     nextX = Math.max(5, Math.min(95, nextX));
     nextY = Math.max(5, Math.min(95, nextY));
 
@@ -264,12 +468,11 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       checkCollisionWithAnswers(nextX, nextY);
     }
 
-    // Continue frame loop if keys are still active
     const anyKeyPressed = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].some(
       (k) => keysPressedRef.current[k]
     );
 
-    if (anyKeyPressed && !isGameOverRef.current && !isProcessingAnswerRef.current) {
+    if (anyKeyPressed && !isGameOver && !isGameOverRef.current && !isProcessingAnswer && !isProcessingAnswerRef.current) {
       animationFrameIdRef.current = requestAnimationFrame(movePlayerWithKeys);
     } else {
       animationFrameIdRef.current = null;
@@ -278,14 +481,14 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isGameOver || isGameOverRef.current) return;
       const key = e.key.toLowerCase();
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
         e.preventDefault();
       }
       keysPressedRef.current[key] = true;
 
-      if (!isGameOverRef.current && !isProcessingAnswerRef.current) {
-        // Cancel auto-move if user manually presses movement keys
+      if (!isGameOver && !isGameOverRef.current && !isProcessingAnswer && !isProcessingAnswerRef.current) {
         if (isAutoMovingRef.current) {
           setAutoMoving(false);
           if (animationFrameIdRef.current) {
@@ -313,18 +516,17 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
         cancelAnimationFrame(animationFrameIdRef.current);
       }
     };
-  }, []);
+  }, [isGameOver]);
 
   const checkCollisionWithAnswers = (px: number, py: number) => {
-    if (!boardRef.current || isProcessingAnswerRef.current || isGameOverRef.current) return;
+    if (!boardRef.current || isProcessingAnswer || isProcessingAnswerRef.current || isGameOver || isGameOverRef.current) return;
     const boardWidth = boardRef.current.clientWidth;
     const boardHeight = boardRef.current.clientHeight;
 
-    // Convert player % coordinates to absolute pixels
     const playerAbsX = (px / 100) * boardWidth;
     const playerAbsY = (py / 100) * boardHeight;
 
-    currentAnswers.forEach((ans) => {
+    currentAnswersRef.current.forEach((ans) => {
       if (ans.x === undefined || ans.y === undefined) return;
       const ansAbsX = (ans.x / 100) * boardWidth;
       const ansAbsY = (ans.y / 100) * boardHeight;
@@ -337,7 +539,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   };
 
   const evaluateAnswer = (answer: Answer) => {
-    if (isProcessingAnswerRef.current || isGameOverRef.current) return;
+    if (isProcessingAnswer || isProcessingAnswerRef.current || isGameOver || isGameOverRef.current) return;
     setProcessingAnswer(true);
     setAutoMoving(false);
 
@@ -358,7 +560,6 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     setCorrectAnswersCount(nextCorrectCount);
     setAnswersMap(nextAnswersMap);
 
-    // Locate explosion/particle point
     if (answer.x !== undefined && answer.y !== undefined && boardRef.current) {
       const boardWidth = boardRef.current.clientWidth;
       const boardHeight = boardRef.current.clientHeight;
@@ -366,17 +567,14 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       const yPixel = (answer.y / 100) * boardHeight;
 
       if (answer.isCorrect) {
-        // Award points & play fireworks sparks
         triggerFireworks(xPixel, yPixel);
       } else {
-        // Shake screen and detonate landmine!
         setIsShaking(true);
         triggerExplosion(xPixel, yPixel);
         setTimeout(() => setIsShaking(false), 600);
       }
     }
 
-    // Proceed to next question with brief delays
     setTimeout(() => {
       const nextIdx = currentQuestionIndex + 1;
       if (nextIdx >= gameQuestions.length) {
@@ -388,38 +586,54 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
         setCurrentQuestionIndex(nextIdx);
         loadQuestion(nextIdx);
       }
-    }, answer.isCorrect ? 2200 : 1800);
+    }, 1200);
   };
 
+  // Object Pooling Trigger for Fireworks
   const triggerFireworks = (x: number, y: number) => {
-    const colors = ['#ffd700', '#4ade80', '#60a5fa', '#f472b6', '#c084fc', '#fb923c'];
-    const pCount = 35;
-    const newParticles: FireworkParticle[] = [];
+    if (isGameOver || isGameOverRef.current) return;
+    const colors = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+    const pCount = 16;
 
-    for (let i = 0; i < pCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 3 + Math.random() * 5;
-      newParticles.push({
-        id: `firework-${i}-${Date.now()}`,
-        x,
-        y,
-        tx: Math.cos(angle) * speed * 35,
-        ty: Math.sin(angle) * speed * 35,
-        color: colors[Math.floor(Math.random() * colors.length)]
-      });
+    for (let i = 0; i < PARTICLE_POOL_SIZE; i++) {
+      if (i < pCount) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 3 + Math.random() * 5;
+        particlePoolRef.current[i] = {
+          active: true,
+          x,
+          y,
+          tx: Math.cos(angle) * speed * 35,
+          ty: Math.sin(angle) * speed * 35,
+          color: colors[i % colors.length]
+        };
+      } else {
+        particlePoolRef.current[i].active = false;
+      }
     }
-    setFireworks(newParticles);
-    setTimeout(() => setFireworks([]), 1800);
+    setParticlePool([...particlePoolRef.current]);
+
+    // Recycles pool without DOM element destruction
+    setTimeout(() => {
+      particlePoolRef.current.forEach(p => (p.active = false));
+      setParticlePool([...particlePoolRef.current]);
+    }, 1100);
   };
 
+  // Object Pooling Trigger for Explosions
   const triggerExplosion = (x: number, y: number) => {
-    const newId = `explosion-${Date.now()}`;
-    setExplosions([{ id: newId, x, y }]);
-    setTimeout(() => setExplosions([]), 800);
+    if (isGameOver || isGameOverRef.current) return;
+    explosionPoolRef.current[0] = { active: true, x, y };
+    setExplosionPool([...explosionPoolRef.current]);
+
+    setTimeout(() => {
+      explosionPoolRef.current[0].active = false;
+      setExplosionPool([...explosionPoolRef.current]);
+    }, 650);
   };
 
   const handleBoardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isGameOverRef.current || isProcessingAnswerRef.current || !boardRef.current) return;
+    if (isGameOver || isGameOverRef.current || isProcessingAnswer || isProcessingAnswerRef.current || !boardRef.current) return;
     const rect = boardRef.current.getBoundingClientRect();
     const clickX = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
     const clickY = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
@@ -431,7 +645,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
 
   const handleNodeClick = (e: React.MouseEvent, ans: Answer) => {
     e.stopPropagation();
-    if (isGameOverRef.current || isProcessingAnswerRef.current) return;
+    if (isGameOver || isGameOverRef.current || isProcessingAnswer || isProcessingAnswerRef.current) return;
     if (ans.x === undefined || ans.y === undefined) return;
 
     startAutoMove(ans.x, ans.y, () => {
@@ -453,10 +667,10 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const q = gameQuestions[currentQuestionIndex];
 
   return (
-    <div className="flex flex-row h-[550px] sm:h-[600px] w-full text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
+    <div className="flex flex-col md:flex-row h-[550px] sm:h-[600px] w-full text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
       
       {/* LEFT: QUESTION AND SCOREBOARD PANEL */}
-      <div className="w-72 sm:w-80 bg-slate-50 border-r border-indigo-100/80 p-4 sm:p-5 flex flex-col justify-between shrink-0 relative z-30 shadow-sm">
+      <div className="w-full md:w-80 bg-slate-50 border-b md:border-b-0 md:border-r border-indigo-100/80 p-4 sm:p-5 flex flex-col justify-between shrink-0 relative z-30 shadow-sm">
         <div className="space-y-4">
           <button 
             onClick={onClose}
@@ -465,7 +679,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
             <ArrowLeft className="w-3.5 h-3.5" /> Quay lại
           </button>
 
-          <div className="bg-white border-2 border-indigo-100/80 p-4 rounded-2xl shadow-sm relative overflow-hidden min-h-[220px] flex flex-col justify-between">
+          <div className="bg-white border-2 border-indigo-100/80 p-4 rounded-2xl shadow-sm relative overflow-hidden min-h-[200px] flex flex-col justify-between">
             {isGameOver ? (
               <div className="text-center space-y-4 py-6 animate-scaleIn flex-1 flex flex-col items-center justify-center">
                 <div className="w-12 h-12 bg-emerald-100 border border-emerald-300 rounded-full flex items-center justify-center text-emerald-600 text-xl font-bold animate-bounce shadow-sm">
@@ -493,7 +707,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
                   </span>
                 </div>
 
-                <div className="flex-1 flex items-center justify-center py-4">
+                <div className="flex-1 flex items-center justify-center py-3">
                   <div className="text-sm sm:text-base font-extrabold text-slate-800 text-center leading-relaxed">
                     <MarkdownMath content={q?.question || 'Câu hỏi...'} />
                   </div>
@@ -507,23 +721,23 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
           </div>
         </div>
 
-        {/* HUD control map details */}
-        <div className="mt-4 p-3.5 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-2 hidden sm:block">
+        {/* HUD control details */}
+        <div className="mt-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1.5 hidden md:block">
           <span className="text-[9px] font-black uppercase text-indigo-600 tracking-wider block">
             Cách phá mìn an toàn:
           </span>
           <p className="text-[10px] text-indigo-950/80 leading-normal font-medium">
-            Nhấp chuột trực tiếp lên các ô nhãn chữ <span className="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded">A, B, C, D</span> trên bãi cỏ để lính rà mìn tự động đi tới và gỡ mìn tương ứng!
+            Nhấp chuột trực tiếp lên ô nhãn chữ <span className="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded">A, B, C, D</span> trên bãi cỏ để lính tự động rà mìn tương ứng!
           </p>
         </div>
       </div>
 
       {/* RIGHT: INTERACTIVE MILITARY GRASS MAP */}
-      <div className="flex-1 h-full relative bg-slate-100 overflow-hidden" id="game-container">
+      <div className="flex-1 h-full relative bg-emerald-100 overflow-hidden" id="game-container">
         
         {/* Float Status Ribbon */}
         <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <div className="bg-white/95 text-slate-800 px-5 py-2 rounded-full border border-indigo-100 shadow-xl flex items-center gap-4 pointer-events-auto">
+          <div className="bg-white/95 text-slate-800 px-5 py-1.5 rounded-full border border-indigo-100 shadow-xl flex items-center gap-4 pointer-events-auto">
             <div className="flex items-center gap-1.5">
               <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-spin-slow" />
               <span className="font-black text-lg text-amber-500">{score}</span>
@@ -542,113 +756,33 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
           onClick={handleBoardClick}
           className={`w-full h-full relative cursor-crosshair overflow-hidden transition-all duration-75 ${
             isShaking ? 'shake-hard' : ''
-          }`}
+          } ${isGameOver ? 'pointer-events-none opacity-90' : ''}`}
           style={{
             backgroundColor: '#86efac',
             backgroundImage: `
-              radial-gradient(#4ade80 20%, transparent 20%),
-              radial-gradient(#4ade80 20%, transparent 20%)
+              radial-gradient(#4ade80 18%, transparent 18%),
+              radial-gradient(#4ade80 18%, transparent 18%)
             `,
-            backgroundSize: '32px 32px',
-            backgroundPosition: '0 0, 16px 16px'
+            backgroundSize: '28px 28px',
+            backgroundPosition: '0 0, 14px 14px'
           }}
         >
           {/* Answer Nodes on field */}
-          {!isGameOver && currentAnswers.map((ans, idx) => (
-            <div
-              key={idx}
-              onClick={(e) => handleNodeClick(e, ans)}
-              className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center cursor-pointer group z-10"
-              style={{
-                left: `${ans.x}%`,
-                top: `${ans.y}%`,
-                animation: `bounce ${2 + idx * 0.3}s infinite ease-in-out`
-              }}
-            >
-              {/* Floating Balloon Pin */}
-              <div className="relative flex flex-col items-center">
-                <div className="w-11 h-11 rounded-full border-4 border-white flex items-center justify-center text-white font-black text-sm shadow-xl transition-all duration-200 bg-indigo-600 group-hover:scale-110 group-hover:bg-indigo-700">
-                  {ans.displayId}
-                </div>
-                
-                {/* Answer Banner tag */}
-                <div className="mt-1.5 px-3 py-1 bg-white border border-indigo-100 rounded-full text-[10px] font-extrabold text-indigo-950 shadow-md whitespace-nowrap group-hover:border-indigo-300 transition-all">
-                  <MarkdownMath content={ans.text} />
-                </div>
-              </div>
-            </div>
-          ))}
+          {!isGameOver && (
+            <AnswerNodesList answers={currentAnswers} onNodeClick={handleNodeClick} />
+          )}
 
-          {/* Player avatar representation (Mũ Cối Soldier) */}
-          <div 
-            className="absolute z-20 transform -translate-x-1/2 -translate-y-1/2 transition-all duration-75"
-            style={{
-              left: `${playerPos.x}%`,
-              top: `${playerPos.y}%`
-            }}
-          >
-            <div className="relative w-12 h-12 flex flex-col items-center justify-center">
-              {/* Helmet cap circle */}
-              <div className="absolute top-0 w-10 h-10 bg-emerald-600 rounded-full border-2 border-emerald-800 shadow-2xl z-20 flex items-center justify-center">
-                {/* Yellow star insignia */}
-                <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full border border-yellow-600 animate-pulse" />
-              </div>
-              {/* Wide rim of pith helmet */}
-              <div className="absolute top-1.5 w-12 h-7 bg-emerald-700 rounded-full border border-emerald-800 z-10" />
-              {/* Backpack bag */}
-              <div className="absolute bottom-0 w-8 h-4 bg-amber-600 rounded-md border border-amber-700 z-0" />
-              {/* Torso */}
-              <div className="absolute top-4 w-9 h-6 bg-emerald-500 rounded-xl border border-emerald-700 z-10" />
-            </div>
-          </div>
+          {/* Player avatar representation */}
+          <SoldierAvatar x={playerPos.x} y={playerPos.y} />
 
-          {/* Particle Systems inside Canvas Container */}
-          {fireworks.map((p) => (
-            <div
-              key={p.id}
-              className="absolute w-2 h-2 rounded-full pointer-events-none"
-              style={{
-                left: `${p.x}px`,
-                top: `${p.y}px`,
-                backgroundColor: p.color,
-                boxShadow: `0 0 8px ${p.color}`,
-                transform: `translate(${p.tx}px, ${p.ty}px)`,
-                opacity: 0,
-                transition: 'transform 1.5s cubic-bezier(0.1, 0.8, 0.3, 1), opacity 1.5s ease-out'
-              }}
-              ref={(el) => {
-                if (el) {
-                  // Force reflow and schedule transformation for seamless firework emission
-                  requestAnimationFrame(() => {
-                    el.style.transform = `translate(${p.tx}px, ${p.ty}px) scale(0)`;
-                    el.style.opacity = '1';
-                  });
-                }
-              }}
-            />
-          ))}
+          {/* Object Pooled Particle System */}
+          <ParticleOverlay particles={particlePool} />
 
-          {/* Explosion Detonation Circles */}
-          {explosions.map((exp) => (
-            <div
-              key={exp.id}
-              className="absolute rounded-full pointer-events-none z-30"
-              style={{
-                left: `${exp.x}px`,
-                top: `${exp.y}px`,
-                width: '80px',
-                height: '80px',
-                marginLeft: '-40px',
-                marginTop: '-40px',
-                background: 'radial-gradient(circle, #ffe600 10%, #ff5d00 45%, #ff0000 75%, transparent 100%)',
-                animation: 'pop-big 0.7s cubic-bezier(0.15, 0.9, 0.3, 1.2) forwards'
-              }}
-            />
-          ))}
+          {/* Object Pooled Explosion System */}
+          <ExplosionOverlay explosions={explosionPool} />
         </div>
       </div>
 
-      {/* Explosion animation custom injection */}
       <style>{`
         @keyframes pop-big {
           0% { transform: scale(0.2); opacity: 1; }
@@ -663,23 +797,6 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
           20%, 80% { transform: translate3d(4px, 0, 0); }
           30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
           40%, 60% { transform: translate3d(6px, 0, 0); }
-        }
-        /* Custom scrollbar styling specifically matching system indigo theme */
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-          background: #f8fafc;
-          border-radius: 9999px;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: #c7d2fe;
-          border-radius: 9999px;
-          border: 2px solid #f8fafc;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #818cf8;
         }
       `}</style>
     </div>
