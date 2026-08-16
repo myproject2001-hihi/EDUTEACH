@@ -53,20 +53,20 @@ const AnswerNodesList = React.memo(({ answers, onNodeClick }: { answers: Answer[
         <div
           key={ans.id || idx}
           onClick={(e) => onNodeClick(e, ans)}
-          className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center cursor-pointer group z-10 transition-transform active:scale-95"
+          className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center cursor-pointer group z-10 transition-all duration-200 active:scale-90"
           style={{
             left: `${ans.x}%`,
             top: `${ans.y}%`,
           }}
         >
-          {/* Floating Balloon Pin */}
+          {/* Floating Balloon Pin with responsive sizes */}
           <div className="relative flex flex-col items-center">
-            <div className="w-11 h-11 rounded-full border-4 border-white flex items-center justify-center text-white font-black text-sm shadow-xl transition-all duration-200 bg-indigo-600 group-hover:scale-110 group-hover:bg-indigo-700">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full border-[3px] sm:border-4 border-white flex items-center justify-center text-white font-black text-xs sm:text-sm md:text-base lg:text-lg shadow-xl transition-all duration-200 bg-indigo-600 group-hover:scale-110 group-hover:bg-indigo-700">
               {ans.displayId}
             </div>
             
-            {/* Answer Banner tag */}
-            <div className="mt-1.5 px-3.5 py-1 bg-white border border-indigo-100 rounded-full text-xs font-extrabold text-indigo-950 shadow-md whitespace-nowrap group-hover:border-indigo-300 transition-all max-w-[200px] truncate text-center">
+            {/* Answer Banner tag with responsive text sizes */}
+            <div className="mt-1 px-2.5 py-0.5 sm:px-3.5 sm:py-1 bg-white border border-indigo-100 rounded-full text-[9px] sm:text-[10px] md:text-xs lg:text-sm font-extrabold text-indigo-950 shadow-md whitespace-nowrap group-hover:border-indigo-300 transition-all max-w-[140px] sm:max-w-[200px] lg:max-w-[280px] truncate text-center">
               <MarkdownMath content={ans.text} />
             </div>
           </div>
@@ -76,29 +76,29 @@ const AnswerNodesList = React.memo(({ answers, onNodeClick }: { answers: Answer[
   );
 });
 
-// Memoized Soldier Avatar to isolate frame renders
+// Memoized Soldier Avatar with responsive scaling
 const SoldierAvatar = React.memo(({ x, y }: { x: number; y: number }) => {
   return (
     <div 
-      className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
+      className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 transition-transform duration-75"
       style={{
         left: `${x}%`,
         top: `${y}%`,
         willChange: 'left, top'
       }}
     >
-      <div className="relative w-12 h-12 flex flex-col items-center justify-center">
+      <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 flex flex-col items-center justify-center">
         {/* Helmet cap circle */}
-        <div className="absolute top-0 w-10 h-10 bg-emerald-600 rounded-full border-2 border-emerald-800 shadow-2xl z-20 flex items-center justify-center">
+        <div className="absolute top-0 w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11 bg-emerald-600 rounded-full border-2 border-emerald-800 shadow-2xl z-20 flex items-center justify-center">
           {/* Yellow star insignia */}
-          <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full border border-yellow-600 animate-pulse" />
+          <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-yellow-400 rounded-full border border-yellow-600 animate-pulse" />
         </div>
         {/* Wide rim of pith helmet */}
-        <div className="absolute top-1.5 w-12 h-7 bg-emerald-700 rounded-full border border-emerald-800 z-10" />
+        <div className="absolute top-1.5 w-10 h-6 sm:w-12 sm:h-7 md:w-13 md:h-8 bg-emerald-700 rounded-full border border-emerald-800 z-10" />
         {/* Backpack bag */}
-        <div className="absolute bottom-0 w-8 h-4 bg-amber-600 rounded-md border border-amber-700 z-0" />
+        <div className="absolute bottom-0 w-6 h-3.5 sm:w-8 sm:h-4 bg-amber-600 rounded-md border border-amber-700 z-0" />
         {/* Torso */}
-        <div className="absolute top-4 w-9 h-6 bg-emerald-500 rounded-xl border border-emerald-700 z-10" />
+        <div className="absolute top-3.5 sm:top-4 w-7 h-5 sm:w-9 sm:h-6 bg-emerald-500 rounded-xl border border-emerald-700 z-10" />
       </div>
     </div>
   );
@@ -667,53 +667,53 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const q = gameQuestions[currentQuestionIndex];
 
   return (
-    <div className="flex flex-col md:flex-row h-[550px] sm:h-[600px] w-full text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
+    <div className="flex flex-col md:flex-row h-[580px] sm:h-[640px] md:h-[600px] lg:h-[720px] xl:h-[820px] 2xl:h-[900px] w-full text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
       
       {/* LEFT: QUESTION AND SCOREBOARD PANEL */}
-      <div className="w-full md:w-80 bg-slate-50 border-b md:border-b-0 md:border-r border-indigo-100/80 p-4 sm:p-5 flex flex-col justify-between shrink-0 relative z-30 shadow-sm">
-        <div className="space-y-4">
+      <div className="w-full md:w-80 lg:w-96 bg-slate-50 border-b md:border-b-0 md:border-r border-indigo-100/80 p-3 sm:p-5 flex flex-row md:flex-col justify-between shrink-0 relative z-30 shadow-sm gap-3">
+        <div className="space-y-3 sm:space-y-4 flex-1 md:flex-initial flex flex-row md:flex-col items-center md:items-stretch gap-2 md:gap-0">
           <button 
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-xs font-black text-indigo-700 rounded-xl transition shadow-sm border border-indigo-200"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-indigo-50 hover:bg-indigo-100 text-[10px] sm:text-xs font-black text-indigo-700 rounded-xl transition shadow-sm border border-indigo-200 shrink-0"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Quay lại
           </button>
 
-          <div className="bg-white border-2 border-indigo-100/80 p-4 rounded-2xl shadow-sm relative overflow-hidden min-h-[200px] flex flex-col justify-between">
+          <div className="bg-white border-2 border-indigo-100/80 p-3 sm:p-4 rounded-2xl shadow-sm relative overflow-hidden min-h-[90px] md:min-h-[220px] lg:min-h-[260px] flex-1 md:flex-none flex flex-col justify-between">
             {isGameOver ? (
-              <div className="text-center space-y-4 py-6 animate-scaleIn flex-1 flex flex-col items-center justify-center">
-                <div className="w-12 h-12 bg-emerald-100 border border-emerald-300 rounded-full flex items-center justify-center text-emerald-600 text-xl font-bold animate-bounce shadow-sm">
+              <div className="text-center space-y-2 sm:space-y-4 py-2 sm:py-6 animate-scaleIn flex-1 flex flex-col items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-100 border border-emerald-300 rounded-full flex items-center justify-center text-emerald-600 text-lg sm:text-xl font-bold animate-bounce shadow-sm">
                   🏆
                 </div>
-                <h4 className="text-base font-black text-slate-800">Hoàn Thành!</h4>
-                <p className="text-[11px] text-slate-500 font-medium">
+                <h4 className="text-sm sm:text-base font-black text-slate-800">Hoàn Thành!</h4>
+                <p className="text-[9px] sm:text-[11px] text-slate-500 font-medium hidden sm:block">
                   Chúc mừng bạn đã rà phá thành công bãi mìn!
                 </p>
-                <div className="text-xl font-black text-indigo-600 bg-indigo-50 px-4 py-1.5 rounded-full border border-indigo-100">
+                <div className="text-lg sm:text-xl lg:text-2xl font-black text-indigo-600 bg-indigo-50 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border border-indigo-100">
                   {score} Điểm
                 </div>
                 <button 
                   onClick={restartGame}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-indigo-100"
+                  className="w-full py-1.5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] sm:text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-indigo-100"
                 >
                   Chơi lại
                 </button>
               </div>
             ) : (
               <>
-                <div className="text-center border-b border-indigo-50 pb-2">
-                  <span className="text-indigo-600 font-extrabold text-[10px] tracking-widest uppercase bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                <div className="text-center border-b border-indigo-50 pb-1.5 hidden sm:block">
+                  <span className="text-indigo-600 font-extrabold text-[9px] sm:text-[10px] md:text-xs tracking-widest uppercase bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
                     Câu hỏi {currentQuestionIndex + 1} / {gameQuestions.length}
                   </span>
                 </div>
 
-                <div className="flex-1 flex items-center justify-center py-3">
-                  <div className="text-sm sm:text-base font-extrabold text-slate-800 text-center leading-relaxed">
+                <div className="flex-1 flex items-center justify-center py-2 sm:py-3">
+                  <div className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-extrabold text-slate-800 text-center leading-relaxed">
                     <MarkdownMath content={q?.question || 'Câu hỏi...'} />
                   </div>
                 </div>
 
-                <div className="text-[10px] text-slate-500 flex items-center gap-1 justify-center border-t border-indigo-50 pt-2 font-medium">
+                <div className="text-[9px] sm:text-[10px] text-slate-400 flex items-center gap-1 justify-center border-t border-indigo-50 pt-1.5 font-semibold hidden md:flex">
                   <Keyboard className="w-3.5 h-3.5 text-indigo-500" /> Sử dụng WASD / Phím mũi tên để di chuyển
                 </div>
               </>
@@ -722,11 +722,11 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
         </div>
 
         {/* HUD control details */}
-        <div className="mt-3 p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1.5 hidden md:block">
-          <span className="text-[9px] font-black uppercase text-indigo-600 tracking-wider block">
+        <div className="mt-1 p-2 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1 hidden md:block">
+          <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-indigo-600 tracking-wider block">
             Cách phá mìn an toàn:
           </span>
-          <p className="text-[10px] text-indigo-950/80 leading-normal font-medium">
+          <p className="text-[9px] sm:text-[10px] text-indigo-950/80 leading-normal font-medium">
             Nhấp chuột trực tiếp lên ô nhãn chữ <span className="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded">A, B, C, D</span> trên bãi cỏ để lính tự động rà mìn tương ứng!
           </p>
         </div>
@@ -736,15 +736,15 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       <div className="flex-1 h-full relative bg-emerald-100 overflow-hidden" id="game-container">
         
         {/* Float Status Ribbon */}
-        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <div className="bg-white/95 text-slate-800 px-5 py-1.5 rounded-full border border-indigo-100 shadow-xl flex items-center gap-4 pointer-events-auto">
-            <div className="flex items-center gap-1.5">
-              <Star className="w-4 h-4 text-amber-500 fill-amber-500 animate-spin-slow" />
-              <span className="font-black text-lg text-amber-500">{score}</span>
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Điểm</span>
+        <div className="absolute top-2.5 sm:top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
+          <div className="bg-white/95 text-slate-800 px-4 py-1 sm:px-6 sm:py-2 rounded-full border border-indigo-100 shadow-xl flex items-center gap-3 sm:gap-5 pointer-events-auto">
+            <div className="flex items-center gap-1 sm:gap-1.5">
+              <Star className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-500 fill-amber-500 animate-spin-slow" />
+              <span className="font-black text-sm sm:text-lg lg:text-xl text-amber-500">{score}</span>
+              <span className="text-[8px] sm:text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest">Điểm</span>
             </div>
-            <div className="w-px h-4 bg-indigo-100" />
-            <div className="text-xs font-black text-indigo-600">
+            <div className="w-px h-3 sm:h-4 bg-indigo-100" />
+            <div className="text-[10px] sm:text-xs lg:text-sm font-black text-indigo-600">
               GA: {currentQuestionIndex + 1} / {gameQuestions.length}
             </div>
           </div>
