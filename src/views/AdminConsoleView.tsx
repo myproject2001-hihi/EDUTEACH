@@ -295,18 +295,18 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-indigo-500/10 blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-r from-blue-50/95 via-sky-50 to-indigo-50/95 border border-indigo-100 rounded-3xl p-6 md:p-8 text-slate-800 shadow-sm relative overflow-hidden">
+        <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-indigo-200/10 blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-500/20 border border-indigo-400/30 rounded-full text-indigo-300 text-xs font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100/60 border border-indigo-200 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider">
                 <Shield className="w-3.5 h-3.5" />
                 Trung tâm Quản trị viên (Admin Console)
               </span>
               {superAdminUser ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 border border-amber-400/30 rounded-full text-amber-300 text-xs font-black">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100/60 border border-amber-200 text-amber-800 rounded-full text-xs font-black">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   Quản trị viên chính: {superAdminUser.name}
                 </span>
               ) : (
@@ -319,10 +319,10 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                 </button>
               )}
             </div>
-            <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
               Quản Lý Toàn Bộ Hệ Thống & Phân Quyền Admin
             </h1>
-            <p className="text-sm text-slate-300 max-w-2xl leading-relaxed">
+            <p className="text-sm text-slate-600 max-w-2xl leading-relaxed">
               Quản trị viên chính có đặc quyền phân quyền Admin cho các thành viên khác, quản lý tài khoản Giáo viên / Học sinh và giám sát tài nguyên.
             </p>
           </div>

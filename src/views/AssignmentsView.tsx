@@ -2785,10 +2785,10 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
             </div>
 
             {/* Modal Footer / Feedback panel */}
-            <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex flex-wrap justify-between items-center gap-3">
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="font-medium text-slate-400">Nhận xét của cô Hoa:</span>
-                <span className="text-indigo-400 font-bold bg-indigo-500/10 px-3 py-1 rounded-lg">
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-wrap justify-between items-center gap-3">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="font-medium text-slate-500">Nhận xét của cô Hoa:</span>
+                <span className="text-indigo-700 font-bold bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-lg">
                   {previewSub.feedback ? `"${previewSub.feedback}"` : 'Chưa có nhận xét nào.'}
                 </span>
               </div>
@@ -2814,7 +2814,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                     setZoomLevel(1);
                     setRotationAngle(0);
                   }}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-colors border border-slate-700"
+                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl transition-colors border border-slate-200"
                 >
                   Đóng lại
                 </button>

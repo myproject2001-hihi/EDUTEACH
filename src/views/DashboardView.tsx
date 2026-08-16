@@ -183,20 +183,20 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
     <div className="space-y-8 max-w-7xl mx-auto pb-6">
       
       {/* 1. KHUNG XIN CHÀO (Greeting Banner) */}
-      <div className="bg-gradient-to-br from-slate-900/85 via-indigo-950/80 to-slate-900/85 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-white/10 relative overflow-hidden shadow-xl shadow-indigo-950/20 text-white">
-        <div className="absolute top-0 right-0 w-[350px] h-[350px] bg-indigo-500/15 blur-[60px] rounded-full pointer-events-none transform translate-x-1/4 -translate-y-1/4"></div>
-        <div className="absolute -bottom-10 -left-10 w-[250px] h-[250px] bg-blue-500/15 blur-[50px] rounded-full pointer-events-none"></div>
+      <div className="bg-gradient-to-br from-blue-50/80 via-sky-50 to-indigo-50/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-indigo-100 relative overflow-hidden shadow-sm text-slate-800">
+        <div className="absolute top-0 right-0 w-[350px] h-[350px] bg-indigo-200/20 blur-[60px] rounded-full pointer-events-none transform translate-x-1/4 -translate-y-1/4"></div>
+        <div className="absolute -bottom-10 -left-10 w-[250px] h-[250px] bg-sky-200/20 blur-[50px] rounded-full pointer-events-none"></div>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-900/40 border border-indigo-500/30 mb-4 backdrop-blur-sm flex-wrap">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-xs font-bold text-indigo-200">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 border border-indigo-100 mb-4 backdrop-blur-sm flex-wrap shadow-sm">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-xs font-bold text-indigo-700">
                 {isTeacher ? `Giáo viên - ${className}` : `Học sinh • Lớp ${className}`}
               </span>
               {!isTeacher && (
                 <>
-                  <span className="text-indigo-500/50">•</span>
-                  <span className="text-xs font-extrabold text-amber-300 flex items-center gap-1">
+                  <span className="text-indigo-200">•</span>
+                  <span className="text-xs font-extrabold text-indigo-600 flex items-center gap-1">
                     {(() => {
                       const currentPoints = user.points || 0;
                       const activeBadge = [...BADGES].reverse().find(b => currentPoints >= b.threshold);
@@ -206,10 +206,10 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 </>
               )}
             </div>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
-              Xin chào, <span className="text-indigo-400 font-black">{user.name}</span>!
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 leading-tight">
+              Xin chào, <span className="text-indigo-600 font-black">{user.name}</span>!
             </h2>
-            <p className="text-slate-300 text-sm md:text-base mt-2.5 max-w-2xl leading-relaxed font-medium">
+            <p className="text-slate-600 text-sm md:text-base mt-2.5 max-w-2xl leading-relaxed font-medium">
               {isTeacher 
                 ? 'Chúc cô một ngày làm việc tràn đầy năng lượng! Dưới đây là tổng quan các nhiệm vụ dạy học và tình trạng làm bài của lớp.' 
                 : 'Chúc em có một ngày học tập thật tốt! Hãy hoàn thành nhiệm vụ buổi học trước khi vào buổi học tiếp theo nhé.'}
@@ -219,7 +219,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
           {!isTeacher && onOpenGuide && (
             <button
               onClick={onOpenGuide}
-              className="inline-flex items-center gap-2 px-4.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-indigo-600/20 shrink-0 self-start sm:self-center hover:scale-105 active:scale-95 border border-indigo-500"
+              className="inline-flex items-center gap-2 px-4.5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs transition-all shadow-md shadow-indigo-200/30 shrink-0 self-start sm:self-center hover:scale-105 active:scale-95 border border-indigo-500"
             >
               <BookOpen className="w-4 h-4 text-amber-300" />
               <span>📖 Hướng Dẫn Vào Lớp Học</span>

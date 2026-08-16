@@ -312,13 +312,13 @@ export function AuthView({ onLogin }: AuthViewProps) {
             justify-content: center;
             padding: 2.5rem;
             text-align: center;
-            color: white;
+            color: #1e293b;
           }
           .overlay-front {
-            background: linear-gradient(135deg, #1E293B, #0F172A);
+            background: linear-gradient(135deg, #e0f2fe, #f0f9ff);
           }
           .overlay-back {
-            background: linear-gradient(135deg, #0F172A, #1E293B);
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
             transform: rotateY(180deg);
           }
           .form-panel {
@@ -957,47 +957,47 @@ export function AuthView({ onLogin }: AuthViewProps) {
           <div className="overlay-card shadow-2xl">
             
             {/* Front of Card (Shows when Login is active) */}
-            <div className="overlay-front relative overflow-hidden p-8">
-               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[#1E293B] to-[#0F172A] opacity-95"></div>
-               <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/30 rounded-full blur-3xl"></div>
-               <div className="absolute bottom-10 left-10 w-20 h-20 bg-blue-500/20 rounded-full blur-2xl"></div>
+            <div className="overlay-front relative overflow-hidden p-8 bg-gradient-to-br from-sky-100 to-indigo-100">
+               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-sky-100 via-indigo-50 to-white opacity-80"></div>
+               <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-300/20 rounded-full blur-3xl"></div>
+               <div className="absolute bottom-10 left-10 w-20 h-20 bg-blue-300/20 rounded-full blur-2xl"></div>
                
-               <div className="relative z-10 w-full h-full flex flex-col justify-between text-left">
+               <div className="relative z-10 w-full h-full flex flex-col justify-between text-left text-slate-800">
                   <div className="flex justify-between items-start">
                      <div>
-                       <h3 className="text-indigo-400 font-bold tracking-wider text-xs">MEMBERSHIP</h3>
-                       <p className="text-slate-400 text-[10px] mt-0.5 uppercase tracking-widest">Hệ thống giáo dục</p>
+                       <h3 className="text-indigo-600 font-bold tracking-wider text-xs">MEMBERSHIP</h3>
+                       <p className="text-slate-500 text-[10px] mt-0.5 uppercase tracking-widest">Hệ thống giáo dục</p>
                      </div>
-                     <div className="w-10 h-7 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md opacity-90 flex items-center justify-center overflow-hidden">
-                        <div className="w-full h-px bg-black/20 absolute"></div>
-                        <div className="w-px h-full bg-black/20 absolute"></div>
+                     <div className="w-10 h-7 bg-gradient-to-br from-yellow-100 via-yellow-200 to-yellow-400 rounded-md opacity-90 flex items-center justify-center overflow-hidden border border-amber-200 shadow-sm">
+                        <div className="w-full h-px bg-black/10 absolute"></div>
+                        <div className="w-px h-full bg-black/10 absolute"></div>
                      </div>
                   </div>
 
                   <div className="mt-auto mb-6">
                      <p className="text-slate-400 text-[10px] tracking-wider mb-1">CHỦ THẺ</p>
-                     <p className="text-white text-lg font-mono tracking-widest uppercase truncate mb-4">
+                     <p className="text-slate-800 text-lg font-mono tracking-widest uppercase truncate mb-4">
                        {loginUsername || 'STUDENT NAME'}
                      </p>
 
-                     <div className="space-y-2 bg-white/5 p-3 rounded-xl border border-white/10">
+                     <div className="space-y-2 bg-white/70 p-4 rounded-2xl border border-indigo-100 shadow-sm">
                         <div className="flex justify-between items-center">
-                           <span className="text-white/60 text-[10px] uppercase">Tài khoản</span>
-                           <span className="text-white text-xs font-mono">{loginUsername || '...'}</span>
+                           <span className="text-slate-500 text-[10px] uppercase font-semibold">Tài khoản</span>
+                           <span className="text-indigo-950 text-xs font-mono font-bold">{loginUsername || '...'}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                           <span className="text-white/60 text-[10px] uppercase">Mật khẩu</span>
-                           <span className="text-white text-xs font-mono">{loginPassword ? '*'.repeat(loginPassword.length) : '...'}</span>
+                           <span className="text-slate-500 text-[10px] uppercase font-semibold">Mật khẩu</span>
+                           <span className="text-indigo-950 text-xs font-mono font-bold">{loginPassword ? '*'.repeat(loginPassword.length) : '...'}</span>
                         </div>
                      </div>
                   </div>
 
                   <div className="flex justify-end items-end">
                      <div className="flex flex-col items-end gap-2">
-                       <p className="text-slate-400 text-xs">Bạn là người mới?</p>
+                       <p className="text-slate-500 text-xs font-medium">Bạn là người mới?</p>
                        <button 
                         onClick={() => handleToggleSignUp(true)}
-                        className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/20 text-xs text-white"
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl transition-all shadow-md shadow-indigo-100 text-xs"
                       >
                         Tạo tài khoản
                       </button>
@@ -1007,65 +1007,64 @@ export function AuthView({ onLogin }: AuthViewProps) {
             </div>
 
             {/* Back of Card (Shows when Signup is active) */}
-            <div className="overlay-back relative overflow-hidden p-8">
-               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-[#1E293B] to-[#0F172A] opacity-95"></div>
-               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-500/30 rounded-full blur-3xl"></div>
-               <div className="absolute top-10 right-10 w-20 h-20 bg-indigo-500/20 rounded-full blur-2xl"></div>
+            <div className="overlay-back relative overflow-hidden p-8 bg-gradient-to-br from-indigo-100 to-sky-100">
+               <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-50 via-sky-50 to-white opacity-80"></div>
+               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-300/20 rounded-full blur-3xl"></div>
+               <div className="absolute top-10 right-10 w-20 h-20 bg-indigo-300/20 rounded-full blur-2xl"></div>
                
-               <div className="relative z-10 w-full h-full flex flex-col justify-between text-left">
+               <div className="relative z-10 w-full h-full flex flex-col justify-between text-left text-slate-800">
                   <div className="flex justify-between items-start">
                      <div>
-                       <h3 className="text-blue-400 font-bold tracking-wider text-xs">MEMBERSHIP</h3>
-                       <p className="text-slate-400 text-[10px] mt-0.5 uppercase tracking-widest">Thẻ thành viên mới</p>
+                       <h3 className="text-indigo-600 font-bold tracking-wider text-xs">MEMBERSHIP</h3>
+                       <p className="text-slate-500 text-[10px] mt-0.5 uppercase tracking-widest">Thẻ thành viên mới</p>
                      </div>
-                     <div className="w-10 h-7 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md opacity-90 flex items-center justify-center overflow-hidden">
-                        <div className="w-full h-px bg-black/20 absolute"></div>
-                        <div className="w-px h-full bg-black/20 absolute"></div>
+                     <div className="w-10 h-7 bg-gradient-to-br from-yellow-100 via-yellow-200 to-yellow-400 rounded-md opacity-90 flex items-center justify-center overflow-hidden border border-amber-200 shadow-sm">
+                        <div className="w-full h-px bg-black/10 absolute"></div>
+                        <div className="w-px h-full bg-black/10 absolute"></div>
                      </div>
                   </div>
 
                   <div className="mt-auto mb-6">
                      <p className="text-slate-400 text-[10px] tracking-wider mb-1">CHỦ THẺ</p>
-                     <p className="text-white text-lg font-mono tracking-widest uppercase truncate mb-4">
+                     <p className="text-slate-800 text-lg font-mono tracking-widest uppercase truncate mb-4">
                        {signupName || 'NEW MEMBER'}
                      </p>
 
-                     <div className="space-y-2 bg-white/5 p-3 rounded-xl border border-white/10">
+                     <div className="space-y-2 bg-white/70 p-4 rounded-2xl border border-indigo-100 shadow-sm">
                         <div className="flex justify-between items-center">
-                           <span className="text-white/60 text-[10px] uppercase">Tài khoản</span>
-                           <span className="text-white text-xs font-mono">{signupUsername || '...'}</span>
+                           <span className="text-slate-500 text-[10px] uppercase font-semibold">Tài khoản</span>
+                           <span className="text-indigo-950 text-xs font-mono font-bold">{signupUsername || '...'}</span>
                         </div>
                         {signupRole === 'student' && (
                            <>
                              <div className="flex justify-between items-center">
-                                <span className="text-white/60 text-[10px] uppercase">SĐT Phụ huynh</span>
-                                <span className="text-white text-xs font-mono">{signupPhoneParent || '...'}</span>
+                                <span className="text-slate-500 text-[10px] uppercase font-semibold">SĐT Phụ huynh</span>
+                                <span className="text-indigo-950 text-xs font-mono font-bold">{signupPhoneParent || '...'}</span>
                              </div>
                              <div className="flex justify-between items-center">
-                                <span className="text-white/60 text-[10px] uppercase">Mã lớp</span>
-                                <span className="text-white text-xs font-mono">{signupClass || '...'}</span>
+                                <span className="text-slate-500 text-[10px] uppercase font-semibold">Mã lớp</span>
+                                <span className="text-indigo-950 text-xs font-mono font-bold">{signupClass || '...'}</span>
                              </div>
                              <div className="flex justify-between items-center">
-                                <span className="text-white/60 text-[10px] uppercase">SĐT Học sinh</span>
-                                <span className="text-white text-xs font-mono">{signupPhoneStudent || '...'}</span>
+                                <span className="text-slate-500 text-[10px] uppercase font-semibold">SĐT Học sinh</span>
+                                <span className="text-indigo-950 text-xs font-mono font-bold">{signupPhoneStudent || '...'}</span>
                              </div>
                            </>
                         )}
                         <div className="flex justify-between items-center">
-                           <span className="text-white/60 text-[10px] uppercase">Mật khẩu</span>
-                           <span className="text-white text-xs font-mono">{signupPassword ? '*'.repeat(signupPassword.length) : '...'}</span>
+                           <span className="text-slate-500 text-[10px] uppercase font-semibold">Mật khẩu</span>
+                           <span className="text-indigo-950 text-xs font-mono font-bold">{signupPassword ? '*'.repeat(signupPassword.length) : '...'}</span>
                         </div>
                      </div>
                   </div>
 
                   <div className="flex justify-between items-end">
                      <div>
-                        <p className="text-slate-400 text-[10px] tracking-wider mb-1">VAI TRÒ</p>
-                        <p className="text-slate-200 font-medium text-sm">
+                        <p className="text-slate-400 text-[10px] tracking-wider mb-1 font-semibold">VAI TRÒ</p>
+                        <p className="text-slate-800 font-bold text-sm">
                           {signupRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                         </p>
                      </div>
-
                   </div>
                </div>
             </div>

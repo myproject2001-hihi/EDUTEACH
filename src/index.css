@@ -3,6 +3,39 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Global Custom Scrollbar Style in Pastel Blue */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #93c5fd #f0f9ff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f0f9ff;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #93c5fd;
+    border-radius: 9999px;
+    border: 2px solid #f0f9ff;
+    transition: background-color 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #60a5fa;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
 @layer utilities {
   .perspective-1000 {
     perspective: 1000px;
@@ -20,3 +53,4 @@
     -webkit-transform: rotateY(180deg);
   }
 }
+
