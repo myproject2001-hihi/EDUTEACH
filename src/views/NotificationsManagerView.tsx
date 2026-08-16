@@ -4,6 +4,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, setDoc, doc, deleteDoc } from 'firebase/firestore';
 import { BellRing, Plus, Trash2, Search, Sparkles, Check, Clock, Shield, Award, BookOpen, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { NotificationListSkeleton } from '../components/Skeletons';
 
 interface NotificationsManagerViewProps {
   user: User;
@@ -305,10 +306,7 @@ export function NotificationsManagerView({ user }: NotificationsManagerViewProps
           </div>
 
           {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
-              <p className="text-xs text-slate-400 mt-2">Đang tải danh sách...</p>
-            </div>
+            <NotificationListSkeleton count={3} />
           ) : notifList.length === 0 ? (
             <div className="text-center py-16 bg-slate-50 border border-dashed border-slate-200 rounded-3xl">
               <BellRing className="w-10 h-10 text-slate-300 mx-auto mb-2" />

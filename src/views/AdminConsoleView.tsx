@@ -7,12 +7,14 @@ import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 import { NotificationsManagerView } from './NotificationsManagerView';
+import { TableSkeleton, NotificationListSkeleton } from '../components/Skeletons';
 
 interface AdminConsoleViewProps {
   user: User;
   assignments: Assignment[];
   classes: ClassSession[];
   simulations: HTMLSimulation[];
+  isLoadingAssignments?: boolean;
 }
 
 export function AdminConsoleView({ user, assignments, classes, simulations }: AdminConsoleViewProps) {
@@ -497,9 +499,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
           </div>
 
           {loadingUsers ? (
-            <div className="py-12 text-center text-slate-400 text-sm font-medium animate-pulse">
-              Đang tải danh sách tài khoản...
-            </div>
+            <TableSkeleton rows={5} />
           ) : filteredUsers.length === 0 ? (
             <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center text-slate-500 text-sm">
               Không tìm thấy người dùng nào phù hợp.
@@ -614,9 +614,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
           </div>
 
           {loadingResets ? (
-            <div className="py-12 text-center text-slate-400 text-sm font-medium animate-pulse">
-              Đang tải các yêu cầu khôi phục mật khẩu...
-            </div>
+            <NotificationListSkeleton count={3} />
           ) : resetRequests.length === 0 ? (
             <div className="p-8 bg-slate-50 rounded-2xl border border-slate-200 text-center text-slate-500 text-sm">
               Hiện chưa có yêu cầu khôi phục mật khẩu nào từ người dùng.

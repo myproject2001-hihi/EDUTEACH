@@ -36,6 +36,8 @@ export default function App() {
   const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [initializingAuth, setInitializingAuth] = useState(true);
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
+  const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
 
   // 1. Setup Firebase Auth state listener and real-time user profile sync
   useEffect(() => {
@@ -102,8 +104,10 @@ export default function App() {
       });
       list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setAssignments(list);
+      setIsLoadingAssignments(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'assignments');
+      setIsLoadingAssignments(false);
     });
 
     // Listen to submissions
@@ -113,8 +117,10 @@ export default function App() {
         list.push(docSnap.data() as Submission);
       });
       setSubmissions(list);
+      setIsLoadingSubmissions(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'submissions');
+      setIsLoadingSubmissions(false);
     });
 
     // Listen to custom simulations
@@ -368,6 +374,8 @@ export default function App() {
             assignments={assignments} 
             submissions={submissions}
             classes={classes}
+            isLoadingAssignments={isLoadingAssignments}
+            isLoadingSubmissions={isLoadingSubmissions}
             onNavigate={setActiveTab}
             onSelectAssignment={setSelectedAssignmentId}
           />
@@ -379,6 +387,7 @@ export default function App() {
             assignments={assignments} 
             classes={classes} 
             simulations={simulations} 
+            isLoadingAssignments={isLoadingAssignments}
           />
         ) : null;
       case 'assignments':
@@ -388,6 +397,8 @@ export default function App() {
             user={currentUser}
             assignments={assignments}
             submissions={submissions}
+            isLoadingAssignments={isLoadingAssignments}
+            isLoadingSubmissions={isLoadingSubmissions}
             onAddAssignment={handleAddAssignment}
             onSubmitWork={handleSubmitWork}
             onGrade={handleGrade}
@@ -404,6 +415,8 @@ export default function App() {
             user={currentUser}
             assignments={assignments}
             submissions={submissions}
+            isLoadingAssignments={isLoadingAssignments}
+            isLoadingSubmissions={isLoadingSubmissions}
             onAddAssignment={handleAddAssignment}
             onSubmitWork={handleSubmitWork}
             onGrade={handleGrade}
@@ -420,6 +433,8 @@ export default function App() {
             user={currentUser}
             assignments={assignments}
             submissions={submissions}
+            isLoadingAssignments={isLoadingAssignments}
+            isLoadingSubmissions={isLoadingSubmissions}
             onAddAssignment={handleAddAssignment}
             onSubmitWork={handleSubmitWork}
             onGrade={handleGrade}

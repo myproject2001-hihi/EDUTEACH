@@ -3,6 +3,7 @@ import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle } fro
 import { CameraCapture } from './CameraCapture';
 import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { MarkdownMath } from './MarkdownMath';
+import { cleanQuestionText } from '../views/AssignmentsView';
 import { HandTrackingOverlay } from './HandTrackingOverlay';
 import { GameMenuOverlay } from './GameMenuOverlay';
 import { VictoryFireworks } from './VictoryFireworks';
@@ -578,7 +579,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               </div>
             </div>
             <div className="w-full max-w-2xl text-center mb-2 flex flex-col items-center">
-              <div className="text-xl sm:text-2xl font-bold text-slate-800 mb-2"><MarkdownMath content={currentQ?.question || 'Câu hỏi mẫu: Đâu là thủ đô của Việt Nam?'} /></div>
+              <div className="text-xl sm:text-2xl font-bold text-slate-800 mb-2"><MarkdownMath content={cleanQuestionText(currentQ?.question) || 'Câu hỏi mẫu: Đâu là thủ đô của Việt Nam?'} /></div>
               <p className="text-slate-500 text-xs font-semibold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100">
                 {hasCD 
                   ? 'Nghiêng Trái (A) | Nghiêng Phải (B) | Ngẩng Lên (C) | Gật Xuống (D) hoặc BẤM trực tiếp để trả lời'
@@ -623,7 +624,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               
               <div className="bg-white/80 p-5 sm:p-6 rounded-xl border-2 border-[#8B4513] mb-6 flex justify-center">
                 <div className="text-[#5c2e0e] font-bold text-lg sm:text-xl">
-                  <MarkdownMath content={mapQ?.question || 'Nội dung câu hỏi...'} />
+                  <MarkdownMath content={cleanQuestionText(mapQ?.question) || 'Nội dung câu hỏi...'} />
                 </div>
               </div>
 
@@ -672,7 +673,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
                     </div>
                     
                     <div className="text-base sm:text-2xl font-black text-slate-800 mb-4 text-center my-auto">
-                      <MarkdownMath content={raceQ?.question || 'Câu hỏi đua xe...'} />
+                      <MarkdownMath content={cleanQuestionText(raceQ?.question) || 'Câu hỏi đua xe...'} />
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
@@ -757,7 +758,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
                   )}
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-indigo-900 mb-6 flex items-center justify-center gap-2">
-                  <span>🚂 Ga số {currentQuestionIndex + 1}:</span> <MarkdownMath content={trainQ?.question || 'Câu hỏi ga tàu...'} />
+                  <span>🚂 Ga số {currentQuestionIndex + 1}:</span> <MarkdownMath content={cleanQuestionText(trainQ?.question) || 'Câu hỏi ga tàu...'} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                   {(trainQ?.options || ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']).slice(0,4).map((opt: string, i: number) => (
@@ -1183,7 +1184,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
             </button>
           </div>
         </div>
-        <div className="flex-1 p-2 sm:p-8 relative overflow-y-auto custom-scrollbar">
+        <div className="flex-1 p-2 sm:p-4 relative overflow-hidden flex flex-col min-h-0">
           {renderGameContent()}
           <GameMenuOverlay 
             gameType={gameType} 

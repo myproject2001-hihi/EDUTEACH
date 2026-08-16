@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Star, Keyboard } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
+import { cleanQuestionText } from '../views/AssignmentsView';
 
 interface Answer {
   id: string;
@@ -185,10 +186,8 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     }
 
     return questions.map((q, qIdx) => {
-      let qText = q.question || q.text || q.title || `Câu ${qIdx + 1}.`;
-      if (q.numStr && !qText.includes(q.numStr)) {
-        qText = `${q.numStr} ${qText}`;
-      }
+      let qText = cleanQuestionText(q.question || q.text || q.title || '');
+      if (!qText) qText = `Câu hỏi ${qIdx + 1}`;
 
       let rawOptions: string[] = [];
       if (Array.isArray(q.options) && q.options.length > 0) {
@@ -667,7 +666,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const q = gameQuestions[currentQuestionIndex];
 
   return (
-    <div className="flex flex-col md:flex-row h-[580px] sm:h-[640px] md:h-[600px] lg:h-[720px] xl:h-[820px] 2xl:h-[900px] w-full text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
+    <div className="flex flex-col md:flex-row h-full w-full flex-1 min-h-0 text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
       
       {/* LEFT: QUESTION AND SCOREBOARD PANEL */}
       <div className="w-full md:w-80 lg:w-96 bg-slate-50 border-b md:border-b-0 md:border-r border-indigo-100/80 p-3 sm:p-5 flex flex-row md:flex-col justify-between shrink-0 relative z-30 shadow-sm gap-3">

@@ -20,12 +20,15 @@ import { db } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { UserAvatar } from '../components/UserAvatar';
+import { AssignmentListSkeleton } from '../components/Skeletons';
 
 interface DashboardProps {
   user: User;
   assignments: Assignment[];
   submissions: Submission[];
   classes: ClassSession[];
+  isLoadingAssignments?: boolean;
+  isLoadingSubmissions?: boolean;
   onNavigate: (tab: string) => void;
   onSelectAssignment?: (assignmentId: string) => void;
   onOpenGuide?: () => void;
@@ -106,7 +109,7 @@ const BADGES = [
   }
 ];
 
-export function DashboardView({ user, assignments: rawAssignments, submissions, classes: rawClasses, onNavigate, onSelectAssignment, onOpenGuide }: DashboardProps) {
+export function DashboardView({ user, assignments: rawAssignments, submissions, classes: rawClasses, isLoadingAssignments = false, isLoadingSubmissions = false, onNavigate, onSelectAssignment, onOpenGuide }: DashboardProps) {
   const isAdmin = user.role === 'admin';
   const isTeacher = user.role === 'teacher' || isAdmin;
   const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
@@ -254,7 +257,14 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
               </div>
 
               <div className="space-y-4">
-                {assignments.map(assignment => {
+                {isLoadingAssignments ? (
+                  <AssignmentListSkeleton count={3} />
+                ) : assignments.length === 0 ? (
+                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl text-center text-slate-500 text-xs">
+                    Hiện chưa có bài tập nào được giao.
+                  </div>
+                ) : (
+                  assignments.map(assignment => {
                   const isSubmitted = mySubmissions.some(s => s.assignmentId === assignment.id);
                   const isPastDue = new Date(assignment.dueDate) < new Date();
 
@@ -315,7 +325,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                       </div>
                     </div>
                   );
-                })}
+                }))}
               </div>
             </div>
           ) : (

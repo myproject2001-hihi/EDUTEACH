@@ -14,11 +14,14 @@ import { UserAvatar } from '../components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
 import { GameWizard } from '../components/GameWizard';
 import { FlashcardWizard } from '../components/FlashcardWizard';
+import { AssignmentListSkeleton, AssignmentDetailSkeleton, SubmissionsListSkeleton } from '../components/Skeletons';
 
 interface AssignmentsProps {
   user: User;
   assignments: Assignment[];
   submissions: Submission[];
+  isLoadingAssignments?: boolean;
+  isLoadingSubmissions?: boolean;
   onAddAssignment: (assignment: Omit<Assignment, 'id' | 'createdAt'>) => void;
   onSubmitWork: (submission: Omit<Submission, 'id' | 'submittedAt'>) => void;
   onGrade: (submissionId: string, grade: number, feedback: string) => void;
@@ -132,6 +135,15 @@ export interface ParsedQuestionItem {
   groupTitle?: string;
 }
 
+export function cleanQuestionText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/^\s*(Câu|Bài)\s*\d+\s*[\.:]?\s*/gi, '')
+    .replace(/^\s*\([A-Z]+\)\s*/gi, '')
+    .replace(/^\s*[\.:]\s*/, '')
+    .trim();
+}
+
 export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; parsedQuestions: ParsedQuestionItem[] } {
   // Remove ------HẾT------ line completely so it doesn't render in the question
   rawText = rawText.replace(/^\s*[-]+HẾT[-]+\s*$/gim, '');
@@ -146,25 +158,31 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
   }
 
   const questionsList: ParsedQuestionItem[] = [];
-  const rawChunks = rawText.split(/(?=^Câu\s+\d+[\.:])/im);
+  const rawChunks = rawText.split(/(?=^\s*(?:Câu|Bài)\s*\d+[\.:])/im);
   let currentGroupTitle = initialGroupTitle;
 
   rawChunks.forEach((chunk, index) => {
+    const trimmedChunk = chunk.trim();
+    if (!trimmedChunk) return;
+
     if (index === 0) {
-      const matches = chunk.match(/^Phần\s+[^\n]+/igm);
-      if (matches) currentGroupTitle = matches[matches.length - 1].trim();
-      return;
+      if (!trimmedChunk.match(/^(?:Câu|Bài)\s*\d+[\.:]/i)) {
+        const matches = chunk.match(/^Phần\s+[^\n]+/igm);
+        if (matches) currentGroupTitle = matches[matches.length - 1].trim();
+        return;
+      }
     }
 
-    if (!chunk.toLowerCase().includes('câu ')) return;
+    if (!trimmedChunk.toLowerCase().includes('câu ') && !trimmedChunk.toLowerCase().includes('bài ')) return;
 
-    const qNumMatch = chunk.match(/^Câu\s+(\d+)[\.:]/im);
-    const qNum = qNumMatch ? qNumMatch[1] : `${index + 1}`;
+    const qNumMatch = trimmedChunk.match(/^(?:Câu|Bài)\s*(\d+)[\.:]/im);
+    const qNum = qNumMatch ? qNumMatch[1] : `${questionsList.length + 1}`;
     const numStr = `Câu ${qNum}.`;
 
     const existingQ = questionsList.find(q => q.numStr === numStr);
+    const hasOptions = trimmedChunk.match(/^[A-D][\.:]/m) || trimmedChunk.match(/^[a-d][\)\.]/m);
     
-    if (existingQ) {
+    if (existingQ && !hasOptions) {
       const dapAnMatch = chunk.match(/Đáp án đúng là:\s*([^\n]+)/i);
       if (dapAnMatch) {
         const dapAnText = dapAnMatch[1].trim().replace(/\.$/, '').trim();
@@ -188,14 +206,12 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
         }
       }
       
-      let solText = chunk.replace(/^Câu\s+\d+[\.:]/im, '').trim();
+      let solText = chunk.replace(/^(?:Câu|Bài)\s*\d+[\.:]/im, '').trim();
       if (dapAnMatch) {
         solText = solText.replace(dapAnMatch[0], '').trim();
       }
       if (solText) {
-        // Remove trailing PHẦN headers (match PHẦN I, II, III at start of line)
         solText = solText.replace(/(^|\n)\s*PHẦN\s+[IVX]+[\s\S]*$/i, '').trim();
-        // Remove leading dashes or whitespace
         solText = solText.replace(/^[-–—]\s*/, '').trim();
         existingQ.solutionText = solText;
       }
@@ -209,21 +225,20 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     else if (chunk.includes('(VDC)')) levelBadge = 'VDC';
 
     let questionText = '';
-    const qLineMatch = chunk.match(/^Câu\s+\d+[\.:]\s*(\([A-Z]+\))?\s*([^\n]+)/im);
+    const qLineMatch = chunk.match(/^(?:Câu|Bài)\s*\d+[\.:]?\s*(\([A-Z]+\))?\s*([^\n]+)/im);
     if (qLineMatch) {
       questionText = qLineMatch[2].trim();
     }
     
-    // We need to capture lines between Question and Options or Solutions
     const questionLines = [];
     const clines = chunk.split('\n');
     let captureQ = false;
     for (const l of clines) {
-       if (l.match(/^Câu\s+\d+[\.:]/i)) {
+       if (l.match(/^(?:Câu|Bài)\s*\d+[\.:]?/i)) {
          captureQ = true;
-         continue; // We already have the first line
+         continue;
        }
-       if (l.match(/^[A-D][\.:]/i) || l.match(/^[a-d][\)\.]/i) || l.match(/^Lời giải/i) || l.match(/^Hướng dẫn giải/i) || l.match(/^Phần/i)) {
+       if (l.match(/^[A-D][\.:]/i) || l.match(/^[a-d][\)\.]/i) || l.match(/^Lời giải/i) || l.match(/^Hướng dẫn giải/i) || l.match(/^Phần/i) || l.match(/^Đáp án/i)) {
          captureQ = false;
        }
        if (captureQ && l.trim()) {
@@ -233,6 +248,8 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     if (questionLines.length > 0) {
       questionText += '\n' + questionLines.join('\n');
     }
+
+    questionText = cleanQuestionText(questionText);
 
     let type: 'multiple_choice' | 'true_false' | 'short_answer' = 'short_answer';
     let points = 0.5;
@@ -255,7 +272,6 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       const optDMatch = chunk.match(/D[\.:]\s*([^\n\t]+)/i);
       if (optDMatch) options[3] = optDMatch[1].trim();
       
-      // Clean options from trailing spaces and next options
       for (let i = 0; i < 4; i++) {
          options[i] = options[i].replace(/\s+[A-D][\.:].*/, '').trim();
       }
@@ -316,7 +332,7 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
 
     questionsList.push({
       id: `parsed_q_${index}_${Date.now()}`,
-      numStr,
+      numStr: `Câu ${questionsList.length + 1}.`,
       levelBadge,
       question: questionText,
       type,
@@ -340,6 +356,8 @@ export function AssignmentsView({
   user, 
   assignments: rawAssignments, 
   submissions, 
+  isLoadingAssignments = false,
+  isLoadingSubmissions = false,
   onAddAssignment, 
   onSubmitWork, 
   onGrade,
@@ -1180,7 +1198,14 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
           </div>
 
           <div className="space-y-3">
-            {assignments.map(assignment => {
+            {isLoadingAssignments ? (
+              <AssignmentListSkeleton count={4} />
+            ) : assignments.length === 0 ? (
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl text-center text-slate-500 text-xs">
+                {viewMode === 'games' ? 'Chưa có game nào.' : viewMode === 'flashcards' ? 'Chưa có flashcard nào.' : 'Chưa có bài tập nào.'}
+              </div>
+            ) : (
+              assignments.map(assignment => {
               const isSelected = selectedAssignment?.id === assignment.id;
               const isPastDue = new Date(assignment.dueDate) < new Date();
               const mySubmission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user.id);
@@ -1263,7 +1288,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   )}
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
 
@@ -1940,7 +1965,9 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   </div>
 
                   <div className="space-y-3">
-                    {submissions.filter(s => s.assignmentId === selectedAssignment.id).length === 0 ? (
+                    {isLoadingSubmissions ? (
+                      <SubmissionsListSkeleton count={3} />
+                    ) : submissions.filter(s => s.assignmentId === selectedAssignment.id).length === 0 ? (
                       <div className="p-6 bg-slate-50 rounded-2xl text-center text-slate-500 text-xs italic">
                         Chưa có học sinh nào nộp bài tập này.
                       </div>
@@ -2045,6 +2072,8 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               )}
 
             </div>
+          ) : isLoadingAssignments ? (
+            <AssignmentDetailSkeleton />
           ) : (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm h-full min-h-[350px] flex flex-col items-center justify-center p-8 text-center text-slate-500">
               <BookOpen className="w-12 h-12 text-slate-300 mb-3" />
