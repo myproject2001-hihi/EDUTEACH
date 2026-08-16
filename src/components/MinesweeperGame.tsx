@@ -44,19 +44,22 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   // Convert basic questions to have answers property if they only have options
   const gameQuestions = React.useMemo(() => {
     return questions.map((q) => {
-      if (q.answers) return q;
+      if (q.answers && q.answers.length > 0) return q;
       // Convert options array to answers format
       const options = q.options || ['Đúng', 'Sai'];
+      const correctIdx = typeof q.correctAnswer === 'number' ? q.correctAnswer 
+                       : typeof q.correctOption === 'number' ? q.correctOption 
+                       : typeof q.answerIndex === 'number' ? q.answerIndex
+                       : 0;
       const answersList = options.map((opt: string, idx: number) => {
-        // Assume first option is correct if not specified, or match based on typical quiz options
         return {
           id: String.fromCharCode(65 + idx), // A, B, C, D
           text: opt,
-          isCorrect: idx === 0 // default fallback
+          isCorrect: idx === correctIdx
         };
       });
       return {
-        question: q.question,
+        question: q.question || q.text || '',
         answers: answersList
       };
     });
@@ -70,6 +73,11 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const [isGameOver, setIsGameOver] = useState(false);
   const [isProcessingAnswer, setIsProcessingAnswer] = useState(false);
   const [isAutoMoving, setIsAutoMoving] = useState(false);
+
+  // Refs for synchronous loop tracking
+  const isGameOverRef = useRef(false);
+  const isProcessingAnswerRef = useRef(false);
+  const isAutoMovingRef = useRef(false);
   
   // Soldier position (percentage %)
   const [playerPos, setPlayerPos] = useState({ x: 50, y: 80 });
@@ -89,8 +97,24 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const animationFrameIdRef = useRef<number | null>(null);
   const keysPressedRef = useRef<Record<string, boolean>>({});
 
-  const playerSpeed = 0.8; // Percent per frame
-  const hitRadius = 35; // Collision radius in pixels
+  const playerSpeed = 1.6; // Percent per frame (~96% per second at 60fps)
+  const hitRadius = 45; // Collision radius in pixels
+
+  // Helper sync setters
+  const setAutoMoving = (val: boolean) => {
+    isAutoMovingRef.current = val;
+    setIsAutoMoving(val);
+  };
+
+  const setProcessingAnswer = (val: boolean) => {
+    isProcessingAnswerRef.current = val;
+    setIsProcessingAnswer(val);
+  };
+
+  const setGameOver = (val: boolean) => {
+    isGameOverRef.current = val;
+    setIsGameOver(val);
+  };
 
   // Sync state coordinates to ref
   useEffect(() => {
@@ -100,14 +124,15 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   // Load a new question and generate random coordinates for options on the grass field
   const loadQuestion = (index: number) => {
     if (index >= gameQuestions.length) {
-      setIsGameOver(true);
+      setGameOver(true);
       return;
     }
 
-    setIsProcessingAnswer(false);
-    setIsAutoMoving(false);
+    setProcessingAnswer(false);
+    setAutoMoving(false);
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
     }
 
     // Reset player position back to start base
@@ -115,17 +140,17 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     playerPosRef.current = { x: 50, y: 80 };
 
     const q = gameQuestions[index];
-    const originalAnswers = q.answers || [];
+    const originalAnswers = q?.answers || [];
 
     // Position presets (percentage coordinates around the field)
     const presetPositions = [
       { x: 25, y: 25 },
       { x: 75, y: 25 },
-      { x: 25, y: 55 },
-      { x: 75, y: 55 },
+      { x: 25, y: 60 },
+      { x: 75, y: 60 },
       { x: 50, y: 40 },
-      { x: 15, y: 40 },
-      { x: 85, y: 40 }
+      { x: 15, y: 42 },
+      { x: 85, y: 42 }
     ];
 
     // Shuffle positions
@@ -152,24 +177,34 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     }
   }, [gameQuestions]);
 
-  // Auto-move navigation handler (A* / Vector translation approximation)
+  // Auto-move navigation handler
   const startAutoMove = (targetX: number, targetY: number, onArrival?: () => void) => {
-    if (isGameOver || isProcessingAnswer) return;
-    setIsAutoMoving(true);
+    if (isGameOverRef.current || isProcessingAnswerRef.current) return;
+    
+    setAutoMoving(true);
 
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
     }
 
     const stepMove = () => {
+      if (isGameOverRef.current || isProcessingAnswerRef.current) {
+        setAutoMoving(false);
+        animationFrameIdRef.current = null;
+        return;
+      }
+
       const current = playerPosRef.current;
       const dx = targetX - current.x;
       const dy = targetY - current.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
+      const distance = Math.hypot(dx, dy);
 
       if (distance < playerSpeed * 1.5) {
+        playerPosRef.current = { x: targetX, y: targetY };
         setPlayerPos({ x: targetX, y: targetY });
-        setIsAutoMoving(false);
+        setAutoMoving(false);
+        animationFrameIdRef.current = null;
         if (onArrival) onArrival();
         return;
       }
@@ -178,7 +213,9 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       const nextX = current.x + dx * ratio;
       const nextY = current.y + dy * ratio;
 
+      playerPosRef.current = { x: nextX, y: nextY };
       setPlayerPos({ x: nextX, y: nextY });
+
       animationFrameIdRef.current = requestAnimationFrame(stepMove);
     };
 
@@ -186,38 +223,8 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   };
 
   // Keyboard navigation loop
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
-        e.preventDefault();
-      }
-      keysPressedRef.current[e.key.toLowerCase()] = true;
-
-      if (!isGameOver && !isProcessingAnswer && !isAutoMoving) {
-        if (!animationFrameIdRef.current) {
-          animationFrameIdRef.current = requestAnimationFrame(movePlayerWithKeys);
-        }
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressedRef.current[e.key.toLowerCase()] = false;
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-      }
-    };
-  }, [isGameOver, isProcessingAnswer, isAutoMoving]);
-
   const movePlayerWithKeys = () => {
-    if (isGameOver || isProcessingAnswer || isAutoMoving) {
+    if (isGameOverRef.current || isProcessingAnswerRef.current) {
       animationFrameIdRef.current = null;
       return;
     }
@@ -227,7 +234,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     let nextX = current.x;
     let nextY = current.y;
 
-    const manualSpeed = playerSpeed * 1.3;
+    const manualSpeed = playerSpeed * 1.2;
     const keys = keysPressedRef.current;
 
     if (keys['arrowup'] || keys['w']) {
@@ -252,6 +259,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     nextY = Math.max(5, Math.min(95, nextY));
 
     if (moved) {
+      playerPosRef.current = { x: nextX, y: nextY };
       setPlayerPos({ x: nextX, y: nextY });
       checkCollisionWithAnswers(nextX, nextY);
     }
@@ -261,15 +269,54 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       (k) => keysPressedRef.current[k]
     );
 
-    if (anyKeyPressed) {
+    if (anyKeyPressed && !isGameOverRef.current && !isProcessingAnswerRef.current) {
       animationFrameIdRef.current = requestAnimationFrame(movePlayerWithKeys);
     } else {
       animationFrameIdRef.current = null;
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(key)) {
+        e.preventDefault();
+      }
+      keysPressedRef.current[key] = true;
+
+      if (!isGameOverRef.current && !isProcessingAnswerRef.current) {
+        // Cancel auto-move if user manually presses movement keys
+        if (isAutoMovingRef.current) {
+          setAutoMoving(false);
+          if (animationFrameIdRef.current) {
+            cancelAnimationFrame(animationFrameIdRef.current);
+            animationFrameIdRef.current = null;
+          }
+        }
+        if (!animationFrameIdRef.current) {
+          animationFrameIdRef.current = requestAnimationFrame(movePlayerWithKeys);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressedRef.current[e.key.toLowerCase()] = false;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+    };
+  }, []);
+
   const checkCollisionWithAnswers = (px: number, py: number) => {
-    if (!boardRef.current) return;
+    if (!boardRef.current || isProcessingAnswerRef.current || isGameOverRef.current) return;
     const boardWidth = boardRef.current.clientWidth;
     const boardHeight = boardRef.current.clientHeight;
 
@@ -290,8 +337,9 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   };
 
   const evaluateAnswer = (answer: Answer) => {
-    if (isProcessingAnswer) return;
-    setIsProcessingAnswer(true);
+    if (isProcessingAnswerRef.current || isGameOverRef.current) return;
+    setProcessingAnswer(true);
+    setAutoMoving(false);
 
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
@@ -299,7 +347,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     }
 
     const currentQ = gameQuestions[currentQuestionIndex];
-    const originalAnswers = currentQ.answers || [];
+    const originalAnswers = currentQ?.answers || [];
     const optionIndex = originalAnswers.findIndex((a) => a.id === answer.id);
 
     const nextScore = answer.isCorrect ? score + 10 : score;
@@ -332,7 +380,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     setTimeout(() => {
       const nextIdx = currentQuestionIndex + 1;
       if (nextIdx >= gameQuestions.length) {
-        setIsGameOver(true);
+        setGameOver(true);
         if (onSubmitWork) {
           onSubmitWork(nextScore, nextCorrectCount, nextAnswersMap);
         }
@@ -340,7 +388,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
         setCurrentQuestionIndex(nextIdx);
         loadQuestion(nextIdx);
       }
-    }, answer.isCorrect ? 2500 : 2000);
+    }, answer.isCorrect ? 2200 : 1800);
   };
 
   const triggerFireworks = (x: number, y: number) => {
@@ -371,10 +419,10 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   };
 
   const handleBoardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isGameOver || isProcessingAnswer || isAutoMoving || !boardRef.current) return;
+    if (isGameOverRef.current || isProcessingAnswerRef.current || !boardRef.current) return;
     const rect = boardRef.current.getBoundingClientRect();
-    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
-    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+    const clickX = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+    const clickY = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
     
     startAutoMove(clickX, clickY, () => {
       checkCollisionWithAnswers(clickX, clickY);
@@ -383,7 +431,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
 
   const handleNodeClick = (e: React.MouseEvent, ans: Answer) => {
     e.stopPropagation();
-    if (isGameOver || isProcessingAnswer || isAutoMoving) return;
+    if (isGameOverRef.current || isProcessingAnswerRef.current) return;
     if (ans.x === undefined || ans.y === undefined) return;
 
     startAutoMove(ans.x, ans.y, () => {
@@ -396,9 +444,9 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
     setCorrectAnswersCount(0);
     setAnswersMap({});
     setCurrentQuestionIndex(0);
-    setIsGameOver(false);
-    setIsProcessingAnswer(false);
-    setIsAutoMoving(false);
+    setGameOver(false);
+    setProcessingAnswer(false);
+    setAutoMoving(false);
     setTimeout(() => loadQuestion(0), 100);
   };
 
