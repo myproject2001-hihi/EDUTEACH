@@ -143,7 +143,6 @@ export const GameWizard: React.FC<GameWizardProps> = ({
 
   const supportMap: Record<string, string[]> = {
     quiz_nghieng_dau: ['multiple_choice', 'true_false'],
-    pose_matching: ['multiple_choice', 'true_false'],
     cuoc_dua_ngon_tay: ['multiple_choice', 'true_false', 'word_reorder'],
     do_min: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
     doan_tau_tri_thuc: ['multiple_choice', 'true_false', 'word_reorder', 'matching'],
@@ -163,7 +162,6 @@ export const GameWizard: React.FC<GameWizardProps> = ({
 
   const gamesList = [
     { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu', category: 'ai', desc: 'Sử dụng camera nghiêng đầu để trả lời A, B, C, D cực nhạy', emoji: '🧠', color: 'border-blue-100 hover:border-blue-500 bg-blue-50/20 hover:bg-blue-50/40' },
-    { id: 'pose_matching', name: 'Tư Thế Mô Phỏng', category: 'ai', desc: 'Mô phỏng tư thế hình học trước camera AI nhận diện cơ thể', emoji: '🧍', color: 'border-amber-100 hover:border-amber-500 bg-amber-50/20 hover:bg-amber-50/40' },
     { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay', category: 'speed', desc: 'Đua xe trả lời đúng để bứt tốc vượt lên đối thủ trên đường đua', emoji: '🏎️', color: 'border-rose-100 hover:border-rose-500 bg-rose-50/20 hover:bg-rose-50/40' },
     { id: 'do_min', name: 'Dò Mìn', category: 'puzzle', desc: 'Khám phá ô mìn an toàn thông qua giải các phép tính toán học', emoji: '💣', color: 'border-emerald-100 hover:border-emerald-500 bg-emerald-50/20 hover:bg-emerald-50/40' },
     { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức', category: 'puzzle', desc: 'Đưa đoàn tàu vượt các ga học liệu cập bến ga cuối an toàn', emoji: '🚂', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },

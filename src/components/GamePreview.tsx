@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { Gamepad2, X, Play, Camera, UserCheck, Download } from 'lucide-react';
+import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle } from 'lucide-react';
 import { CameraCapture } from './CameraCapture';
-import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { MarkdownMath } from './MarkdownMath';
+import { HandTrackingOverlay } from './HandTrackingOverlay';
+import { GameMenuOverlay } from './GameMenuOverlay';
+import { VictoryFireworks } from './VictoryFireworks';
+import { GameCalibration } from './GameCalibration';
+import { MinesweeperGame } from './MinesweeperGame';
 
 interface Props {
   gameType: string;
@@ -13,16 +18,64 @@ interface Props {
 }
 
 
-function LiveCamera({ onTilt }: { onTilt?: (dir: 'left' | 'right' | 'up' | 'down' | 'none') => void }) {
+/**
+ * Hàm xử lý logic nhận diện số lượng ngón tay giơ lên từ danh sách landmark của MediaPipe.
+ * Thuật toán so sánh cao độ (trục Y) của đỉnh ngón tay (Finger Tip) với khớp liền kề (PIP Joint)
+ * để xác định ngón tay đó đang giơ lên (raised) hay đang cụp xuống.
+ * 
+ * Sơ đồ các điểm mốc (landmarks) được sử dụng:
+ * - Ngón trỏ:  Điểm mốc 8 (Tip)  so với 6 (PIP)
+ * - Ngón giữa: Điểm mốc 12 (Tip) so với 10 (PIP)
+ * - Ngón áp út:Điểm mốc 16 (Tip) so với 14 (PIP)
+ * - Ngón út:   Điểm mốc 20 (Tip) so với 18 (PIP)
+ *
+ * @param landmarks Danh sách 21 điểm mốc tọa độ bàn tay từ MediaPipe HandLandmarker
+ * @returns Trả về kết quả từ 1 đến 4 ngón tay giơ lên, hoặc 'none' nếu không khớp.
+ */
+export function countRaisedFingers(landmarks: any[]): number | 'none' {
+  if (!landmarks || landmarks.length < 21) return 'none';
+
+  // Xác định các ngón có đang giơ lên hay không (y càng nhỏ nghĩa là càng cao trên màn hình)
+  const indexRaised = landmarks[8].y < landmarks[6].y;
+  const middleRaised = landmarks[12].y < landmarks[10].y;
+  const ringRaised = landmarks[16].y < landmarks[14].y;
+  const pinkyRaised = landmarks[20].y < landmarks[18].y;
+
+  let count = 0;
+  if (indexRaised) count++;
+  if (middleRaised) count++;
+  if (ringRaised) count++;
+  if (pinkyRaised) count++;
+
+  if (count >= 1 && count <= 4) {
+    return count;
+  }
+  return 'none';
+}
+
+
+function LiveCamera({ 
+  mode, 
+  onTilt, 
+  onFingerCount 
+}: { 
+  mode: 'face' | 'hand'; 
+  onTilt?: (dir: 'left' | 'right' | 'up' | 'down' | 'none') => void;
+  onFingerCount?: (count: number | 'none') => void;
+}) {
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const [error, setError] = React.useState('');
   const [isLoaded, setIsLoaded] = React.useState(false);
+  
   const onTiltRef = React.useRef(onTilt);
+  const onFingerCountRef = React.useRef(onFingerCount);
   React.useEffect(() => { onTiltRef.current = onTilt; }, [onTilt]);
+  React.useEffect(() => { onFingerCountRef.current = onFingerCount; }, [onFingerCount]);
   
   React.useEffect(() => {
     let stream: MediaStream | null = null;
     let faceLandmarker: FaceLandmarker | null = null;
+    let handLandmarker: HandLandmarker | null = null;
     let animationFrameId: number;
     let isActive = true;
     
@@ -31,32 +84,57 @@ function LiveCamera({ onTilt }: { onTilt?: (dir: 'left' | 'right' | 'up' | 'down
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
-        try {
-          faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-              delegate: "GPU"
-            },
-            outputFaceBlendshapes: false,
-            runningMode: "VIDEO",
-            numFaces: 1
-          });
-        } catch (gpuErr) {
-          console.warn("GPU delegate failed, falling back to CPU", gpuErr);
-          faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-              delegate: "CPU"
-            },
-            outputFaceBlendshapes: false,
-            runningMode: "VIDEO",
-            numFaces: 1
-          });
+        
+        if (mode === 'face') {
+          try {
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                delegate: "GPU"
+              },
+              outputFaceBlendshapes: false,
+              runningMode: "VIDEO",
+              numFaces: 1
+            });
+          } catch (gpuErr) {
+            console.warn("GPU delegate failed, falling back to CPU for FaceLandmarker", gpuErr);
+            faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                delegate: "CPU"
+              },
+              outputFaceBlendshapes: false,
+              runningMode: "VIDEO",
+              numFaces: 1
+            });
+          }
+        } else {
+          try {
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                delegate: "GPU"
+              },
+              runningMode: "VIDEO",
+              numHands: 1
+            });
+          } catch (gpuErr) {
+            console.warn("GPU delegate failed, falling back to CPU for HandLandmarker", gpuErr);
+            handLandmarker = await HandLandmarker.createFromOptions(vision, {
+              baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                delegate: "CPU"
+              },
+              runningMode: "VIDEO",
+              numHands: 1
+            });
+          }
         }
+        
         if (isActive) setIsLoaded(true);
       } catch (err) {
         console.error("MediaPipe load error", err);
-        setError("Không thể tải mô hình nhận diện khuôn mặt. Vui lòng kiểm tra kết nối mạng.");
+        setError("Không thể tải mô hình nhận diện AI. Vui lòng kiểm tra kết nối mạng.");
       }
     }
     
@@ -93,43 +171,59 @@ function LiveCamera({ onTilt }: { onTilt?: (dir: 'left' | 'right' | 'up' | 'down
       
     let lastVideoTime = -1;
     function predictWebcam() {
-      if (videoRef.current && faceLandmarker && isActive) {
+      if (videoRef.current && isActive) {
         let startTimeMs = performance.now();
         if (lastVideoTime !== videoRef.current.currentTime) {
           lastVideoTime = videoRef.current.currentTime;
-          const results = faceLandmarker.detectForVideo(videoRef.current, startTimeMs);
           
-          if (results.faceLandmarks && results.faceLandmarks.length > 0) {
-            const landmarks = results.faceLandmarks[0];
-            const leftEye = landmarks[33]; // Person's left eye
-            const rightEye = landmarks[263]; // Person's right eye
-            const forehead = landmarks[10];
-            const chin = landmarks[152];
-            const nose = landmarks[4];
+          if (mode === 'face' && faceLandmarker) {
+            const results = faceLandmarker.detectForVideo(videoRef.current, startTimeMs);
             
-            // 1. Calculate left/right head tilt
-            const dy = rightEye.y - leftEye.y;
-            
-            // 2. Calculate up/down head tilt (scale-invariant ratio of nose to forehead / nose to chin)
-            const distNoseForehead = nose.y - forehead.y;
-            const distNoseChin = chin.y - nose.y;
-            const upDownRatio = distNoseForehead / Math.max(distNoseChin, 0.01);
-            
-            // Since camera is mirrored for the user:
-            // Tilted left (their left ear to left shoulder) -> right eye is higher than left eye -> dy is positive
-            if (dy > 0.04) {
-               onTiltRef.current?.('left');
-            } else if (dy < -0.04) {
-               onTiltRef.current?.('right');
-            } else if (upDownRatio < 0.72) {
-               onTiltRef.current?.('up');
-            } else if (upDownRatio > 1.35) {
-               onTiltRef.current?.('down');
+            if (results.faceLandmarks && results.faceLandmarks.length > 0) {
+              const landmarks = results.faceLandmarks[0];
+              const leftEye = landmarks[33]; // Person's left eye
+              const rightEye = landmarks[263]; // Person's right eye
+              const forehead = landmarks[10];
+              const chin = landmarks[152];
+              const nose = landmarks[4];
+              
+              // 1. Calculate eye distance as reference
+              const dx = rightEye.x - leftEye.x;
+              const dy = rightEye.y - leftEye.y;
+              const eyeDistance = Math.sqrt(dx * dx + dy * dy);
+              
+              // 2. Roll (left/right tilt) - fully scale invariant
+              const rollRatio = dy / Math.max(eyeDistance, 0.01);
+              
+              // 3. Pitch (up/down tilt) - fully scale invariant (nose relative to forehead/chin height)
+              const faceHeight = chin.y - forehead.y;
+              const noseYRel = (nose.y - forehead.y) / Math.max(faceHeight, 0.01);
+              
+              // Since camera is mirrored for the user:
+              if (rollRatio > 0.22) {
+                 onTiltRef.current?.('left');
+              } else if (rollRatio < -0.22) {
+                 onTiltRef.current?.('right');
+              } else if (noseYRel < 0.44) {
+                 onTiltRef.current?.('up');
+              } else if (noseYRel > 0.56) {
+                 onTiltRef.current?.('down');
+              } else {
+                 onTiltRef.current?.('none');
+              }
             } else {
                onTiltRef.current?.('none');
             }
-          } else {
-             onTiltRef.current?.('none');
+          } else if (mode === 'hand' && handLandmarker) {
+            const results = handLandmarker.detectForVideo(videoRef.current, startTimeMs);
+            
+            if (results.landmarks && results.landmarks.length > 0) {
+              const landmarks = results.landmarks[0];
+              const detectedCount = countRaisedFingers(landmarks);
+              onFingerCountRef.current?.(detectedCount);
+            } else {
+              onFingerCountRef.current?.('none');
+            }
           }
         }
       }
@@ -143,14 +237,22 @@ function LiveCamera({ onTilt }: { onTilt?: (dir: 'left' | 'right' | 'up' | 'down
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
       if (faceLandmarker) faceLandmarker.close();
+      if (handLandmarker) handLandmarker.close();
     };
-  }, []);
+  }, [mode]);
 
   if (error) return <div className="text-rose-500 text-xs font-bold text-center px-4 z-30">{error}</div>;
   
   return (
     <>
-      {!isLoaded && <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-900/80"><div className="text-white text-xs font-bold animate-pulse">Đang tải mô hình AI...</div></div>}
+      {!isLoaded && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/80 p-4">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <div className="text-white text-xs font-bold animate-pulse">
+            Đang khởi tạo AI {mode === 'face' ? 'Nhận diện Khuôn mặt' : 'Nhận diện Bàn tay'}...
+          </div>
+        </div>
+      )}
       <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1] absolute inset-0 z-10 opacity-90" />
     </>
   );
@@ -160,11 +262,19 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
   
   const [showGameCamera, setShowGameCamera] = useState(false);
   const [capturedPoseImg, setCapturedPoseImg] = useState<string | null>(null);
+  const [isHelpOpen, setIsHelpOpen] = useState(true);
   const [tiltDir, setTiltDir] = useState<'left' | 'right' | 'up' | 'down' | 'none'>('none');
+  const [fingerCount, setFingerCount] = useState<number | 'none'>('none');
+  const [isCalibrated, setIsCalibrated] = useState(false);
+  
+  const [consecutiveTilt, setConsecutiveTilt] = useState<{ dir: 'left' | 'right' | 'up' | 'down' | 'none'; count: number }>({ dir: 'none', count: 0 });
+  const [consecutiveFinger, setConsecutiveFinger] = useState<{ count: number | 'none'; frames: number }>({ count: 'none', frames: 0 });
   
   // Game logic state
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answerStatus, setAnswerStatus] = useState<'none' | 'correct' | 'wrong'>('none');
+  const [showFireworks, setShowFireworks] = useState(false);
+  const [showVictoryFireworks, setShowVictoryFireworks] = useState(false);
   const [lockedAnswer, setLockedAnswer] = useState<'left' | 'right' | 'up' | 'down' | 'none'>('none');
   const [isFinished, setIsFinished] = useState(false);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
@@ -222,6 +332,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     
     if (isCorrect) {
       setCorrectAnswersCount(prev => prev + 1);
+      setShowFireworks(true);
     }
     
     setAnswersMap(prev => ({
@@ -233,72 +344,82 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     
     setTimeout(() => {
        setAnswerStatus('none');
+       setShowFireworks(false);
+       setConsecutiveTilt({ dir: 'none', count: 0 });
+       setConsecutiveFinger({ count: 'none', frames: 0 });
        if (currentQuestionIndex < gameQuestions.length - 1) {
           setCurrentQuestionIndex(prev => prev + 1);
        } else {
           setIsFinished(true); // Complete the game!
+          setShowVictoryFireworks(true);
        }
     }, 1500);
   };
 
+  // 1. Process head tilt with consecutive frame trigger (stable & noise-free)
   React.useEffect(() => {
     if (gameType !== 'quiz_nghieng_dau') return;
-    if (answerStatus !== 'none' || tiltDir === 'none' || isFinished) return;
+    if (answerStatus !== 'none' || isFinished) return;
     
-    // We detected a tilt! Let's lock it in after a small debounce or immediately.
-    // For immediate feel with a tiny delay to avoid accidental triggers:
-    const timer = setTimeout(() => {
-       const question = gameQuestions[currentQuestionIndex];
-       if (!question) return;
-       
-       let selectedIndex = 0;
-       if (tiltDir === 'left') selectedIndex = 0;
-       else if (tiltDir === 'right') selectedIndex = 1;
-       else if (tiltDir === 'up') selectedIndex = 2;
-       else if (tiltDir === 'down') selectedIndex = 3;
-       
-       // check if option exists (e.g. if question only has 2 options, don't trigger C or D)
-       if (selectedIndex >= (question.options?.length || 2)) return;
-
-       let isCorrect = false;
-       if (typeof question.correctAnswer === 'number') {
-           isCorrect = question.correctAnswer === selectedIndex;
-       } else if (typeof question.correctAnswer === 'string') {
-           isCorrect = question.correctAnswer === String.fromCharCode(65 + selectedIndex) || question.correctAnswer === String(selectedIndex);
-       } else if (Array.isArray(question.correctAnswer)) {
-           isCorrect = question.correctAnswer.includes(selectedIndex);
-       } else {
-           // Fallback for preview if no answer provided: just say it's correct for demonstration
-           isCorrect = true; 
-       }
-       
-       if (isCorrect) {
-         setCorrectAnswersCount(prev => prev + 1);
-       }
-       
-       setAnswersMap(prev => ({
-         ...prev,
-         [question.id || `q_${currentQuestionIndex}`]: selectedIndex
-       }));
-
-       setAnswerStatus(isCorrect ? 'correct' : 'wrong');
-       setLockedAnswer(tiltDir);
-       
-       // Move to next question after 2 seconds
-       setTimeout(() => {
-          setAnswerStatus('none');
-          setLockedAnswer('none');
-          if (currentQuestionIndex < gameQuestions.length - 1) {
-             setCurrentQuestionIndex(prev => prev + 1);
-          } else {
-             setIsFinished(true); // Complete the game!
+    if (tiltDir === 'none') {
+      setConsecutiveTilt({ dir: 'none', count: 0 });
+      return;
+    }
+    
+    setConsecutiveTilt(prev => {
+      if (prev.dir === tiltDir) {
+        const nextCount = prev.count + 1;
+        // Require 8 consecutive frames of consistent direction (approx 250ms) to confirm
+        if (nextCount === 8 && lockedAnswer === 'none') {
+          const question = gameQuestions[currentQuestionIndex];
+          if (question) {
+            let selectedIndex = 0;
+            if (tiltDir === 'left') selectedIndex = 0;
+            else if (tiltDir === 'right') selectedIndex = 1;
+            else if (tiltDir === 'up') selectedIndex = 2;
+            else if (tiltDir === 'down') selectedIndex = 3;
+            
+            if (selectedIndex < (question.options?.length || 2)) {
+              handleOptionClick(selectedIndex);
+            }
           }
-       }, 2500);
-       
-    }, 400); // 400ms hold is solid to prevent twitching
+        }
+        return { dir: tiltDir, count: nextCount };
+      } else {
+        return { dir: tiltDir, count: 1 };
+      }
+    });
+  }, [tiltDir, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer]);
+
+  // 2. Process finger count with consecutive frame trigger (stable & noise-free)
+  React.useEffect(() => {
+    if (gameType !== 'cuoc_dua_ngon_tay') return;
+    if (answerStatus !== 'none' || isFinished) return;
     
-    return () => clearTimeout(timer);
-  }, [tiltDir, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished]);
+    if (fingerCount === 'none') {
+      setConsecutiveFinger({ count: 'none', frames: 0 });
+      return;
+    }
+    
+    setConsecutiveFinger(prev => {
+      if (prev.count === fingerCount) {
+        const nextFrames = prev.frames + 1;
+        // Require 10 consecutive frames of consistent finger count (approx 330ms) to confirm
+        if (nextFrames === 10 && lockedAnswer === 'none') {
+          const question = gameQuestions[currentQuestionIndex];
+          if (question) {
+            const selectedIndex = fingerCount - 1; // 1 finger = A (0), 2 = B (1), 3 = C (2), 4 = D (3)
+            if (selectedIndex >= 0 && selectedIndex < (question.options?.length || 4)) {
+              handleOptionClick(selectedIndex);
+            }
+          }
+        }
+        return { count: fingerCount, frames: nextFrames };
+      } else {
+        return { count: fingerCount, frames: 1 };
+      }
+    });
+  }, [fingerCount, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer]);
 
 
   const renderGameContent = () => {
@@ -382,83 +503,6 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     }
 
     switch (gameType) {
-      case 'pose_matching':
-        const currentPoseQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
-        return (
-          <div className="flex flex-col items-center justify-center h-full space-y-6">
-            <div className="flex items-center justify-between w-full max-w-2xl px-4">
-               <div className="text-slate-500 font-bold">Câu {currentQuestionIndex + 1}/{Math.max(gameQuestions.length, 1)}</div>
-               {answerStatus !== 'none' && (
-                  <div className={`font-black text-lg animate-bounce ${answerStatus === 'correct' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                     {answerStatus === 'correct' ? '🎉 CHÍNH XÁC!' : '❌ SAI RỒI!'}
-                  </div>
-               )}
-            </div>
-
-            <div className="w-full max-w-2xl bg-slate-800 rounded-3xl p-6 border border-slate-700 flex flex-col items-center text-center space-y-4">
-              <div className="flex items-center justify-between w-full border-b border-slate-700 pb-3">
-                <span className="text-xs font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-amber-400" /> Nhận diện tư thế mô phỏng
-                </span>
-                <span className="text-[11px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700 font-mono">
-                  Pose matching
-                </span>
-              </div>
-
-              <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden relative flex flex-col items-center justify-center border border-slate-700 shadow-inner">
-                {capturedPoseImg ? (
-                  <div className="relative w-full h-full">
-                    <img src={capturedPoseImg} alt="Pose" className="w-full h-full object-contain" />
-                    <div className="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-extrabold text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                      <UserCheck className="w-3.5 h-3.5" /> Đã ghi nhận tư thế
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-slate-500 text-xs flex flex-col items-center gap-2">
-                    <Camera className="w-8 h-8 text-slate-600 animate-pulse" />
-                    <span>Camera tự động khớp tư thế...</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-col gap-2 w-full">
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => setShowGameCamera(true)}
-                    className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl border border-indigo-400/30 flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
-                  >
-                    <Camera className="w-4 h-4 text-emerald-300" /> Bật Camera mô phỏng tư thế
-                  </button>
-                  {capturedPoseImg && (
-                    <a
-                      href={capturedPoseImg}
-                      download="tu_the_game.jpg"
-                      className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all"
-                    >
-                      <Download className="w-4 h-4" /> Tải ảnh
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            <div className="w-full max-w-2xl text-center mb-4 flex flex-col items-center">
-              <div className="text-2xl font-bold text-slate-800 mb-2"><MarkdownMath content={currentPoseQ?.question || 'Câu hỏi mẫu: Bạn hãy làm động tác vươn vai?'} /></div>
-              <p className="text-xs text-slate-400 font-medium italic">Bạn có thể chọn trực tiếp phương án bên dưới để kiểm tra và tiến lên câu tiếp theo.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
-              {(currentPoseQ?.options || ['Tư thế A', 'Tư thế B', 'Tư thế C', 'Tư thế D']).slice(0,4).map((opt: string, i: number) => (
-                <button 
-                  key={i} 
-                  onClick={() => handleOptionClick(i)}
-                  className="flex-1 bg-slate-100 hover:bg-indigo-50 active:scale-98 transition-all rounded-2xl p-4 text-slate-800 text-center font-bold text-lg border-2 border-slate-300 hover:border-indigo-400 flex flex-wrap items-center justify-center gap-1 min-h-[80px]"
-                >
-                  <span>Tư thế {['A', 'B', 'C', 'D'][i]}:</span> <MarkdownMath content={opt} />
-                </button>
-              ))}
-            </div>
-          </div>
-        );
       case 'quiz_nghieng_dau':
         const currentQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
         const hasCD = currentQ?.options && currentQ.options.length > 2;
@@ -513,15 +557,24 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
                 'border-indigo-500'}`}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10" />
-              <LiveCamera onTilt={answerStatus === 'none' ? setTiltDir : undefined} />
-              <Camera className="w-16 h-16 text-white/30 z-20" />
+              <LiveCamera mode="face" onTilt={answerStatus === 'none' ? setTiltDir : undefined} />
+              
+              {consecutiveTilt.count > 0 && consecutiveTilt.dir !== 'none' && (
+                <div className="absolute inset-x-0 bottom-0 h-2 bg-slate-700 z-20">
+                  <div 
+                    className="h-full bg-emerald-500 transition-all duration-75 animate-pulse" 
+                    style={{ width: `${Math.min((consecutiveTilt.count / 8) * 100, 100)}%` }} 
+                  />
+                </div>
+              )}
+
               <div className="absolute bottom-4 left-0 right-0 text-center z-20 text-white font-bold text-[10px] px-2">
-                {answerStatus !== 'none' ? 'Đã khóa đáp án' : 
-                 tiltDir === 'left' ? 'Đang nghiêng TRÁI (A)' : 
-                 tiltDir === 'right' ? 'Đang nghiêng PHẢI (B)' : 
-                 tiltDir === 'up' ? 'Đang ngẩng LÊN (C)' : 
-                 tiltDir === 'down' ? 'Đang gật XUỐNG (D)' : 
-                 'Camera đang bật (Xem trước)'}
+                {answerStatus !== 'none' ? '🏁 Đã khóa đáp án!' : 
+                 tiltDir === 'left' ? `Đang nghiêng TRÁI (A) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
+                 tiltDir === 'right' ? `Đang nghiêng PHẢI (B) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
+                 tiltDir === 'up' ? `Đang ngẩng LÊN (C) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
+                 tiltDir === 'down' ? `Đang gật XUỐNG (D) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
+                 'Nghiêng đầu để chọn đáp án'}
               </div>
             </div>
             <div className="w-full max-w-2xl text-center mb-2 flex flex-col items-center">
@@ -594,97 +647,96 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
       case 'cuoc_dua_ngon_tay':
         const raceQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
         return (
-          <div className="flex flex-col h-full min-h-[450px] bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-4 sm:p-8 relative overflow-hidden border-4 border-sky-500 shadow-inner">
-            <div className="absolute top-4 sm:top-10 left-0 right-0 flex justify-between px-4 sm:px-12 z-20">
-              <div className="bg-white/80 backdrop-blur px-3 sm:px-6 py-1.5 sm:py-3 rounded-full font-black text-xs sm:text-2xl text-rose-600 shadow-lg border-2 border-rose-200">
-                Đội Đỏ (Bạn): {correctAnswersCount * 100}m
+          <div className="flex flex-col h-full min-h-[500px] bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-4 sm:p-6 relative overflow-hidden border-4 border-sky-500 shadow-inner">
+            <div className="absolute top-4 left-0 right-0 flex justify-between px-4 sm:px-10 z-20">
+              <div className="bg-white/90 backdrop-blur px-3 py-1.5 sm:px-6 sm:py-2.5 rounded-full font-black text-xs sm:text-xl text-rose-600 shadow-lg border-2 border-rose-200 animate-pulse">
+                🏎️ Bạn (Đỏ): {correctAnswersCount * 100}m
               </div>
-              <div className="bg-white/80 backdrop-blur px-3 sm:px-6 py-1.5 sm:py-3 rounded-full font-black text-xs sm:text-2xl text-blue-600 shadow-lg border-2 border-blue-200">
-                Đội Xanh: {currentQuestionIndex * 80}m
-              </div>
-            </div>
-            <div className="flex-1 flex flex-col items-center justify-center z-10 mt-12 sm:mt-20">
-              <div className="bg-white p-4 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full text-center border-2 sm:border-4 border-slate-800 flex flex-col items-center">
-                <div className="flex justify-between items-center w-full text-xs font-extrabold text-slate-400 mb-2">
-                  <span>Câu {currentQuestionIndex + 1} / {gameQuestions.length}</span>
-                  {answerStatus !== 'none' && (
-                    <span className={answerStatus === 'correct' ? 'text-emerald-600' : 'text-rose-600'}>
-                      {answerStatus === 'correct' ? '🎉 Bứt tốc!' : '❌ Chậm lại!'}
-                    </span>
-                  )}
-                </div>
-                <div className="text-lg sm:text-3xl font-black text-slate-800 mb-4 sm:mb-8">
-                  <MarkdownMath content={raceQ?.question || 'Câu hỏi đua xe...'} />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
-                  {(raceQ?.options || ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']).slice(0,4).map((opt: string, i: number) => (
-                    <button 
-                      key={i} 
-                      onClick={() => handleOptionClick(i)}
-                      className={`p-3 sm:p-6 rounded-xl sm:rounded-2xl text-white font-bold text-sm sm:text-xl shadow-[0_4px_0_rgba(0,0,0,0.2)] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center ${
-                        i===0 ? 'bg-rose-500 border-2 border-rose-700' : i===1 ? 'bg-blue-500 border-2 border-blue-700' : i===2 ? 'bg-amber-500 border-2 border-amber-700' : 'bg-emerald-500 border-2 border-emerald-700'
-                      }`}
-                    >
-                      <MarkdownMath content={opt} />
-                    </button>
-                  ))}
-                </div>
+              <div className="bg-white/90 backdrop-blur px-3 py-1.5 sm:px-6 sm:py-2.5 rounded-full font-black text-xs sm:text-xl text-blue-600 shadow-lg border-2 border-blue-200">
+                🤖 Đội Xanh: {currentQuestionIndex * 80}m
               </div>
             </div>
+
+            <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center gap-6 z-10 mt-16 mb-24 w-full max-w-6xl mx-auto">
+              {/* Left: Question Box */}
+              <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-2xl flex-1 flex flex-col justify-between border-2 sm:border-4 border-slate-800 relative min-h-[350px]">
+                {isCalibrated ? (
+                  <>
+                    <div className="flex justify-between items-center w-full text-[10px] font-extrabold text-slate-400 mb-2 uppercase tracking-wider">
+                      <span>Câu {currentQuestionIndex + 1} / {gameQuestions.length}</span>
+                      {answerStatus !== 'none' && (
+                        <span className={answerStatus === 'correct' ? 'text-emerald-600 animate-bounce' : 'text-rose-600'}>
+                          {answerStatus === 'correct' ? '🎉 Bứt tốc!' : '❌ Chậm lại!'}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="text-base sm:text-2xl font-black text-slate-800 mb-4 text-center my-auto">
+                      <MarkdownMath content={raceQ?.question || 'Câu hỏi đua xe...'} />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
+                      {(raceQ?.options || ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']).slice(0,4).map((opt: string, i: number) => (
+                        <button 
+                          key={i} 
+                          onClick={() => handleOptionClick(i)}
+                          className={`p-3.5 sm:p-5 rounded-xl sm:rounded-2xl text-white font-bold text-sm sm:text-base shadow-[0_4px_0_rgba(0,0,0,0.2)] active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center relative min-h-[64px] ${
+                            i===0 ? 'bg-rose-500 border-2 border-rose-700' : i===1 ? 'bg-blue-500 border-2 border-blue-700' : i===2 ? 'bg-amber-500 border-2 border-amber-700' : 'bg-emerald-500 border-2 border-emerald-700'
+                          }`}
+                        >
+                          <span className="absolute top-1 left-2 text-[9px] uppercase font-black tracking-widest text-white/90">
+                            {i === 0 ? '☝️ 1 ngón' : i === 1 ? '✌️ 2 ngón' : i === 2 ? '🤟 3 ngón' : '✋ 4 ngón'}
+                          </span>
+                          <div className="mt-2"><MarkdownMath content={opt} /></div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <GameCalibration 
+                    onComplete={() => setIsCalibrated(true)}
+                    videoElement={null}
+                    detectedFinger={fingerCount}
+                    consecutiveFrames={consecutiveFinger.frames}
+                  />
+                )}
+              </div>
+
+              {/* Right: Camera Hand Tracking Box */}
+              <div className="w-full lg:w-80 h-64 lg:h-auto bg-slate-900 border-4 border-sky-600 rounded-3xl shadow-2xl relative overflow-hidden shrink-0 flex items-center justify-center transition-all duration-300">
+                <LiveCamera mode="hand" onFingerCount={answerStatus === 'none' ? setFingerCount : undefined} />
+                <HandTrackingOverlay 
+                  fingerCount={fingerCount} 
+                  consecutiveFrames={consecutiveFinger.frames} 
+                  maxRequiredFrames={10} 
+                  answerStatus={answerStatus} 
+                />
+              </div>
+            </div>
+
             {/* Track decorations */}
-            <div className="absolute bottom-0 left-0 right-0 h-24 sm:h-32 bg-slate-800 border-t-8 border-slate-600 flex flex-col justify-center gap-4 px-8">
-              <div className="h-4 border-t-4 border-dashed border-white/50 w-full" />
-              <div className="h-4 border-t-4 border-dashed border-white/50 w-full" />
+            <div className="absolute bottom-0 left-0 right-0 h-20 sm:h-24 bg-slate-800 border-t-8 border-slate-600 flex flex-col justify-center gap-3 px-8 z-0">
+              <div className="h-2 border-t-2 border-dashed border-white/50 w-full" />
+              <div className="h-2 border-t-2 border-dashed border-white/50 w-full" />
             </div>
-            <div className="absolute bottom-16 sm:bottom-20 left-10 sm:left-20 w-10 h-10 sm:w-16 sm:h-16 bg-rose-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce" style={{ left: `${20 + (correctAnswersCount * 15)}%` }} />
-            <div className="absolute bottom-4 sm:bottom-6 left-28 sm:left-40 w-10 h-10 sm:w-16 sm:h-16 bg-blue-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce" style={{ animationDelay: '0.2s', left: `${25 + (currentQuestionIndex * 12)}%` }} />
+            {/* Red Car (User) */}
+            <div className="absolute bottom-12 sm:bottom-14 left-10 w-10 h-10 sm:w-12 sm:h-12 bg-rose-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce flex items-center justify-center text-lg z-10" style={{ left: `${15 + (correctAnswersCount * 12)}%`, transition: 'all 1s ease-out' }}>
+              🚗
+            </div>
+            {/* Blue Car (Bot) */}
+            <div className="absolute bottom-2 sm:bottom-3 left-20 w-10 h-10 sm:w-12 sm:h-12 bg-blue-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce flex items-center justify-center text-lg z-10" style={{ animationDelay: '0.2s', left: `${20 + (currentQuestionIndex * 10)}%`, transition: 'all 1s ease-out' }}>
+              🚙
+            </div>
           </div>
         );
       case 'do_min':
-        const mineQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
         return (
-          <div className="flex flex-col items-center justify-center h-full min-h-[400px] bg-slate-200 p-3 sm:p-8 rounded-2xl sm:rounded-3xl border-2 sm:border-4 border-slate-400 shadow-[inset_0_4px_20px_rgba(0,0,0,0.1)]">
-            <div className="bg-slate-300 p-3 sm:p-6 rounded-xl border-t-2 sm:border-t-4 border-l-2 sm:border-l-4 border-white border-b-2 sm:border-b-4 border-r-2 sm:border-r-4 border-slate-500 shadow-2xl max-w-full">
-              <div className="bg-slate-800 text-red-500 font-mono text-xl sm:text-4xl p-2 sm:p-4 rounded mb-3 sm:mb-6 flex justify-between items-center border-[4px] sm:border-[6px] border-slate-600 shadow-inner">
-                <span>0{gameQuestions.length - currentQuestionIndex}</span>
-                <span className="text-yellow-400">😊</span>
-                <span>Câu {currentQuestionIndex + 1}/{gameQuestions.length}</span>
-              </div>
-              <div className="grid grid-cols-5 gap-1 bg-slate-400 p-1.5 rounded">
-                {Array.from({length: 20}).map((_, i) => {
-                  const isExplored = i < currentQuestionIndex * 4;
-                  return (
-                    <div key={i} className={`w-10 h-10 sm:w-16 sm:h-16 flex items-center justify-center font-bold text-sm sm:text-xl ${
-                      isExplored ? 'bg-slate-200 border border-slate-400 text-blue-600 shadow-inner' :
-                      i === 14 ? 'bg-red-500 border border-slate-400 text-white shadow-inner animate-pulse' :
-                      'bg-slate-300 border-t-2 sm:border-t-4 border-l-2 sm:border-l-4 border-white border-b-2 sm:border-b-4 border-r-2 sm:border-r-4 border-slate-500 hover:bg-slate-200 cursor-pointer'
-                    }`}>
-                      {isExplored ? '✓' : i === 14 ? '💣' : ''}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="mt-4 sm:mt-8 bg-white p-4 sm:p-6 rounded-2xl shadow-lg border-2 border-slate-300 max-w-xl text-center w-full flex flex-col items-center">
-              <h3 className="font-extrabold text-slate-800 mb-1 sm:mb-2 text-xs sm:text-base flex items-center gap-1.5">
-                <span>⭐</span> Câu hỏi gỡ mìn an toàn:
-              </h3>
-              <div className="text-slate-850 font-bold mb-4">
-                <MarkdownMath content={mineQ?.question || 'Câu hỏi gỡ mìn...'} />
-              </div>
-              <div className="grid grid-cols-2 gap-3 w-full">
-                {(mineQ?.options || ['Đúng', 'Sai']).slice(0,4).map((opt, i) => (
-                  <button 
-                    key={i}
-                    onClick={() => handleOptionClick(i)}
-                    className="p-3 bg-indigo-50 border border-indigo-200 hover:bg-indigo-600 hover:text-white transition-all text-xs sm:text-sm font-bold text-indigo-800 rounded-xl"
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+          <MinesweeperGame 
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
         );
       case 'doan_tau_tri_thuc':
         const trainQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
@@ -1118,12 +1170,28 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               <span className="truncate">Chế độ Xem trước</span>
             </span>
           </div>
-          <button onClick={onClose} className="p-1.5 bg-slate-800 hover:bg-rose-500 text-slate-400 hover:text-white rounded-full transition-colors group shrink-0">
-            <X className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button 
+              onClick={() => setIsHelpOpen(true)} 
+              className="p-1.5 sm:px-3 bg-slate-800 hover:bg-indigo-600 text-indigo-400 hover:text-white rounded-xl transition-all duration-200 group flex items-center gap-1.5 shrink-0"
+            >
+              <HelpCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-400 group-hover:text-white group-hover:scale-110 transition-all" />
+              <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider hidden sm:inline">Cách Chơi</span>
+            </button>
+            <button onClick={onClose} className="p-1.5 bg-slate-800 hover:bg-rose-500 text-slate-400 hover:text-white rounded-full transition-colors group shrink-0">
+              <X className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform" />
+            </button>
+          </div>
         </div>
         <div className="flex-1 p-2 sm:p-8 relative overflow-y-auto custom-scrollbar">
           {renderGameContent()}
+          <GameMenuOverlay 
+            gameType={gameType} 
+            isOpen={isHelpOpen} 
+            onClose={() => setIsHelpOpen(false)} 
+          />
+          <VictoryFireworks active={showFireworks} type="burst" />
+          <VictoryFireworks active={showVictoryFireworks} type="victory" />
         </div>
       </div>
 

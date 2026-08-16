@@ -1507,7 +1507,6 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       
                       const gameMetadataMap: Record<string, { name: string, desc: string, emoji: string, bg: string, border: string, text: string, gradient: string }> = {
                         quiz_nghieng_dau: { name: 'Quiz Nghiêng Đầu AI', desc: 'Sử dụng camera nghiêng đầu để trả lời A, B, C, D cực nhạy', emoji: '🧠', bg: 'bg-blue-50/50', border: 'border-blue-200', text: 'text-blue-700', gradient: 'from-blue-600 to-indigo-600' },
-                        pose_matching: { name: 'Tư Thế Mô Phỏng', desc: 'Mô phỏng tư thế hình học trước camera AI nhận diện cơ thể', emoji: '🧍', bg: 'bg-amber-50/50', border: 'border-amber-200', text: 'text-amber-700', gradient: 'from-amber-500 to-orange-600' },
                         cuoc_dua_ngon_tay: { name: 'Cuộc Đua Ngón Tay', desc: 'Đua xe trả lời đúng để bứt tốc vượt lên đối thủ trên đường đua', emoji: '🏎️', bg: 'bg-rose-50/50', border: 'border-rose-200', text: 'text-rose-700', gradient: 'from-rose-500 to-red-600' },
                         do_min: { name: 'Dò Mìn Toán Học', desc: 'Khám phá ô mìn an toàn thông qua giải các phép tính nhanh', emoji: '💣', bg: 'bg-emerald-50/50', border: 'border-emerald-200', text: 'text-emerald-700', gradient: 'from-emerald-600 to-teal-600' },
                         doan_tau_tri_thuc: { name: 'Đoàn Tàu Tri Thức', desc: 'Đưa đoàn tàu vượt các ga học liệu cập bến ga cuối an toàn', emoji: '🚂', bg: 'bg-sky-50/50', border: 'border-sky-200', text: 'text-sky-700', gradient: 'from-sky-500 to-blue-600' },
