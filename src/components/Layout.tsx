@@ -779,7 +779,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-slate-900">{user.name}</p>
                 <p className="text-xs font-medium text-slate-500">
-                  {activeRole === 'admin' ? 'Quản trị viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                  {user.isSuperAdmin ? '👑 Admin & Giáo viên' : activeRole === 'admin' ? 'Quản trị viên & Giáo viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                 </p>
               </div>
               <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
@@ -878,7 +878,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                             ? 'bg-amber-50 text-amber-700 border-amber-100' 
                             : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                     }`}>
-                      {user.isSuperAdmin ? '👑 Quản trị viên chính' : user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                      {user.isSuperAdmin ? '👑 Quản trị viên chính & Giáo viên' : user.role === 'admin' ? 'Quản trị viên & Giáo viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                     </span>
                     <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>

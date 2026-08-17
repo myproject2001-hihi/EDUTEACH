@@ -40,6 +40,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editLastName, setEditLastName] = useState('');
   const [editFirstName, setEditFirstName] = useState('');
+  const [editClassName, setEditClassName] = useState('');
   const [newRole, setNewRole] = useState<Role>('student');
   const [makeSuperAdmin, setMakeSuperAdmin] = useState(false);
   const [updatingRole, setUpdatingRole] = useState(false);
@@ -146,7 +147,8 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
         isSuperAdmin: roleToSet === 'admin' ? !!setSuperAdminFlag : false,
         name: updatedFullName,
         lastName: editLastName,
-        firstName: editFirstName
+        firstName: editFirstName,
+        className: editClassName
       });
       setUsersList(prev => prev.map(u => u.id === targetUser.id ? {
         ...u,
@@ -154,7 +156,8 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
         isSuperAdmin: roleToSet === 'admin' ? !!setSuperAdminFlag : false,
         name: updatedFullName,
         lastName: editLastName,
-        firstName: editFirstName
+        firstName: editFirstName,
+        className: editClassName
       } : u));
       showNotify('success', `Đã cập nhật thông tin và vai trò của ${updatedFullName} thành công!`);
       setEditingUser(null);
@@ -577,6 +580,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                                 setMakeSuperAdmin(!!u.isSuperAdmin);
                                 setEditLastName(getLastName(u.name, u.lastName));
                                 setEditFirstName(getFirstName(u.name, u.firstName));
+                                setEditClassName(u.className || u.connectionCode || '');
                               }}
                               className="px-3.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded-xl transition-colors flex items-center gap-1 border border-indigo-100/50"
                             >
@@ -858,6 +862,19 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
+              </div>
+
+              {/* Chỉnh sửa Mã lớp / Tên lớp */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mã lớp / Tên lớp học</label>
+                <input
+                  type="text"
+                  value={editClassName}
+                  onChange={(e) => setEditClassName(e.target.value)}
+                  placeholder="Ví dụ: 123456 hoặc Lớp 10A1"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-indigo-700 font-bold"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Gán đúng mã lớp của Giáo viên để tự động link học sinh về lớp.</p>
               </div>
 
               <div className="space-y-2">

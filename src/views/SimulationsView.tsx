@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HTMLSimulation, User } from '../types';
-import { Play, Maximize2, X, Plus, ExternalLink, Sparkles, Filter, Code, Upload, Image } from 'lucide-react';
+import { Play, Maximize2, Minimize2, X, Plus, ExternalLink, Sparkles, Filter, Code, Upload, Image } from 'lucide-react';
 
 interface SimulationsProps {
   user: User;
@@ -14,20 +14,46 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
 
   // Filter simList for Teacher vs Admin
   const filteredSimList = React.useMemo(() => {
-    if (isAdmin) return initialSims;
-    if (user.role === 'teacher') {
-      return initialSims.filter(s => !s.teacherId || s.teacherId === user.id);
-    }
     return initialSims;
-  }, [initialSims, user, isAdmin]);
+  }, [initialSims]);
 
   const [simList, setSimList] = useState<HTMLSimulation[]>(filteredSimList);
   const [activeSim, setActiveSim] = useState<HTMLSimulation | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('Tất cả');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const simContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSimList(filteredSimList);
   }, [filteredSimList]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      if (simContainerRef.current) {
+        simContainerRef.current.requestFullscreen().then(() => {
+          setIsFullscreen(true);
+        }).catch(() => {
+          setIsFullscreen(!isFullscreen);
+        });
+      } else {
+        setIsFullscreen(!isFullscreen);
+      }
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      }).catch(() => {
+        setIsFullscreen(false);
+      });
+    }
+  };
 
   // Teacher modal for adding custom simulation / HTML link
   const [showAddModal, setShowAddModal] = useState(false);
@@ -40,6 +66,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
   const [newThumbnailSource, setNewThumbnailSource] = useState<'url' | 'upload' | 'default'>('default');
   const [newThumbnailUrl, setNewThumbnailUrl] = useState('');
   const [newThumbnailFile, setNewThumbnailFile] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const categories = ['Tất cả', 'Đại Số', 'Hình Học', 'Khác'];
 
@@ -47,65 +74,110 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     ? simList 
     : simList.filter(s => s.category === selectedCategory);
 
-  const handleAddSim = (e: React.FormEvent) => {
+  const handleAddSim = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    let resolvedThumbnail = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
-    if (newThumbnailSource === 'url' && newThumbnailUrl) {
-      resolvedThumbnail = newThumbnailUrl;
-    } else if (newThumbnailSource === 'upload' && newThumbnailFile) {
-      resolvedThumbnail = newThumbnailFile;
-    }
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-    const newSim: HTMLSimulation = {
-      id: `sim_${Date.now()}`,
-      title: newTitle,
-      description: newDesc,
-      url: newSourceType === 'url' ? newUrl : '',
-      htmlContent: newSourceType === 'html_code' ? newHtmlContent : undefined,
-      thumbnail: resolvedThumbnail,
-      category: newCategory,
-      hasQuiz: false,
-      teacherId: user.id,
-      teacherName: user.name,
-    };
-    setSimList([newSim, ...simList]);
-    if (onAddSimulation) onAddSimulation(newSim);
-    setShowAddModal(false);
-    setNewTitle('');
-    setNewDesc('');
-    setNewUrl('');
-    setNewHtmlContent('');
-    setNewThumbnailSource('default');
-    setNewThumbnailUrl('');
-    setNewThumbnailFile(null);
+    try {
+      let resolvedThumbnail = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
+      if (newThumbnailSource === 'url' && newThumbnailUrl) {
+        resolvedThumbnail = newThumbnailUrl.trim();
+      } else if (newThumbnailSource === 'upload' && newThumbnailFile) {
+        resolvedThumbnail = newThumbnailFile;
+      }
+
+      const newSim: HTMLSimulation = {
+        id: `sim_${Date.now()}`,
+        title: newTitle.trim() || 'Mô phỏng mới',
+        description: newDesc.trim() || '',
+        url: newSourceType === 'url' ? newUrl.trim() : '',
+        htmlContent: newSourceType === 'html_code' ? newHtmlContent : '',
+        thumbnail: resolvedThumbnail,
+        category: newCategory || 'Khác',
+        hasQuiz: false,
+        teacherId: user.id || '',
+        teacherName: user.name || 'Giáo viên',
+      };
+
+      setSimList(prev => [newSim, ...prev]);
+      if (onAddSimulation) {
+        await onAddSimulation(newSim);
+      }
+
+      setShowAddModal(false);
+      setNewTitle('');
+      setNewDesc('');
+      setNewUrl('');
+      setNewHtmlContent('');
+      setNewThumbnailSource('default');
+      setNewThumbnailUrl('');
+      setNewThumbnailFile(null);
+    } catch (err) {
+      console.error("Lỗi khi thêm mô phỏng:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Active Fullscreen / Embedded Simulation Viewer
   if (activeSim) {
     return (
-      <div className="h-[calc(100vh-6rem)] flex flex-col bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden">
-        <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
-          <div className="flex items-center gap-3">
-            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">
+      <div 
+        ref={simContainerRef}
+        className={
+          isFullscreen 
+            ? "fixed inset-0 z-[99999] w-screen h-screen bg-slate-900 flex flex-col rounded-none" 
+            : "h-[calc(100vh-6rem)] flex flex-col bg-white rounded-3xl shadow-lg border border-slate-200 overflow-hidden transition-all duration-200"
+        }
+      >
+        <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase shrink-0">
               {activeSim.category || 'Mô phỏng Tương tác'}
             </span>
-            <h2 className="font-bold text-slate-900 text-lg">{activeSim.title}</h2>
+            <h2 className="font-bold text-slate-900 text-lg truncate">{activeSim.title}</h2>
           </div>
 
-          <div className="flex space-x-2">
-            {!activeSim.htmlContent && activeSim.url && (
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Nút Zoom Toàn màn hình ở vị trí khung đỏ */}
+            <button 
+              onClick={toggleFullscreen}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-md border border-indigo-500"
+              title={isFullscreen ? "Thu nhỏ (Esc)" : "Toàn màn hình"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Thu nhỏ</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Toàn màn hình</span>
+                </>
+              )}
+            </button>
+
+            {activeSim.url && (
               <button 
                 onClick={() => window.open(activeSim.url, '_blank')}
-                className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-xl transition-colors"
-                title="Mở tab mới"
+                className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors border border-slate-200 hover:border-indigo-200 bg-white shadow-xs"
+                title="Mở ra tab mới"
               >
-                <Maximize2 className="w-5 h-5" />
+                <ExternalLink className="w-5 h-5" />
               </button>
             )}
+
             <button 
-              onClick={() => setActiveSim(null)}
-              className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+              onClick={() => {
+                if (document.fullscreenElement) {
+                  document.exitFullscreen().catch(() => {});
+                }
+                setIsFullscreen(false);
+                setActiveSim(null);
+              }}
+              className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-slate-200 hover:border-rose-200 bg-white shadow-xs"
               title="Đóng mô phỏng"
             >
               <X className="w-5 h-5" />
@@ -113,7 +185,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
           </div>
         </div>
 
-        <div className="flex-1 bg-white relative">
+        <div className="flex-1 bg-white relative overflow-hidden">
           {activeSim.htmlContent ? (
             <iframe 
               srcDoc={activeSim.htmlContent}
@@ -420,8 +492,35 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
                           if (!file) return;
                           const reader = new FileReader();
                           reader.onload = (event) => {
-                            if (typeof event.target?.result === 'string') {
-                              setNewThumbnailFile(event.target.result);
+                            const rawData = event.target?.result;
+                            if (typeof rawData === 'string') {
+                              const img = new window.Image();
+                              img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                const maxWidth = 500;
+                                const maxHeight = 350;
+                                let width = img.width;
+                                let height = img.height;
+                                if (width > maxWidth) {
+                                  height = Math.round((height * maxWidth) / width);
+                                  width = maxWidth;
+                                }
+                                if (height > maxHeight) {
+                                  width = Math.round((width * maxHeight) / height);
+                                  height = maxHeight;
+                                }
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext('2d');
+                                if (ctx) {
+                                  ctx.drawImage(img, 0, 0, width, height);
+                                  setNewThumbnailFile(canvas.toDataURL('image/jpeg', 0.85));
+                                } else {
+                                  setNewThumbnailFile(rawData);
+                                }
+                              };
+                              img.onerror = () => setNewThumbnailFile(rawData);
+                              img.src = rawData;
                             }
                           };
                           reader.readAsDataURL(file);

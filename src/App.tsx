@@ -309,15 +309,24 @@ export default function App() {
   };
 
   const handleAddSimulation = async (newSim: HTMLSimulation) => {
-    const simData: HTMLSimulation = {
-      ...newSim,
-      teacherId: newSim.teacherId || currentUser?.id,
-      teacherName: newSim.teacherName || currentUser?.name,
+    const simId = newSim.id || `sim_${Date.now()}`;
+    const simData = {
+      id: simId,
+      title: newSim.title || 'Mô phỏng mới',
+      description: newSim.description || '',
+      url: newSim.url || '',
+      htmlContent: newSim.htmlContent || '',
+      thumbnail: newSim.thumbnail || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80',
+      category: newSim.category || 'Đại Số',
+      hasQuiz: !!newSim.hasQuiz,
+      teacherId: newSim.teacherId || currentUser?.id || '',
+      teacherName: newSim.teacherName || currentUser?.name || 'Giáo viên',
+      createdAt: new Date().toISOString(),
     };
     try {
-      await setDoc(doc(db, 'simulations', simData.id), simData);
+      await setDoc(doc(db, 'simulations', simId), simData);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `simulations/${simData.id}`);
+      handleFirestoreError(error, OperationType.CREATE, `simulations/${simId}`);
     }
   };
 
