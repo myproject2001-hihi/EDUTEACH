@@ -165,7 +165,7 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     const hasOptions = trimmedChunk.match(/^[A-D][\.:]/m) || trimmedChunk.match(/^[a-d][\)\.]/m);
     
     if (existingQ && !hasOptions) {
-      const dapAnMatch = chunk.match(/Đáp án đúng là:\s*([^\n]+)/i);
+      const dapAnMatch = chunk.match(/Đáp án đúng là\s*[:\.]?\s*([^\n]+)/i) || chunk.match(/Chọn\s+([A-D])/i);
       if (dapAnMatch) {
         const dapAnText = dapAnMatch[1].trim().replace(/\.$/, '').trim();
         if (existingQ.type === 'multiple_choice') {
@@ -188,13 +188,17 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
         }
       }
       
-      let solText = chunk.replace(/^(?:Câu|Bài)\s*\d+[\.:]/im, '').trim();
+      let solText = chunk.replace(/^(?:Câu|Bài)\s*\d+[\.:]?/im, '').trim();
       if (dapAnMatch) {
         solText = solText.replace(dapAnMatch[0], '').trim();
       }
+      solText = solText.replace(/Đáp án đúng là\s*[:\.]?\s*[^\n]+/gi, '').trim();
+      solText = solText.replace(/Chọn\s+[A-D][\.:]?[^\n]*/gi, '').trim();
+      solText = solText.replace(/(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Giải chi tiết|Cách giải)\s*[:\.]?/gi, '').trim();
+      solText = solText.replace(/(^|\n)\s*PHẦN\s+[IVX]+[\s\S]*$/i, '').trim();
+      solText = solText.replace(/^[-–—]\s*/, '').trim();
+      
       if (solText) {
-        solText = solText.replace(/(^|\n)\s*PHẦN\s+[IVX]+[\s\S]*$/i, '').trim();
-        solText = solText.replace(/^[-–—]\s*/, '').trim();
         existingQ.solutionText = solText;
       }
       return;
@@ -324,10 +328,37 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
 
     let method = '';
     let solutionText = '';
-    const methodMatch = chunk.match(/Phương pháp:\s*([^\n]+)/i);
-    if (methodMatch) method = methodMatch[1].trim();
-    const solutionMatch = chunk.match(/Cách giải:\s*([^\n]+)/i);
-    if (solutionMatch) solutionText = solutionMatch[1].trim();
+
+    // Extract Hướng dẫn giải / Lời giải / Cách giải / Giải thích
+    const solHeaderMatch = chunk.match(/(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Giải chi tiết|Cách giải)\s*[:\.]?/i);
+    if (solHeaderMatch && solHeaderMatch.index !== undefined) {
+      let solSection = chunk.slice(solHeaderMatch.index + solHeaderMatch[0].length).trim();
+      
+      const methodM = solSection.match(/Phương pháp\s*[:\.]?\s*([\s\S]*?)(?=(?:Cách giải|Đáp án đúng là|Chọn\s+[A-D]|$))/i);
+      if (methodM) {
+        method = methodM[1].trim();
+        solSection = solSection.replace(methodM[0], '').trim();
+      }
+
+      const cáchGiảiM = solSection.match(/Cách giải\s*[:\.]?\s*/i);
+      if (cáchGiảiM) {
+        solSection = solSection.replace(cáchGiảiM[0], '').trim();
+      }
+
+      // Remove "Đáp án đúng là: ..." and "Chọn X" from solutionText
+      solSection = solSection.replace(/Đáp án đúng là\s*[:\.]?\s*[^\n]+/gi, '').trim();
+      solSection = solSection.replace(/Chọn\s+[A-D][\.:]?[^\n]*/gi, '').trim();
+      solSection = solSection.replace(/^[-–—]\s*/, '').trim();
+      
+      if (solSection) {
+        solutionText = solSection;
+      }
+    } else {
+      const methodMatch = chunk.match(/Phương pháp:\s*([^\n]+)/i);
+      if (methodMatch) method = methodMatch[1].trim();
+      const solutionMatch = chunk.match(/Cách giải:\s*([\s\S]+)/i);
+      if (solutionMatch) solutionText = solutionMatch[1].trim();
+    }
 
     if (!questionText) {
       questionText = 'Nội dung câu hỏi chưa được định dạng đúng';
@@ -2731,11 +2762,23 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                                     </div>
                                   )}
 
-                                  <div className="pt-3 border-t border-dashed border-slate-200 text-xs space-y-1.5 bg-amber-50/30 p-3 rounded-xl border">
-                                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Hướng dẫn giải</p>
-                                    {pq.method && <div className="text-slate-700 mt-2"><strong>Phương pháp:</strong> <MarkdownMath content={pq.method} /></div>}
-                                    {pq.solutionText && <div className="text-slate-700 mt-2"><MarkdownMath content={pq.solutionText} /></div>}
-                                  </div>
+                                  {(pq.solutionText || pq.method || pq.correctAnswer !== undefined) && (
+                                    <div className="pt-3 border-t border-dashed border-slate-200 text-xs space-y-1.5 bg-amber-50/40 p-3 rounded-xl border border-amber-200/60">
+                                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider">Hướng dẫn giải</p>
+                                      {pq.method && <div className="text-slate-700 mt-1.5"><strong>Phương pháp:</strong> <MarkdownMath content={pq.method} /></div>}
+                                      {pq.solutionText && <div className="text-slate-700 mt-1.5 leading-relaxed"><MarkdownMath content={pq.solutionText} /></div>}
+                                      {pq.type === 'multiple_choice' && typeof pq.correctAnswer === 'number' && (
+                                        <div className="text-emerald-800 font-bold mt-1 text-xs">
+                                          Đáp án đúng là: {['A', 'B', 'C', 'D'][pq.correctAnswer]}.
+                                        </div>
+                                      )}
+                                      {pq.type === 'true_false' && Array.isArray(pq.correctAnswer) && (
+                                        <div className="text-emerald-800 font-bold mt-1 text-xs">
+                                          Đáp án: {pq.correctAnswer.map((v, i) => `${['a', 'b', 'c', 'd'][i]}) ${v === 1 ? 'Đúng' : 'Sai'}`).join(', ')}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
 
                                 </div>
                               ))}
