@@ -3,11 +3,12 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
 import { FlashcardPreviewModal } from '../components/FlashcardPreviewModal';
+import { FlashcardQuizGame } from '../components/FlashcardQuizGame';
 import { SimulationFrame } from '../components/SimulationFrame';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -578,6 +579,7 @@ export function AssignmentsView({
   const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
   const [showGamePreview, setShowGamePreview] = useState(false);
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
+  const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
   const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
 
@@ -931,6 +933,49 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     URL.revokeObjectURL(url);
   };
 
+  const handleOpenCreateModal = (targetType?: 'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard' | 'lesson_check') => {
+    const finalType = targetType || (viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
+    setEditingAssignment(null);
+    setNewType(finalType);
+    setNewTitle('');
+    setNewDescription('');
+    setNewDueDate('');
+    setNewSessionTitle('Đại số 10 - Tiết 23');
+    setNewPdfUrl('');
+    setNewSimUrl('');
+    setSelectedSimId('');
+    setNewGameType('quiz_nghieng_dau');
+    setNewGameFormats(['multiple_choice', 'true_false']);
+    setNewIsMandatory(false);
+    setGameSubStep(1);
+    setFlashcardSubStep(1);
+    setCreateStep(1);
+    // Complete reset of flashcards and raw question code
+    setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
+    setRawQuestionCode(SAMPLE_TEMPLATES.mau2);
+    setQuestions([
+      {
+        id: 'q1',
+        question: 'Câu 1: Cho phương trình x² - 5x + 6 = 0. Nghiệm của phương trình là?',
+        options: ['x = 2 hoặc x = 3', 'x = -2 hoặc x = -3', 'x = 1 hoặc x = 6', 'Vô nghiệm'],
+        correctAnswer: 0,
+        points: 5.0
+      },
+      {
+        id: 'q2',
+        question: 'Câu 2: Công thức tính biệt thức Delta (Δ) của phương trình bậc 2 ax² + bx + c = 0 là?',
+        options: ['b² - 4ac', 'b² + 4ac', '4ac - b²', '2b - ac'],
+        correctAnswer: 0,
+        points: 5.0
+      }
+    ]);
+    setSelectedGameCategory('all');
+    setGameSearchQuery('');
+    setShowGamePreview(false);
+    setShowFlashcardPreview(false);
+    setShowCreateModal(true);
+  };
+
   const handleOpenEditModal = (assignment: Assignment) => {
     setEditingAssignment(assignment);
     setNewType(assignment.type);
@@ -1146,14 +1191,14 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     );
   }
 
-  if (selectedAssignment && (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'flashcard') && isExamStarted) {
+  if (selectedAssignment && selectedAssignment.type === 'online_test' && isExamStarted) {
     return (
       <div className="fixed inset-0 bg-[#F4F6F9] z-[9999] overflow-hidden flex flex-col h-screen w-screen">
         {/* Header Exam */}
         <div className="bg-emerald-800 text-white px-6 py-4 flex items-center justify-between shadow-md shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-white font-black text-xl tracking-tight">
-              {selectedAssignment.type === 'flashcard' ? 'Thẻ Ghi Nhớ' : 'Hệ Thống Đề Thi Trắc Nghiệm'}
+              Hệ Thống Đề Thi Trắc Nghiệm
             </span>
             <div className="h-4 w-[1px] bg-emerald-600/60 hidden sm:block"></div>
             <span className="text-xs font-semibold bg-emerald-700/60 px-2.5 py-1 rounded-lg border border-emerald-600/30 text-emerald-100 hidden sm:inline-block">
@@ -1413,22 +1458,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
 
         {isTeacher && (
           <button 
-            onClick={() => {
-              setEditingAssignment(null);
-              setNewType(viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
-              setNewTitle('');
-              setNewDescription('');
-              setNewDueDate('');
-              setNewPdfUrl('');
-              setNewSimUrl('');
-              setSelectedSimId('');
-              setNewGameType('quiz_nghieng_dau');
-              setNewIsMandatory(false);
-              setGameSubStep(1);
-              setFlashcardSubStep(1);
-              setCreateStep(1);
-              setShowCreateModal(true);
-            }}
+            onClick={() => handleOpenCreateModal()}
             className="flex items-center px-5 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl hover:bg-indigo-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5 mr-2" />
@@ -2115,16 +2145,12 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                             {allFlipped ? (
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  setIsExamStarted(true);
-                                  setExamTimeRemaining(900);
-                                  setTabSwitchCount(0);
-                                  setStudentQuizAnswers({});
-                                  await enterFullscreen();
+                                onClick={() => {
+                                  setShowFlashcardQuizTest(true);
                                 }}
-                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-100 transition-all uppercase tracking-wider"
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-100 transition-all uppercase tracking-wider flex items-center justify-center gap-2"
                               >
-                                Bắt đầu bài kiểm tra
+                                <Sparkles className="w-4 h-4" /> Bắt đầu bài kiểm tra Flashcard
                               </button>
                             ) : (
                               <button
@@ -2424,6 +2450,27 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
           flashcards={newFlashcards}
           title={newTitle ? `Xem trước: ${newTitle}` : 'Xem trước bộ thẻ Flashcard'}
           onClose={() => setShowFlashcardPreview(false)}
+        />
+      )}
+
+      {showFlashcardQuizTest && selectedAssignment && selectedAssignment.type === 'flashcard' && (
+        <FlashcardQuizGame
+          assignmentTitle={selectedAssignment.title}
+          flashcards={selectedAssignment.flashcards}
+          questions={selectedAssignment.questions}
+          studentName={user.name}
+          onFinish={(score, correctCount, answersMap) => {
+            setShowFlashcardQuizTest(false);
+            onSubmitWork({
+              assignmentId: selectedAssignment.id,
+              studentId: user.id,
+              studentName: user.name,
+              content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${(selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1)} câu). Điểm: ${score}/10.`,
+              quizAnswers: answersMap,
+              grade: score
+            });
+          }}
+          onExit={() => setShowFlashcardQuizTest(false)}
         />
       )}
 

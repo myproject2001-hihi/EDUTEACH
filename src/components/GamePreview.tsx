@@ -205,14 +205,14 @@ function LiveCamera({
               const faceHeight = chin.y - forehead.y;
               const noseYRel = (nose.y - forehead.y) / Math.max(faceHeight, 0.01);
               
-              // Since camera is mirrored for the user:
-              if (rollRatio > 0.22) {
+              // Enhanced sensitivity (threshold 0.09 ~ 5 degrees tilt)
+              if (rollRatio > 0.09) {
                  onTiltRef.current?.('left');
-              } else if (rollRatio < -0.22) {
+              } else if (rollRatio < -0.09) {
                  onTiltRef.current?.('right');
-              } else if (noseYRel < 0.44) {
+              } else if (noseYRel < 0.46) {
                  onTiltRef.current?.('up');
-              } else if (noseYRel > 0.56) {
+              } else if (noseYRel > 0.54) {
                  onTiltRef.current?.('down');
               } else {
                  onTiltRef.current?.('none');
@@ -375,8 +375,8 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     setConsecutiveTilt(prev => {
       if (prev.dir === tiltDir) {
         const nextCount = prev.count + 1;
-        // Require 8 consecutive frames of consistent direction (approx 250ms) to confirm
-        if (nextCount === 8 && lockedAnswer === 'none') {
+        // Require 4 consecutive frames of consistent direction (approx 120ms) to confirm
+        if (nextCount === 4 && lockedAnswer === 'none') {
           const question = gameQuestions[currentQuestionIndex];
           if (question) {
             let selectedIndex = 0;
@@ -569,17 +569,17 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
                 <div className="absolute inset-x-0 bottom-0 h-2 bg-slate-700 z-20">
                   <div 
                     className="h-full bg-emerald-500 transition-all duration-75 animate-pulse" 
-                    style={{ width: `${Math.min((consecutiveTilt.count / 8) * 100, 100)}%` }} 
+                    style={{ width: `${Math.min((consecutiveTilt.count / 4) * 100, 100)}%` }} 
                   />
                 </div>
               )}
 
               <div className="absolute bottom-4 left-0 right-0 text-center z-20 text-white font-bold text-[10px] px-2">
                 {answerStatus !== 'none' ? '🏁 Đã khóa đáp án!' : 
-                 tiltDir === 'left' ? `Đang nghiêng TRÁI (A) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
-                 tiltDir === 'right' ? `Đang nghiêng PHẢI (B) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
-                 tiltDir === 'up' ? `Đang ngẩng LÊN (C) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
-                 tiltDir === 'down' ? `Đang gật XUỐNG (D) - ${Math.round(Math.min((consecutiveTilt.count / 8) * 100, 100))}%` : 
+                 tiltDir === 'left' ? `Đang nghiêng TRÁI (A) - ${Math.round(Math.min((consecutiveTilt.count / 4) * 100, 100))}%` : 
+                 tiltDir === 'right' ? `Đang nghiêng PHẢI (B) - ${Math.round(Math.min((consecutiveTilt.count / 4) * 100, 100))}%` : 
+                 tiltDir === 'up' ? `Đang ngẩng LÊN (C) - ${Math.round(Math.min((consecutiveTilt.count / 4) * 100, 100))}%` : 
+                 tiltDir === 'down' ? `Đang gật XUỐNG (D) - ${Math.round(Math.min((consecutiveTilt.count / 4) * 100, 100))}%` : 
                  'Nghiêng đầu để chọn đáp án'}
               </div>
             </div>
