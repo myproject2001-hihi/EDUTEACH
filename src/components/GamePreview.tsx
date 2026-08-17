@@ -9,6 +9,11 @@ import { GameMenuOverlay } from './GameMenuOverlay';
 import { VictoryFireworks } from './VictoryFireworks';
 import { GameCalibration } from './GameCalibration';
 import { MinesweeperGame } from './MinesweeperGame';
+import { FlyingWordsGame } from './FlyingWordsGame';
+import { SecretWordGame } from './SecretWordGame';
+import { MemoryFlipGame } from './MemoryFlipGame';
+import { KnowledgeTrainGame } from './KnowledgeTrainGame';
+import { TugOfWarGame } from './TugOfWarGame';
 
 interface Props {
   gameType: string;
@@ -740,98 +745,31 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
           />
         );
       case 'doan_tau_tri_thuc':
-        const trainQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
         return (
-          <div className="flex flex-col h-full bg-gradient-to-b from-blue-300 to-green-400 rounded-3xl p-4 sm:p-8 relative overflow-hidden border-4 border-blue-500 shadow-inner min-h-[450px]">
-            {/* Sun & Clouds */}
-            <div className="absolute top-8 right-12 w-20 h-20 bg-yellow-300 rounded-full shadow-[0_0_40px_rgba(253,224,71,0.8)]" />
-            <div className="absolute top-16 left-20 w-32 h-10 bg-white/80 rounded-full blur-sm" />
-            
-            <div className="flex-1 flex flex-col items-center justify-center z-10 -mt-4">
-              <div className="bg-white/95 p-6 sm:p-8 rounded-3xl shadow-2xl max-w-2xl w-full text-center border-4 border-indigo-200 backdrop-blur flex flex-col items-center">
-                <div className="flex justify-between items-center w-full text-xs text-indigo-400 font-bold mb-3">
-                  <span>Trạm ga số: {currentQuestionIndex + 1} / {gameQuestions.length}</span>
-                  {answerStatus !== 'none' && (
-                    <span className={answerStatus === 'correct' ? 'text-emerald-600' : 'text-rose-600'}>
-                      {answerStatus === 'correct' ? '🚃 Tàu chuyển bánh!' : '❌ Hãm phanh!'}
-                    </span>
-                  )}
-                </div>
-                <div className="text-xl sm:text-2xl font-black text-indigo-900 mb-6 flex items-center justify-center gap-2">
-                  <span>🚂 Ga số {currentQuestionIndex + 1}:</span> <MarkdownMath content={cleanQuestionText(trainQ?.question) || 'Câu hỏi ga tàu...'} />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-                  {(trainQ?.options || ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']).slice(0,4).map((opt: string, i: number) => (
-                    <button 
-                      key={i} 
-                      onClick={() => handleOptionClick(i)}
-                      className="p-4 bg-indigo-50 border-2 border-indigo-200 rounded-xl text-indigo-700 font-bold hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                    >
-                      <MarkdownMath content={opt} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Train Tracks */}
-            <div className="absolute bottom-0 left-0 right-0 h-40 flex items-end">
-              <div className="w-full h-8 bg-slate-700 relative">
-                {Array.from({length: 20}).map((_, i) => (
-                  <div key={i} className="absolute w-2 h-12 bg-amber-700 top-1/2 -translate-y-1/2" style={{ left: `${i * 5}%` }} />
-                ))}
-              </div>
-            </div>
-            {/* Train representation with sliding transition */}
-            <div className="absolute bottom-8 left-10 text-4xl sm:text-5xl transition-all duration-1000 animate-pulse" style={{ left: `${10 + (currentQuestionIndex * (75 / gameQuestions.length))}%` }}>
-              🚂🚃🚃
-            </div>
-          </div>
+          <KnowledgeTrainGame
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
+        );
+      case 'keo_co':
+        return (
+          <TugOfWarGame
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
         );
       case 'tu_ngu_biet_bay':
         return (
-          <div className="flex flex-col h-full bg-slate-900 rounded-3xl p-8 relative overflow-hidden border-4 border-indigo-500 shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]">
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-50" />
-            
-            <div className="absolute top-8 left-0 right-0 text-center z-20 flex justify-center">
-              <div className="text-3xl font-black text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
-                <MarkdownMath content={questions[0]?.question || 'Đâu là từ đúng chính tả?'} />
-              </div>
-            </div>
-
-            {/* Flying Words */}
-            <div className="absolute inset-0 z-10 flex items-center justify-center">
-              {questions[0]?.options?.slice(0,4).map((opt: string, i: number) => (
-                <div key={i} 
-                  className={`absolute px-6 py-3 rounded-full font-bold text-xl text-white backdrop-blur-sm border-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] cursor-pointer hover:scale-110 transition-transform flex items-center justify-center ${
-                    i===0 ? 'top-1/4 left-1/4 bg-rose-500/80 border-rose-300' :
-                    i===1 ? 'top-1/3 right-1/4 bg-blue-500/80 border-blue-300' :
-                    i===2 ? 'bottom-1/3 left-1/3 bg-emerald-500/80 border-emerald-300' :
-                    'bottom-1/4 right-1/3 bg-amber-500/80 border-amber-300'
-                  }`}
-                  style={{ animation: `float ${3 + i}s ease-in-out infinite alternate` }}
-                >
-                  <MarkdownMath content={opt} />
-                </div>
-              )) || (
-                <div className="text-slate-500 font-bold text-xl bg-slate-800 p-6 rounded-xl border border-slate-700">
-                  Chưa có đáp án bay
-                </div>
-              )}
-            </div>
-            
-            <div className="absolute bottom-8 left-0 right-0 text-center z-20">
-              <div className="inline-block px-6 py-2 bg-slate-800/80 border border-slate-700 rounded-full text-slate-400 text-sm font-medium backdrop-blur">
-                Chạm vào từ bay qua màn hình để chọn đáp án
-              </div>
-            </div>
-            <style>{`
-              @keyframes float {
-                0% { transform: translateY(0px) rotate(0deg); }
-                100% { transform: translateY(-20px) rotate(5deg); }
-              }
-            `}</style>
-          </div>
+          <FlyingWordsGame
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
         );
       case 'keo_tha_noi_y':
         return (
@@ -867,76 +805,21 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
         );
       case 'o_chu_khoa':
         return (
-          <div className="flex flex-col items-center justify-center h-full bg-emerald-50 rounded-3xl p-8 border-4 border-emerald-200">
-            <h3 className="text-2xl font-black text-emerald-900 mb-8 uppercase tracking-widest">Ô Chữ Bí Mật</h3>
-            <div className="bg-white p-8 rounded-xl shadow-2xl border border-emerald-100 flex gap-1">
-              <div className="flex flex-col gap-1 items-end pr-4">
-                <div className="h-12 flex items-center font-bold text-slate-500">1.</div>
-                <div className="h-12 flex items-center font-bold text-slate-500">2.</div>
-                <div className="h-12 flex items-center font-bold text-slate-500">3.</div>
-              </div>
-              <div className="flex flex-col gap-1 relative">
-                {/* Highlight vertical word */}
-                <div className="absolute top-0 bottom-0 left-[3.25rem] w-12 bg-yellow-200/50 rounded-lg z-0 border-2 border-yellow-400/50" />
-                
-                {/* Row 1 */}
-                <div className="flex gap-1 z-10">
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-white flex items-center justify-center font-black text-2xl uppercase">H</div>
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-white flex items-center justify-center font-black text-2xl uppercase">Ọ</div>
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-emerald-100 flex items-center justify-center font-black text-2xl uppercase text-emerald-700">C</div>
-                </div>
-                {/* Row 2 */}
-                <div className="flex gap-1 z-10 ml-[3.25rem]">
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-emerald-100 flex items-center justify-center font-black text-2xl uppercase text-emerald-700">T</div>
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-white flex items-center justify-center font-black text-2xl uppercase">Ậ</div>
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-white flex items-center justify-center font-black text-2xl uppercase">P</div>
-                </div>
-                {/* Row 3 */}
-                <div className="flex gap-1 z-10 ml-[-3.25rem]">
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-white flex items-center justify-center font-black text-2xl uppercase">T</div>
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-white flex items-center justify-center font-black text-2xl uppercase">H</div>
-                  <div className="w-12 h-12 border-2 border-emerald-800 bg-emerald-100 flex items-center justify-center font-black text-2xl uppercase text-emerald-700">I</div>
-                </div>
-              </div>
-            </div>
-            <div className="mt-8 bg-white p-6 rounded-2xl shadow-sm border border-emerald-200 max-w-xl text-center w-full flex flex-col items-center">
-              <p className="font-bold text-emerald-800 mb-2">Câu hỏi hàng ngang số 1:</p>
-              <div className="text-slate-600"><MarkdownMath content={questions[0]?.question || 'Hoạt động tiếp thu kiến thức ở trường?'} /></div>
-            </div>
-          </div>
+          <SecretWordGame
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
         );
       case 'lat_manh_ghep':
         return (
-          <div className="flex flex-col items-center justify-center h-full bg-purple-50 rounded-3xl p-8 border-4 border-purple-200 overflow-y-auto">
-            <h3 className="text-2xl font-black text-purple-900 mb-6 uppercase">Khám phá bức tranh ẩn</h3>
-            
-            <div className="flex flex-col md:flex-row gap-8 items-center md:items-start w-full max-w-5xl">
-              {/* Picture Puzzle */}
-              <div className="w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] relative rounded-2xl overflow-hidden border-8 border-white shadow-2xl bg-[url('https://images.unsplash.com/photo-1546956222-dc66a867af22?q=80&w=800&auto=format&fit=crop')] bg-cover bg-center shrink-0">
-                <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
-                  <div className="border border-white/20 bg-purple-600 flex items-center justify-center text-white font-black text-4xl shadow-inner transition-opacity opacity-100 hover:opacity-0 cursor-pointer duration-500">1</div>
-                  <div className="border border-white/20 bg-purple-600 flex items-center justify-center text-white font-black text-4xl shadow-inner transition-opacity opacity-100">2</div>
-                  <div className="border border-white/20 bg-transparent flex items-center justify-center text-white font-black text-4xl shadow-inner transition-opacity opacity-0">3</div>
-                  <div className="border border-white/20 bg-purple-600 flex items-center justify-center text-white font-black text-4xl shadow-inner transition-opacity opacity-100">4</div>
-                </div>
-              </div>
-
-              {/* Question Side */}
-              <div className="flex-1 bg-white p-8 rounded-3xl shadow-lg border-2 border-purple-100 w-full flex flex-col items-center">
-                <div className="inline-block px-4 py-1.5 bg-purple-100 text-purple-700 font-bold rounded-full text-sm mb-4">
-                  Mảnh ghép số 1
-                </div>
-                <div className="text-xl font-bold text-slate-800 mb-6 w-full text-center"><MarkdownMath content={questions[0]?.question || 'Trả lời đúng câu hỏi này để mở mảnh ghép số 1?'} /></div>
-                <div className="grid grid-cols-1 gap-3 w-full">
-                  {questions[0]?.options?.slice(0,4).map((opt: string, i: number) => (
-                    <button key={i} className="w-full p-4 text-left border-2 border-slate-200 rounded-xl hover:border-purple-500 hover:bg-purple-50 font-medium text-slate-700 transition-colors flex items-center justify-start">
-                      <MarkdownMath content={opt} />
-                    </button>
-                  )) || <div className="text-slate-500">Chưa có đáp án</div>}
-                </div>
-              </div>
-            </div>
-          </div>
+          <MemoryFlipGame
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
         );
       case 'domino':
         return (
@@ -1157,8 +1040,8 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-8">
-      <div className="bg-slate-100 w-full max-w-6xl h-full max-h-[95vh] sm:max-h-[90vh] rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
+    <div className="fixed inset-0 z-[10000] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-1 sm:p-2">
+      <div className="bg-slate-100 w-full h-full max-w-full max-h-full rounded-2xl shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
         <div className="h-12 sm:h-14 bg-slate-900 flex items-center justify-between px-3 sm:px-6 shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="flex gap-1.5 shrink-0">

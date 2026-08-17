@@ -12,6 +12,7 @@ import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 import { GameWizard } from '../components/GameWizard';
 import { FlashcardWizard } from '../components/FlashcardWizard';
 import { AssignmentListSkeleton, AssignmentDetailSkeleton, SubmissionsListSkeleton } from '../components/Skeletons';
@@ -50,74 +51,52 @@ D. Cả nước được giải phóng và tiến lên xây dựng chủ nghĩa 
 
 Lời giải
 Phương pháp: SGK Lịch sử 12, trang 157 – 158.
-Cách giải: Đất nước tạm thời bị chia cắt làm hai miền Nam, Bắc là nội dung phản ánh đúng tình hình Việt Nam sau Hiệp định Giơnevơ năm 1954 về Đông Dương.
-Chọn A
+Cách giải: Đất nước tạm thời bị chia cắt làm hai miền Nam, Bắc là nội dung phản ánh đúng tình hình Việt Nam sau Hiệp định Giơnevơ năm 1954.
+Chọn A`,
 
-Câu 3. Trong Đông . Xuân 1953.1954, bộ đội chủ lực Việt Nam mở chiến dịch tiến công quân Pháp ở
-A. Đông Khê.    B. Thái Nguyên.    C. Thị xã Lai Châu.    D. Quảng Trị.
-Chọn C`,
-
-  mau2: `PHẦN I. Câu trắc nghiệm với nhiều phương án lựa chọn. Thí sinh trả lời từ câu 1 đến câu 12. Mỗi câu hỏi, thí sinh chỉ chọn một phương án.
+  mau2: `PHẦN I. Câu trắc nghiệm với nhiều phương án lựa chọn.
 Câu 1: Phát biểu nào sau đây là mệnh đề?
 A. Hà Nội là thủ đô của Việt Nam.
 B. Ước gì hôm nay trời không mưa!
 C. \\(x + 5 = 8\\).
 D. Con mèo này thật đáng yêu!
 
-PHẦN II. Câu trắc nghiệm đúng sai. Thí sinh trả lời từ câu 13 đến câu 14. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai
-Câu 13: Cho các tập hợp \\(A = \\{x \\in \\mathbb{R} \\mid 1 - 2x \\leq 0\\}\\), \\(B = (-3; 3)\\), \\(C = \\{1; 3\\}\\), \\(D = \\{1; 2; 3; 4; 5\\}\\).
+PHẦN II. Câu trắc nghiệm đúng sai.
+Câu 13: Cho các tập hợp \\(A = \\{x \\in \\mathbb{R} \\mid 1 - 2x \\leq 0\\}\\), \\(B = (-3; 3)\\).
 a) \\(A \\cap B = [\\frac{1}{2}; 3)\\).
 b) \\(C \\subset B\\).
-c) \\(D \\setminus A = \\emptyset\\).
-d) Có tất cả 3 tập hợp X thỏa mãn \\(C \\cup X = D\\).
 
-PHẦN III. Câu trắc nghiệm trả lời ngắn. Thí sinh trả lời từ câu 15 đến câu 18.
-Câu 15: Cho hai tập hợp \\(A = \\{x \\in \\mathbb{N} \\mid 3 \\leq x \\leq 11\\}\\) và \\(B = \\{x \\in \\mathbb{Z} \\mid -3 \\leq x < 6\\}\\). Tìm số phần tử của \\(A \\cup B\\).
-------HẾT------
 Hướng dẫn giải
-PHẦN I.
-Câu 1:
-- Phát biểu A là một mệnh đề vì nó là một khẳng định có tính đúng, sai.
-Đáp án đúng là: A.
+Câu 1: Đáp án đúng là: A.`,
 
-PHẦN II.
-Câu 13:
-Đáp án đúng là: Đúng - Sai - Đúng - Sai.
+  mau3: `Phần 1. TỪ NGỮ BIẾT BAY
+Câu 1: Tục ngữ: Lý thuyết phải đi liền với thực tiễn.
+Gợi ý: Lý thuyết phải đi liền với thực tiễn.
+Đáp án: Học | đi | đôi | với | hành
+Nhiễu: chơi | ngủ | nói
 
-PHẦN III.
-Câu 15:
-Đáp án đúng là: 15.`,
+Câu 2: Loài vật nào là khắc tinh của loài chuột?
+Gợi ý: Loài vật kêu meo meo
+Đáp án: Con | mèo | thích | bắt | chuột
+Nhiễu: chó | cá | bay | gặm
 
-  mau3: `Phần 2. ĐIỀN TỪ / NGẮN
-Câu 1. (TH) Điền từ thích hợp vào chỗ trống: Đồ thị hàm số bậc hai y = ax² + bx + c là một đường [...] có đỉnh I(-b/2a; -Δ/4a).
-A. Parabol    B. Tròn    C. Elip    D. Thẳng
+Câu 3: Tục ngữ khuyên chúng ta phải biết ơn người đi trước.
+Gợi ý: Biết ơn cội nguồn
+Đáp án: Uống | nước | nhớ | nguồn
+Nhiễu: ăn | cây | sông | biển
 
-Lời giải
-Cách giải: Đồ thị hàm số bậc hai luôn là một đường Parabol.
-Chọn A`,
+Câu 4: Tục ngữ về tinh thần tương thân tương ái, giúp đỡ nhau.
+Gợi ý: Giúp đỡ người lúc khó khăn
+Đáp án: Lá | lành | đùm | lá | rách
+Nhiễu: cây | rụng | gió | xanh`,
 
-  mau4: `Phần 1. TRẮC NGHIỆM LÝ THUYẾT
-Câu 1. (NB) Vectơ chỉ phương của đường thẳng d: 2x - 3y + 5 = 0 là:
-A. u = (3; 2)    B. u = (2; -3)
-C. u = (-3; 2)   D. u = (2; 3)
-
-Lời giải
-Cách giải: VTCP vuông góc với VTPT n = (2; -3) => u = (3; 2).
-Chọn A`,
-
-  mau5: `Phần 3. CÂU HỎI ĐÚNG - SAI
-Câu 1. Cho tam giác ABC vuông tại A. Các khẳng định sau đây đúng hay sai?
-a) Tích vô hướng của vectơ AB và AC bằng 0.
-b) Tích vô hướng của vectơ AB và BC bằng 0.
-c) Độ dài vectơ AB + AC bằng độ dài BC.
-d) Tam giác ABC cân tại A nếu AB = AC.
-A. a-Đúng, b-Sai, c-Đúng, d-Đúng
-B. Tất cả đều Đúng
-C. Tất cả đều Sai
-D. a-Sai, b-Đúng, c-Sai, d-Đúng
-
-Lời giải
-Chọn A`
+  mau_matching: `Phần 1. GHÉP NỐI CẶP Ý (ĐOÀN TÀU TRI THỨC)
+Câu 1: Hãy ghép nối các cặp câu hỏi và đáp án tương ứng sau đây:
+Thủ đô của Việt Nam là thành phố nào? - Hà Nội
+Ngọn núi cao nhất Việt Nam là núi nào? - Fansipan
+Quốc kỳ Việt Nam có nền màu gì? - Màu đỏ
+Phép toán: 9 nhân 8 bằng mấy? - 72
+Ngôi sao trên lá cờ Tổ quốc màu gì? - Màu vàng`
 };
 
 export interface ParsedQuestionItem {
@@ -125,7 +104,7 @@ export interface ParsedQuestionItem {
   numStr: string;
   levelBadge: string;
   question: string;
-  type: 'multiple_choice' | 'true_false' | 'short_answer';
+  type: 'multiple_choice' | 'true_false' | 'short_answer' | 'matching';
   options: string[]; // for ABCD
   subOptions?: string[]; // for abcd
   correctAnswer?: number | string | number[]; 
@@ -133,6 +112,7 @@ export interface ParsedQuestionItem {
   method?: string;
   solutionText?: string;
   groupTitle?: string;
+  matchingPairs?: { left: string; right: string }[];
 }
 
 export function cleanQuestionText(text: string): string {
@@ -251,10 +231,28 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
 
     questionText = cleanQuestionText(questionText);
 
-    let type: 'multiple_choice' | 'true_false' | 'short_answer' = 'short_answer';
+    let type: 'multiple_choice' | 'true_false' | 'short_answer' | 'matching' = 'short_answer';
     let points = 0.5;
     const options: string[] = ['', '', '', ''];
     const subOptions: string[] = ['', '', '', ''];
+
+    const matchingPairs: { left: string; right: string }[] = [];
+    const clinesForPairs = chunk.split('\n');
+    clinesForPairs.forEach(l => {
+      const trimmedL = l.trim();
+      const matchSplit = trimmedL.split(/\s+[-–—]\s+/);
+      if (matchSplit.length === 2) {
+        const leftSide = matchSplit[0].trim();
+        const rightSide = matchSplit[1].trim();
+        const isMetadata = leftSide.match(/^(?:Câu|Bài|Chọn|Đáp án|Phương pháp|Cách giải)/i) || 
+                          leftSide.match(/^[A-D][\.:]/i) || 
+                          leftSide.match(/^[a-d][\)\.]/i) ||
+                          leftSide.toLowerCase().startsWith('phần ');
+        if (!isMetadata && leftSide && rightSide) {
+          matchingPairs.push({ left: leftSide, right: rightSide });
+        }
+      }
+    });
 
     const optAMatch = chunk.match(/A[\.:]\s*([^\n\t]+)/i);
     const optBMatch = chunk.match(/B[\.:]\s*([^\n\t]+)/i);
@@ -262,7 +260,10 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     const subAMatch = chunk.match(/a[\)\.]\s*([^\n\t]+)/i);
     const subBMatch = chunk.match(/b[\)\.]\s*([^\n\t]+)/i);
 
-    if (optAMatch && optBMatch) {
+    if (matchingPairs.length > 0) {
+      type = 'matching';
+      points = 1.0;
+    } else if (optAMatch && optBMatch) {
       type = 'multiple_choice';
       points = 0.25;
       options[0] = optAMatch[1].trim();
@@ -342,7 +343,8 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       points,
       method,
       solutionText,
-      groupTitle: currentGroupTitle
+      groupTitle: currentGroupTitle,
+      matchingPairs
     });
 
     const matches = chunk.match(/^Phần\s+[^\n]+/igm);
@@ -359,7 +361,7 @@ export function AssignmentsView({
   isLoadingAssignments = false,
   isLoadingSubmissions = false,
   onAddAssignment, 
-  onSubmitWork, 
+  onSubmitWork: propOnSubmitWork, 
   onGrade,
   initialSelectedAssignmentId,
   onClearInitialSelectedAssignmentId,
@@ -368,6 +370,96 @@ export function AssignmentsView({
 }: AssignmentsProps) {
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
   const isAdmin = user.role === 'admin';
+
+  // Celebration states
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationDetails, setCelebrationDetails] = useState<{
+    title: string;
+    points: number;
+    gradeText: string;
+    assignmentTitle: string;
+    feedbackMsg: string;
+  } | null>(null);
+
+  const onSubmitWork = (submission: Omit<Submission, 'id' | 'submittedAt'>) => {
+    // Submit the real work to database
+    propOnSubmitWork(submission);
+
+    // Only show celebration overlay for students
+    if (!isTeacher) {
+      const calculatedPoints = submission.grade ? Math.round(submission.grade * 10) : 10;
+      const assignmentTitle = rawAssignments.find(a => a.id === submission.assignmentId)?.title || 'Bài tập';
+      
+      let title = 'XUẤT SẮC! 🎉';
+      let feedbackMsg = 'Em đã làm rất tốt, hãy luôn phát huy tinh thần tự học tuyệt vời này nhé!';
+      if (submission.grade !== undefined) {
+        if (submission.grade >= 9) {
+          title = 'XUẤT SẮC! 🎉';
+          feedbackMsg = 'Kết quả hoàn hảo! Bộ não của em thật nhạy bén và tuyệt vời!';
+        } else if (submission.grade >= 7) {
+          title = 'GIỎI QUÁ! ✨';
+          feedbackMsg = 'Quá tuyệt vời! Chăm chỉ luyện tập thêm một chút nữa để đạt điểm tối đa nha!';
+        } else if (submission.grade >= 5) {
+          title = 'HOÀN THÀNH! 👍';
+          feedbackMsg = 'Chúc mừng em đã vượt qua thử thách này! Cùng cố gắng hơn nữa ở bài sau nhé!';
+        } else {
+          title = 'NỖ LỰC ĐÁNG KHEN! 🌱';
+          feedbackMsg = 'Cảm ơn em đã nỗ lực làm bài! Lần sau chắc chắn sẽ đạt điểm cao hơn!';
+        }
+      }
+
+      setCelebrationDetails({
+        title,
+        points: calculatedPoints,
+        gradeText: submission.grade !== undefined ? `${submission.grade}/10` : 'Hoàn thành',
+        assignmentTitle,
+        feedbackMsg
+      });
+      setShowCelebration(true);
+
+      // Trigger high-quality fireworks/confetti!
+      // 1. Center burst
+      confetti({
+        particleCount: 140,
+        spread: 80,
+        origin: { y: 0.65 }
+      });
+
+      // 2. Left side launcher
+      setTimeout(() => {
+        confetti({
+          particleCount: 80,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0, y: 0.75 }
+        });
+      }, 200);
+
+      // 3. Right side launcher
+      setTimeout(() => {
+        confetti({
+          particleCount: 80,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1, y: 0.75 }
+        });
+      }, 400);
+
+      // 4. Random glitter rain
+      const end = Date.now() + 1.2 * 1000;
+      const interval = setInterval(() => {
+        if (Date.now() > end) {
+          return clearInterval(interval);
+        }
+        confetti({
+          startVelocity: 30,
+          spread: 360,
+          ticks: 60,
+          origin: { x: Math.random(), y: Math.random() - 0.2 }
+        });
+      }, 200);
+    }
+  };
 
   // Filter assignments: Teacher only sees & manages assignments they created, Admin sees all
   const assignments = React.useMemo(() => {
@@ -429,6 +521,7 @@ export function AssignmentsView({
   const [showGamePreview, setShowGamePreview] = useState(false);
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
+  const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
 
   // Online test raw code input (Azota style)
   const [rawQuestionCode, setRawQuestionCode] = useState<string>(SAMPLE_TEMPLATES.mau2);
@@ -641,6 +734,40 @@ export function AssignmentsView({
     };
   }, [isExamStarted]);
 
+  useEffect(() => {
+    const handleIframeMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data && data.command === 'submit_result') {
+        const answerTrue = typeof data.answerTrue === 'number' ? data.answerTrue : 0;
+        const totalQuestion = typeof data.totalQuestion === 'number' && data.totalQuestion > 0 ? data.totalQuestion : 1;
+        
+        // Calculate grade out of 10
+        const computedGrade = Math.min(10, Math.round((answerTrue / totalQuestion) * 10));
+
+        if (selectedAssignment && user) {
+          const alreadySubmitted = submissions.some(
+            s => s.assignmentId === selectedAssignment.id && s.studentId === user.id
+          );
+          if (!alreadySubmitted) {
+            onSubmitWork({
+              assignmentId: selectedAssignment.id,
+              studentId: user.id,
+              studentName: user.name,
+              content: `Mô phỏng HTML nộp bài tự động qua postMessage. Trả lời đúng ${answerTrue}/${totalQuestion} câu.`,
+              grade: computedGrade
+            });
+            alert(`Chúc mừng! Em đã hoàn thành bài thực hành mô phỏng thành công với điểm số: ${computedGrade}/10 điểm.`);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('message', handleIframeMessage);
+    return () => {
+      window.removeEventListener('message', handleIframeMessage);
+    };
+  }, [selectedAssignment, user, submissions, onSubmitWork]);
+
   const handleAutoSubmitExam = () => {
     setIsExamStarted(false);
     exitFullscreen();
@@ -763,7 +890,8 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
           correctAnswer: pq.correctAnswer,
           points: pq.points || 0.25,
           method: pq.method,
-          solutionText: pq.solutionText
+          solutionText: pq.solutionText,
+          matchingPairs: pq.matchingPairs
         }));
       }
     }
@@ -876,8 +1004,8 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
   // Active Game Mode Screen
   if (selectedAssignment && selectedAssignment.type === 'game' && isExamStarted) {
     return (
-      <div className="fixed inset-0 bg-slate-900/90 z-[9999] flex flex-col justify-center items-center p-2 sm:p-6 overflow-hidden">
-        <div className="w-full max-w-6xl h-full max-h-[760px] bg-white rounded-3xl overflow-hidden shadow-2xl border border-indigo-100 flex flex-col">
+      <div className="fixed inset-0 bg-slate-900/95 z-[9999] flex flex-col justify-center items-center p-1 sm:p-2 overflow-hidden">
+        <div className="w-full h-full max-w-full max-h-full bg-white rounded-2xl overflow-hidden shadow-2xl border border-indigo-100 flex flex-col">
           <GamePreview
             gameType={selectedAssignment.gameType || 'do_min'}
             questions={selectedAssignment.questions && selectedAssignment.questions.length > 0 ? selectedAssignment.questions : parseRawCodeToQuestions(rawQuestionCode).parsedQuestions}
@@ -1386,28 +1514,69 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 </div>
               )}
 
-
-
               {selectedAssignment.simulationUrl && (
                 <div className="p-5 bg-emerald-50/60 rounded-2xl border border-emerald-100 space-y-4 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
-                      <Play className="w-5 h-5 text-emerald-600" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                        <Play className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Bài tập Mô phỏng Thực hành</p>
+                        <p className="text-xs text-slate-500">Mở giao diện mô phỏng tương tác để hoàn thành bài tập</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">Bài tập Mô phỏng Thực hành PhET</p>
-                      <p className="text-xs text-slate-500">Mở giao diện mô phỏng tương tác để hoàn thành</p>
-                    </div>
+                    
+                    <button 
+                      type="button"
+                      onClick={() => setShowEmbeddedSim(!showEmbeddedSim)}
+                      className={`px-4 py-2 rounded-xl font-bold text-xs border transition-all ${
+                        showEmbeddedSim 
+                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm' 
+                          : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                      }`}
+                    >
+                      {showEmbeddedSim ? '📴 Đóng chế độ nhúng' : '📺 Thực hành ngay tại đây'}
+                    </button>
                   </div>
+
+                  {showEmbeddedSim && (
+                    <div className="relative w-full h-[550px] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-inner">
+                      {(() => {
+                        const matchedSim = (simulations || []).find(s => s.url === selectedAssignment.simulationUrl);
+                        if (matchedSim && matchedSim.htmlContent) {
+                          return (
+                            <iframe 
+                              srcDoc={matchedSim.htmlContent}
+                              className="absolute inset-0 w-full h-full border-0 bg-white"
+                              allowFullScreen
+                              sandbox="allow-scripts allow-same-origin"
+                              title={selectedAssignment.title}
+                            />
+                          );
+                        } else {
+                          return (
+                            <iframe 
+                              src={selectedAssignment.simulationUrl}
+                              className="absolute inset-0 w-full h-full border-0 bg-white"
+                              allowFullScreen
+                              sandbox="allow-scripts allow-same-origin"
+                              title={selectedAssignment.title}
+                            />
+                          );
+                        }
+                      })()}
+                    </div>
+                  )}
 
                   <div className="flex flex-col sm:flex-row gap-2 pt-2">
                     <a 
                       href={selectedAssignment.simulationUrl} 
                       target="_blank" 
                       rel="noreferrer"
-                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 text-center"
                     >
-                      <ExternalLink className="w-4 h-4" /> Vào Mô phỏng
+                      <ExternalLink className="w-4 h-4" /> Mở trong tab mới
                     </a>
                     
                     {!isTeacher && !submissions.some(s => s.assignmentId === selectedAssignment.id && s.studentId === user.id) && (
@@ -1564,12 +1733,13 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                         cuoc_dua_ngon_tay: { name: 'Cuộc Đua Ngón Tay', desc: 'Đua xe trả lời đúng để bứt tốc vượt lên đối thủ trên đường đua', emoji: '🏎️', bg: 'bg-rose-50/50', border: 'border-rose-200', text: 'text-rose-700', gradient: 'from-rose-500 to-red-600' },
                         do_min: { name: 'Dò Mìn Toán Học', desc: 'Khám phá ô mìn an toàn thông qua giải các phép tính nhanh', emoji: '💣', bg: 'bg-emerald-50/50', border: 'border-emerald-200', text: 'text-emerald-700', gradient: 'from-emerald-600 to-teal-600' },
                         doan_tau_tri_thuc: { name: 'Đoàn Tàu Tri Thức', desc: 'Đưa đoàn tàu vượt các ga học liệu cập bến ga cuối an toàn', emoji: '🚂', bg: 'bg-sky-50/50', border: 'border-sky-200', text: 'text-sky-700', gradient: 'from-sky-500 to-blue-600' },
+                        keo_co: { name: 'Kéo Co Kiến Thức', desc: 'Đấu trí kéo co kịch tính đấu với máy hoặc hai người chơi', emoji: '🪢', bg: 'bg-orange-50/50', border: 'border-orange-200', text: 'text-orange-700', gradient: 'from-orange-500 to-amber-600' },
                         game_map: { name: 'Bản Đồ Cổ Thử Thách', desc: 'Bản đồ truy tìm kho báu toán học cổ xưa đầy thú vị', emoji: '🗺️', bg: 'bg-yellow-50/50', border: 'border-yellow-200', text: 'text-yellow-700', gradient: 'from-yellow-500 to-amber-600' },
                         tu_ngu_biet_bay: { name: 'Từ Ngữ Biết Bay', desc: 'Chạm từ chuyển động đúng chính tả và logic ngữ văn', emoji: '🛸', bg: 'bg-violet-50/50', border: 'border-violet-200', text: 'text-violet-700', gradient: 'from-violet-500 to-purple-600' },
                         keo_tha_noi_y: { name: 'Kéo Thả Nối Ý', desc: 'Ghép nối vế trái logic với vế phải tạo câu đúng hoàn chỉnh', emoji: '🔗', bg: 'bg-teal-50/50', border: 'border-teal-200', text: 'text-teal-700', gradient: 'from-teal-500 to-cyan-600' },
                         o_chu_khoa: { name: 'Ô Chữ Khóa Bí Mật', desc: 'Giải ô chữ giải mã từ khóa cốt lõi của bài học', emoji: '🔐', bg: 'bg-green-50/50', border: 'border-green-200', text: 'text-green-700', gradient: 'from-green-500 to-emerald-600' },
                         san_kho_bau: { name: 'Săn Kho Báu Đại Dương', desc: 'Tìm rương vàng cổ vật thông qua thử thách toán thực tế', emoji: '🏴‍☠️', bg: 'bg-slate-100/50', border: 'border-slate-200', text: 'text-slate-700', gradient: 'from-slate-600 to-slate-800' },
-                        lat_manh_ghep: { name: 'Lật Mảnh Ghép Tranh', desc: 'Lật câu hỏi khám phá bức tranh chủ đề bí mật đằng sau', emoji: '🧩', bg: 'bg-indigo-50/50', border: 'border-indigo-200', text: 'text-indigo-700', gradient: 'from-indigo-500 to-purple-600' },
+                        lat_manh_ghep: { name: 'Lật Mảnh Ghép Kiến Thức', desc: 'Lật và ghép nối các cặp câu hỏi - đáp án tương ứng', emoji: '🧩', bg: 'bg-indigo-50/50', border: 'border-indigo-200', text: 'text-indigo-700', gradient: 'from-indigo-500 to-purple-600' },
                         domino: { name: 'Đấu Trường Domino', desc: 'Chuỗi logic ghép nối domino liên tiếp', emoji: '🀄', bg: 'bg-cyan-50/50', border: 'border-cyan-200', text: 'text-cyan-700', gradient: 'from-cyan-500 to-blue-600' },
                         dao_chu: { name: 'Đảo Chữ Anagram', desc: 'Xáo trộn ký tự để xếp lại thuật ngữ có nghĩa chuẩn xác nhất', emoji: '🔠', bg: 'bg-teal-50/50', border: 'border-teal-200', text: 'text-teal-700', gradient: 'from-teal-500 to-emerald-600' },
                         mo_hop: { name: 'Mở Hộp Bí Mật', desc: 'Hộp quà chứa các thử thách toán học ngẫu nhiên bất ngờ', emoji: '🎁', bg: 'bg-sky-50/50', border: 'border-sky-200', text: 'text-sky-700', gradient: 'from-sky-500 to-indigo-500' },
@@ -1639,8 +1809,19 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                                 <p className="text-[10px] text-slate-400 font-bold uppercase">Dạng bài thi được giáo viên bật:</p>
                                 <div className="flex flex-wrap gap-1.5 pt-0.5">
                                   {['multiple_choice', 'true_false', 'word_reorder', 'short_answer', 'matching'].filter(id => {
-                                    // if teacher has allowed it
-                                    return true; // render standard formatted tags beautifully
+                                    if (selectedAssignment.gameFormats && selectedAssignment.gameFormats.length > 0) {
+                                      return selectedAssignment.gameFormats.includes(id);
+                                    }
+                                    if (selectedAssignment.gameType === 'tu_ngu_biet_bay') {
+                                      return id === 'word_reorder';
+                                    }
+                                    if (selectedAssignment.gameType === 'o_chu_khoa') {
+                                      return id === 'short_answer';
+                                    }
+                                    if (selectedAssignment.gameType === 'lat_manh_ghep' || selectedAssignment.gameType === 'doan_tau_tri_thuc') {
+                                      return id === 'matching';
+                                    }
+                                    return true;
                                   }).map(id => {
                                     const labels: Record<string, { label: string, emoji: string, color: string }> = {
                                       multiple_choice: { label: 'Trắc nghiệm', emoji: '🔘', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
@@ -2374,9 +2555,6 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                             </div>
 
                             <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner">
-                              <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4">
-                                {lineCountArray.map(num => <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>)}
-                              </div>
                               <textarea 
                                 value={rawQuestionCode}
                                 onChange={e => setRawQuestionCode(e.target.value)}
@@ -2389,8 +2567,10 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                             <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                               <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
                               <div className="flex flex-wrap gap-2">
-                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
-                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
+                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 1 (Trắc nghiệm)</button>
+                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 2 (Đúng / Sai)</button>
+                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau3)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 3 (Sắp xếp từ)</button>
+                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau_matching)} className="text-[11px] text-indigo-600 font-bold hover:underline px-2.5 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors">🚃 Mẫu 4 (Đoàn tàu / Ghép vế)</button>
                               </div>
                             </div>
                           </div>
@@ -3024,6 +3204,105 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
           </div>
         </div>
       )}
+
+      {/* Celebration Modal */}
+      <AnimatePresence>
+        {showCelebration && celebrationDetails && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCelebration(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 30 }}
+              animate={{ 
+                scale: 1, 
+                opacity: 1, 
+                y: 0,
+                transition: { type: 'spring', damping: 20, stiffness: 300 }
+              }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-md rounded-3xl p-8 text-center shadow-2xl border border-amber-100 overflow-hidden flex flex-col items-center"
+            >
+              {/* Top Decorative Sparkles */}
+              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-400 via-rose-500 to-indigo-500" />
+              
+              {/* Big Animated Trophy/Star Circle */}
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: [0, 1.2, 1] }}
+                transition={{ delay: 0.15, duration: 0.5 }}
+                className="w-24 h-24 rounded-full bg-gradient-to-br from-amber-100 to-yellow-200 flex items-center justify-center text-4xl shadow-md border-4 border-white mb-5 relative"
+              >
+                <span className="animate-pulse">🏆</span>
+                {/* Miniature floating sparkles */}
+                <span className="absolute -top-1 -right-1 text-base animate-bounce">✨</span>
+                <span className="absolute -bottom-2 -left-1 text-lg animate-bounce delay-150">⭐</span>
+              </motion.div>
+
+              {/* Title */}
+              <motion.h3 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-amber-600 via-rose-600 to-indigo-600 tracking-wide uppercase mb-1"
+              >
+                {celebrationDetails.title}
+              </motion.h3>
+
+              {/* Assignment Title */}
+              <p className="text-xs text-slate-400 font-bold mb-4 px-4 py-1 bg-slate-50 border border-slate-100 rounded-full max-w-full truncate">
+                📚 {celebrationDetails.assignmentTitle}
+              </p>
+
+              {/* Reward stats */}
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.35 }}
+                className="grid grid-cols-2 gap-3 w-full mb-6"
+              >
+                <div className="bg-gradient-to-b from-amber-50 to-amber-100/40 p-4 rounded-2xl border border-amber-100 text-center flex flex-col justify-center items-center shadow-sm">
+                  <span className="text-2xl mb-1">🎯</span>
+                  <p className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">Điểm số đạt</p>
+                  <p className="text-xl font-extrabold text-amber-700 font-mono mt-0.5">{celebrationDetails.gradeText}</p>
+                </div>
+                <div className="bg-gradient-to-b from-indigo-50 to-indigo-100/40 p-4 rounded-2xl border border-indigo-100 text-center flex flex-col justify-center items-center shadow-sm">
+                  <span className="text-2xl mb-1">🔥</span>
+                  <p className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider">Điểm tích lũy</p>
+                  <p className="text-xl font-extrabold text-indigo-700 font-mono mt-0.5">+{celebrationDetails.points} XP</p>
+                </div>
+              </motion.div>
+
+              {/* Motivational Quote */}
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.45 }}
+                className="text-sm text-slate-600 font-semibold leading-relaxed mb-6 px-1 max-w-xs"
+              >
+                "{celebrationDetails.feedbackMsg}"
+              </motion.p>
+
+              {/* Action Button */}
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowCelebration(false)}
+                className="w-full py-3.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white font-extrabold text-sm rounded-2xl shadow-xl hover:shadow-indigo-900/10 transition-all flex items-center justify-center gap-2"
+              >
+                <span>🚀 Tiếp tục học tập</span>
+              </motion.button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

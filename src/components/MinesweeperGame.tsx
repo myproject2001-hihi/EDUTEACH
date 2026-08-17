@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Star, Keyboard } from 'lucide-react';
+import { Star, Keyboard } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 import { cleanQuestionText } from '../views/AssignmentsView';
 import grassTexture from '../assets/images/minesweeper_grass_texture_1786870331143.jpg';
@@ -331,20 +331,20 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
       animationFrameIdRef.current = null;
     }
 
-    setPlayerPos({ x: 50, y: 80 });
-    playerPosRef.current = { x: 50, y: 80 };
+    setPlayerPos({ x: 50, y: 88 });
+    playerPosRef.current = { x: 50, y: 88 };
 
     const q = gameQuestions[index];
     const originalAnswers = q?.answers || [];
 
     const presetPositions = [
-      { x: 25, y: 25 },
-      { x: 75, y: 25 },
-      { x: 25, y: 60 },
-      { x: 75, y: 60 },
-      { x: 50, y: 40 },
-      { x: 15, y: 42 },
-      { x: 85, y: 42 }
+      { x: 22, y: 38 },
+      { x: 78, y: 38 },
+      { x: 25, y: 72 },
+      { x: 75, y: 72 },
+      { x: 50, y: 55 },
+      { x: 18, y: 56 },
+      { x: 82, y: 56 }
     ];
 
     const shuffledPositions = [...presetPositions].sort(() => Math.random() - 0.5);
@@ -667,118 +667,109 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
   const q = gameQuestions[currentQuestionIndex];
 
   return (
-    <div className="flex flex-col md:flex-row h-full w-full flex-1 min-h-0 text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-white shadow-xl custom-game-container">
+    <div className="w-full h-full flex-1 min-h-0 text-slate-800 select-none overflow-hidden relative rounded-2xl border border-indigo-100 bg-emerald-100 shadow-xl custom-game-container" id="game-container">
       
-      {/* LEFT: QUESTION AND SCOREBOARD PANEL */}
-      <div className="w-full md:w-80 lg:w-96 bg-slate-50 border-b md:border-b-0 md:border-r border-indigo-100/80 p-3 sm:p-5 flex flex-row md:flex-col justify-between shrink-0 relative z-30 shadow-sm gap-3">
-        <div className="space-y-3 sm:space-y-4 flex-1 md:flex-initial flex flex-row md:flex-col items-center md:items-stretch gap-2 md:gap-0">
-          <button 
-            onClick={onClose}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-indigo-50 hover:bg-indigo-100 text-[10px] sm:text-xs font-black text-indigo-700 rounded-xl transition shadow-sm border border-indigo-200 shrink-0"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Quay lại
-          </button>
+      {/* TOP HEADER BAR (UNIFIED FLEX LAYOUT - NO OVERLAPPING) */}
+      <div className="absolute top-2.5 sm:top-4 left-2.5 sm:left-4 right-2.5 sm:right-4 z-30 pointer-events-none flex items-start justify-between gap-2 sm:gap-4">
+        
+        {/* LEFT: QUESTION NUMBER BADGE */}
+        <div className="bg-white/95 backdrop-blur-md px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border-2 border-indigo-100 shadow-xl pointer-events-auto shrink-0 flex items-center justify-center">
+          <span className="text-indigo-700 font-black text-xs sm:text-sm tracking-wide">
+            Câu {currentQuestionIndex + 1}/{gameQuestions.length}
+          </span>
+        </div>
 
-          <div className="bg-white border-2 border-indigo-100/80 p-3 sm:p-4 rounded-2xl shadow-sm relative overflow-hidden min-h-[90px] md:min-h-[220px] lg:min-h-[260px] flex-1 md:flex-none flex flex-col justify-between">
-            {isGameOver ? (
-              <div className="text-center space-y-2 sm:space-y-4 py-2 sm:py-6 animate-scaleIn flex-1 flex flex-col items-center justify-center">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-emerald-100 border border-emerald-300 rounded-full flex items-center justify-center text-emerald-600 text-lg sm:text-xl font-bold animate-bounce shadow-sm">
-                  🏆
-                </div>
-                <h4 className="text-sm sm:text-base font-black text-slate-800">Hoàn Thành!</h4>
-                <p className="text-[9px] sm:text-[11px] text-slate-500 font-medium hidden sm:block">
-                  Chúc mừng bạn đã rà phá thành công bãi mìn!
-                </p>
-                <div className="text-lg sm:text-xl lg:text-2xl font-black text-indigo-600 bg-indigo-50 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full border border-indigo-100">
-                  {score} Điểm
-                </div>
+        {/* CENTER: FLOATING QUESTION CARD */}
+        <div className="bg-white/95 backdrop-blur-md border-2 border-indigo-200/90 px-4 py-2 sm:px-6 sm:py-3 rounded-2xl sm:rounded-3xl shadow-2xl pointer-events-auto flex-1 max-w-2xl text-center flex flex-col items-center justify-center min-h-[48px]">
+          <div className="text-xs sm:text-sm md:text-base lg:text-lg font-black text-slate-800 leading-snug max-h-[75px] sm:max-h-[95px] overflow-y-auto custom-scrollbar w-full px-1">
+            <MarkdownMath content={q?.question || 'Câu hỏi...'} />
+          </div>
+        </div>
+
+        {/* RIGHT: SCORE RIBBON */}
+        <div className="bg-white/95 backdrop-blur-md text-slate-800 px-3 py-2 sm:px-5 sm:py-2.5 rounded-2xl border-2 border-indigo-100 shadow-xl flex items-center gap-1.5 sm:gap-2.5 pointer-events-auto shrink-0">
+          <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 fill-amber-500 animate-spin-slow" />
+          <span className="font-black text-sm sm:text-lg lg:text-xl text-amber-500">{score}</span>
+          <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline">Điểm</span>
+        </div>
+
+      </div>
+
+      {/* 4. BOTTOM CENTER: CONTROL TIPS */}
+      <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none hidden sm:block">
+        <div className="bg-slate-900/85 backdrop-blur-md text-white px-4 py-1.5 rounded-full border border-white/20 shadow-xl flex items-center gap-2 text-[10px] sm:text-xs font-bold pointer-events-auto">
+          <Keyboard className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <span>Sử dụng phím mũi tên / WASD hoặc nhấp trực tiếp chữ A, B, C, D trên thảm cỏ để rà mìn</span>
+        </div>
+      </div>
+
+      {/* 5. FULL GAMEFIELD GRASS BATTLEFIELD */}
+      <div 
+        ref={boardRef}
+        onClick={handleBoardClick}
+        className={`w-full h-full absolute inset-0 cursor-crosshair overflow-hidden transition-all duration-75 ${
+          isShaking ? 'shake-hard' : ''
+        } ${isGameOver ? 'pointer-events-none opacity-90' : ''}`}
+        style={{
+          backgroundColor: '#4ade80',
+          backgroundImage: `url(${grassTexture})`,
+          backgroundSize: '200px 200px',
+          backgroundRepeat: 'repeat'
+        }}
+      >
+        {/* Answer Nodes on field */}
+        {!isGameOver && (
+          <AnswerNodesList answers={currentAnswers} onNodeClick={handleNodeClick} />
+        )}
+
+        {/* Player avatar representation */}
+        <SoldierAvatar x={playerPos.x} y={playerPos.y} />
+
+        {/* Object Pooled Particle System */}
+        <ParticleOverlay particles={particlePool} />
+
+        {/* Object Pooled Explosion System */}
+        <ExplosionOverlay explosions={explosionPool} />
+      </div>
+
+      {/* 6. GAME OVER MODAL OVERLAY */}
+      {isGameOver && (
+        <div className="absolute inset-0 z-50 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white border-2 border-indigo-100 p-6 sm:p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center space-y-4 animate-scaleIn">
+            <div className="w-16 h-16 bg-emerald-100 border-2 border-emerald-300 rounded-full flex items-center justify-center text-emerald-600 text-3xl font-bold mx-auto animate-bounce shadow-md">
+              🏆
+            </div>
+            <h4 className="text-xl sm:text-2xl font-black text-slate-800">Hoàn Thành Rà Mìn!</h4>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+              Chúc mừng bạn đã rà phá thành công bãi mìn an toàn!
+            </p>
+            <div className="text-2xl sm:text-3xl font-black text-indigo-600 bg-indigo-50 py-2 rounded-2xl border border-indigo-100 shadow-inner">
+              {score} Điểm
+            </div>
+            <div className="flex gap-2 pt-2">
+              {!isStudentMode && (
                 <button 
                   onClick={restartGame}
-                  className="w-full py-1.5 sm:py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] sm:text-xs rounded-xl active:scale-95 transition-all shadow-md shadow-indigo-100"
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-sm rounded-xl active:scale-95 transition-all shadow-lg shadow-indigo-200"
                 >
                   Chơi lại
                 </button>
-              </div>
-            ) : (
-              <>
-                <div className="text-center border-b border-indigo-50 pb-1.5 hidden sm:block">
-                  <span className="text-indigo-600 font-extrabold text-[9px] sm:text-[10px] md:text-xs tracking-widest uppercase bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
-                    Câu hỏi {currentQuestionIndex + 1} / {gameQuestions.length}
-                  </span>
-                </div>
-
-                <div className="flex-1 flex items-center justify-center py-2 sm:py-3">
-                  <div className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-extrabold text-slate-800 text-center leading-relaxed">
-                    <MarkdownMath content={q?.question || 'Câu hỏi...'} />
-                  </div>
-                </div>
-
-                <div className="text-[9px] sm:text-[10px] text-slate-400 flex items-center gap-1 justify-center border-t border-indigo-50 pt-1.5 font-semibold hidden md:flex">
-                  <Keyboard className="w-3.5 h-3.5 text-indigo-500" /> Sử dụng WASD / Phím mũi tên để di chuyển
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* HUD control details */}
-        <div className="mt-1 p-2 bg-indigo-50/50 border border-indigo-100 rounded-xl space-y-1 hidden md:block">
-          <span className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-indigo-600 tracking-wider block">
-            Cách phá mìn an toàn:
-          </span>
-          <p className="text-[9px] sm:text-[10px] text-indigo-950/80 leading-normal font-medium">
-            Nhấp chuột trực tiếp lên ô nhãn chữ <span className="font-bold text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded">A, B, C, D</span> trên bãi cỏ để lính tự động rà mìn tương ứng!
-          </p>
-        </div>
-      </div>
-
-      {/* RIGHT: INTERACTIVE MILITARY GRASS MAP */}
-      <div className="flex-1 h-full relative bg-emerald-100 overflow-hidden" id="game-container">
-        
-        {/* Float Status Ribbon */}
-        <div className="absolute top-2.5 sm:top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <div className="bg-white/95 text-slate-800 px-4 py-1 sm:px-6 sm:py-2 rounded-full border border-indigo-100 shadow-xl flex items-center gap-3 sm:gap-5 pointer-events-auto">
-            <div className="flex items-center gap-1 sm:gap-1.5">
-              <Star className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 text-amber-500 fill-amber-500 animate-spin-slow" />
-              <span className="font-black text-sm sm:text-lg lg:text-xl text-amber-500">{score}</span>
-              <span className="text-[8px] sm:text-[9px] lg:text-[10px] font-black text-slate-400 uppercase tracking-widest">Điểm</span>
-            </div>
-            <div className="w-px h-3 sm:h-4 bg-indigo-100" />
-            <div className="text-[10px] sm:text-xs lg:text-sm font-black text-indigo-600">
-              GA: {currentQuestionIndex + 1} / {gameQuestions.length}
+              )}
+              <button 
+                onClick={() => {
+                  if (isStudentMode && onSubmitWork) {
+                    onSubmitWork(score, correctAnswersCount, answersMap);
+                  }
+                  onClose();
+                }}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm rounded-xl active:scale-95 transition-all shadow-lg shadow-emerald-200"
+              >
+                {isStudentMode ? 'Nộp bài & Kết thúc' : 'Thoát'}
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Grass Battlefield */}
-        <div 
-          ref={boardRef}
-          onClick={handleBoardClick}
-          className={`w-full h-full relative cursor-crosshair overflow-hidden transition-all duration-75 ${
-            isShaking ? 'shake-hard' : ''
-          } ${isGameOver ? 'pointer-events-none opacity-90' : ''}`}
-          style={{
-            backgroundColor: '#4ade80',
-            backgroundImage: `url(${grassTexture})`,
-            backgroundSize: '200px 200px',
-            backgroundRepeat: 'repeat'
-          }}
-        >
-          {/* Answer Nodes on field */}
-          {!isGameOver && (
-            <AnswerNodesList answers={currentAnswers} onNodeClick={handleNodeClick} />
-          )}
-
-          {/* Player avatar representation */}
-          <SoldierAvatar x={playerPos.x} y={playerPos.y} />
-
-          {/* Object Pooled Particle System */}
-          <ParticleOverlay particles={particlePool} />
-
-          {/* Object Pooled Explosion System */}
-          <ExplosionOverlay explosions={explosionPool} />
-        </div>
-      </div>
+      )}
 
       <style>{`
         @keyframes pop-big {

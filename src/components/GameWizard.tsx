@@ -6,8 +6,23 @@ import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 const FORMAT_TEMPLATES: Record<string, string> = {
   multiple_choice: "Câu 1: Thủ đô của Việt Nam là gì?\nA. Hà Nội\nB. TP. Hồ Chí Minh\nC. Đà Nẵng\nD. Huế\nĐáp án: A",
   true_false: "Câu 2: Mặt trời quay quanh trái đất.\nĐáp án: Sai",
-  word_reorder: "Câu 3: Sắp xếp các từ thành câu hoàn chỉnh:\nĐáp án: Học | đi | đôi | với | hành",
-  short_answer: "Câu 4: Căn bậc hai của 144 là bao nhiêu?\nĐáp án: 12",
+  word_reorder: `Câu 1: Tục ngữ: Lý thuyết phải đi liền với thực tiễn.
+Gợi ý: Lý thuyết phải đi liền với thực tiễn.
+Đáp án: Học | đi | đôi | với | hành
+Nhiễu: chơi | ngủ | nói
+
+Câu 2: Loài vật nào là khắc tinh của loài chuột?
+Gợi ý: Loài vật kêu meo meo
+Đáp án: Con | mèo | thích | bắt | chuột
+Nhiễu: chó | cá | bay | gặm
+
+Câu 3: Tục ngữ khuyên chúng ta phải biết ơn người đi trước.
+Gợi ý: Biết ơn cội nguồn
+Đáp án: Uống | nước | nhớ | nguồn
+Nhiễu: ăn | cây | sông | biển`,
+  short_answer: `Câu 1: Chủ đề: Khám Phá Khoa Học
+Gợi ý: Tìm các từ khóa thuộc chủ đề Khoa Học
+Đáp án: TOÁN HỌC | SINH HỌC | VẬT LÝ | HÓA HỌC | VŨ TRỤ | HÀNH TINH`,
   matching: "Câu 5: Nối các từ đồng nghĩa\nTo lớn - Vĩ đại\nXinh đẹp - Tuyệt trần"
 };
 
@@ -36,16 +51,11 @@ const GenericFormatForm = ({ formatId, blockText, onChange, onApplyTemplate }: a
         </button>
       </div>
       <div className="flex flex-1 min-h-[140px]">
-        <div className="w-10 bg-slate-50/50 border-r border-slate-100 text-right pt-3 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-3 shrink-0">
-          {Array.from({ length: lineCount }, (_, i) => i + 1).map(num => (
-            <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
-          ))}
-        </div>
         <textarea
           value={blockText}
           onChange={(e) => onChange(e.target.value)}
           placeholder={`Nhập câu hỏi dạng ${FORMAT_NAMES[formatId]}...`}
-          className="flex-1 w-full p-3 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium bg-transparent"
+          className="flex-1 w-full p-3.5 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium bg-transparent"
           spellCheck={false}
         />
       </div>
@@ -145,13 +155,14 @@ export const GameWizard: React.FC<GameWizardProps> = ({
     quiz_nghieng_dau: ['multiple_choice', 'true_false'],
     cuoc_dua_ngon_tay: ['multiple_choice', 'true_false', 'word_reorder'],
     do_min: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
-    doan_tau_tri_thuc: ['multiple_choice', 'true_false', 'word_reorder', 'matching'],
+    doan_tau_tri_thuc: ['matching'],
+    keo_co: ['multiple_choice', 'true_false'],
     game_map: ['multiple_choice', 'true_false', 'short_answer'],
-    tu_ngu_biet_bay: ['multiple_choice', 'true_false', 'word_reorder'],
+    tu_ngu_biet_bay: ['word_reorder'],
     keo_tha_noi_y: ['matching'],
     o_chu_khoa: ['short_answer'],
     san_kho_bau: ['multiple_choice', 'true_false', 'matching'],
-    lat_manh_ghep: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
+    lat_manh_ghep: ['matching'],
     domino: ['matching'],
     dao_chu: ['word_reorder'],
     mo_hop: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
@@ -165,12 +176,13 @@ export const GameWizard: React.FC<GameWizardProps> = ({
     { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay', category: 'speed', desc: 'Đua xe trả lời đúng để bứt tốc vượt lên đối thủ trên đường đua', emoji: '🏎️', color: 'border-rose-100 hover:border-rose-500 bg-rose-50/20 hover:bg-rose-50/40' },
     { id: 'do_min', name: 'Dò Mìn', category: 'puzzle', desc: 'Khám phá ô mìn an toàn thông qua giải các phép tính toán học', emoji: '💣', color: 'border-emerald-100 hover:border-emerald-500 bg-emerald-50/20 hover:bg-emerald-50/40' },
     { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức', category: 'puzzle', desc: 'Đưa đoàn tàu vượt các ga học liệu cập bến ga cuối an toàn', emoji: '🚂', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },
+    { id: 'keo_co', name: 'Kéo Co Kiến Thức', category: 'speed', desc: 'Đấu trí kéo co kịch tính đấu với máy hoặc hai người chơi', emoji: '🪢', color: 'border-orange-100 hover:border-orange-500 bg-orange-50/20 hover:bg-orange-50/40' },
     { id: 'game_map', name: 'Game Map', category: 'adventure', desc: 'Bản đồ truy tìm kho báu toán học cổ xưa đầy thú vị', emoji: '🗺️', color: 'border-yellow-100 hover:border-yellow-500 bg-yellow-50/20 hover:bg-yellow-50/40' },
     { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay', category: 'adventure', desc: 'Chạm từ chuyển động đúng chính tả và logic ngữ văn', emoji: '🛸', color: 'border-violet-100 hover:border-violet-500 bg-violet-50/20 hover:bg-violet-50/40' },
     { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý', category: 'adventure', desc: 'Ghép nối vế trái logic với vế phải tạo câu đúng hoàn chỉnh', emoji: '🔗', color: 'border-teal-100 hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/40' },
     { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật', category: 'puzzle', desc: 'Giải ô chữ giải mã từ khóa cốt lõi của bài học hôm nay', emoji: '🔐', color: 'border-green-100 hover:border-green-500 bg-green-50/20 hover:bg-green-50/40' },
     { id: 'san_kho_bau', name: 'Săn Kho Báu', category: 'adventure', desc: 'Tìm rương vàng cổ vật thông qua thử thách toán thực tế', emoji: '🏴‍☠️', color: 'border-slate-100 hover:border-slate-500 bg-slate-50/30 hover:bg-slate-50/50' },
-    { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép', category: 'puzzle', desc: 'Lật câu hỏi khám phá bức tranh chủ đề bí mật đằng sau', emoji: '🧩', color: 'border-indigo-100 hover:border-indigo-500 bg-indigo-50/20 hover:bg-indigo-50/40' },
+    { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép', category: 'puzzle', desc: 'Lật và ghép nối các cặp câu hỏi - đáp án tương ứng', emoji: '🧩', color: 'border-indigo-100 hover:border-indigo-500 bg-indigo-50/20 hover:bg-indigo-50/40' },
     { id: 'domino', name: 'Đấu Trường Domino', category: 'puzzle', desc: 'Chuỗi logic ghép nối domino liên tiếp đầy kịch tính', emoji: '🀄', color: 'border-cyan-100 hover:border-cyan-500 bg-cyan-50/20 hover:bg-cyan-50/40' },
     { id: 'dao_chu', name: 'Đảo Chữ Anagram', category: 'puzzle', desc: 'Xáo trộn ký tự để xếp lại thuật ngữ có nghĩa chuẩn xác nhất', emoji: '🔠', color: 'border-teal-100 hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/40' },
     { id: 'mo_hop', name: 'Mở Hộp Bí Mật', category: 'puzzle', desc: 'Hộp quà chứa các thử thách toán học ngẫu nhiên bất ngờ', emoji: '🎁', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },

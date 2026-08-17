@@ -21,13 +21,14 @@ export interface QuizQuestion {
   id: string;
   numStr?: string;
   question: string;
-  type?: 'multiple_choice' | 'true_false' | 'short_answer';
+  type?: 'multiple_choice' | 'true_false' | 'short_answer' | 'matching';
   options: string[];
   subOptions?: string[];
-  correctAnswer: number | string | number[];
+  correctAnswer?: number | string | number[];
   points: number;
   method?: string;
   solutionText?: string;
+  matchingPairs?: { left: string; right: string }[];
 }
 
 export interface Assignment {

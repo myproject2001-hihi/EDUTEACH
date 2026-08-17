@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, inMemoryPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 import config from '../firebase-applet-config.json';
 
@@ -46,7 +46,11 @@ export const auth = getAuth(app);
 // Đảm bảo không lưu đăng nhập qua các phiên web (yêu cầu đăng nhập lại khi đóng tab hoặc mở lại)
 setPersistence(auth, inMemoryPersistence).catch(console.error);
 
-export const db = getFirestore(app, config.firestoreDatabaseId || "(default)");
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+}, config.firestoreDatabaseId || "(default)");
 
 // Bỏ qua Analytics trong môi trường sandbox để tránh lỗi API key không hợp lệ
 export const analyticsPromise = Promise.resolve(null);

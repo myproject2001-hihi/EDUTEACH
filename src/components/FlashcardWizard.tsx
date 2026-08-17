@@ -203,11 +203,6 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
               {/* Text Area */}
               <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[220px]">
-                <div className="w-10 bg-slate-50 border-r border-slate-200 text-right pt-4 text-[11px] font-mono text-slate-400 select-none overflow-hidden pb-4 shrink-0">
-                  {Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 12) }, (_, i) => i + 1).map(num => (
-                    <div key={num} className="pr-2 leading-relaxed h-[21px]">{num}</div>
-                  ))}
-                </div>
                 <textarea
                   value={rawQuestionCode}
                   onChange={(e) => setRawQuestionCode(e.target.value)}
