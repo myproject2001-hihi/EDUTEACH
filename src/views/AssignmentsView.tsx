@@ -2453,22 +2453,24 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         />
       )}
 
-      {showFlashcardQuizTest && selectedAssignment && selectedAssignment.type === 'flashcard' && (
+      {showFlashcardQuizTest && (
         <FlashcardQuizGame
-          assignmentTitle={selectedAssignment.title}
-          flashcards={selectedAssignment.flashcards}
-          questions={selectedAssignment.questions}
+          assignmentTitle={selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard'}
+          flashcards={selectedAssignment ? selectedAssignment.flashcards : newFlashcards}
+          questions={selectedAssignment ? selectedAssignment.questions : parseRawCodeToQuestions(rawQuestionCode).parsedQuestions}
           studentName={user.name}
           onFinish={(score, correctCount, answersMap) => {
             setShowFlashcardQuizTest(false);
-            onSubmitWork({
-              assignmentId: selectedAssignment.id,
-              studentId: user.id,
-              studentName: user.name,
-              content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${(selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1)} câu). Điểm: ${score}/10.`,
-              quizAnswers: answersMap,
-              grade: score
-            });
+            if (selectedAssignment) {
+              onSubmitWork({
+                assignmentId: selectedAssignment.id,
+                studentId: user.id,
+                studentName: user.name,
+                content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${(selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1)} câu). Điểm: ${score}/10.`,
+                quizAnswers: answersMap,
+                grade: score
+              });
+            }
           }}
           onExit={() => setShowFlashcardQuizTest(false)}
         />
@@ -2548,7 +2550,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                         rawQuestionCode={rawQuestionCode}
                         setRawQuestionCode={setRawQuestionCode}
                         setShowFlashcardPreview={setShowFlashcardPreview}
-                        setShowGamePreview={setShowGamePreview}
+                        setShowFlashcardQuizTest={setShowFlashcardQuizTest}
                         handleDownloadSampleFlashcards={handleDownloadSampleFlashcards}
                         handleImportFlashcards={handleImportFlashcards}
                       />

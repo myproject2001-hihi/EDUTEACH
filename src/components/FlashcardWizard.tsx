@@ -17,7 +17,7 @@ interface FlashcardWizardProps {
   rawQuestionCode: string;
   setRawQuestionCode: (code: string) => void;
   setShowFlashcardPreview: (show: boolean) => void;
-  setShowGamePreview: (show: boolean) => void;
+  setShowFlashcardQuizTest: (show: boolean) => void;
   handleDownloadSampleFlashcards: () => void;
   handleImportFlashcards: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -30,7 +30,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   rawQuestionCode,
   setRawQuestionCode,
   setShowFlashcardPreview,
-  setShowGamePreview,
+  setShowFlashcardQuizTest,
   handleDownloadSampleFlashcards,
   handleImportFlashcards,
 }) => {
@@ -193,10 +193,10 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   </button>
                   <button 
                     type="button"
-                    onClick={() => setShowGamePreview(true)} 
+                    onClick={() => setShowFlashcardQuizTest(true)} 
                     className="px-4 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 flex items-center gap-1.5 border border-emerald-500 transition-colors shadow-sm"
                   >
-                    <Play className="w-3.5 h-3.5" /> Xem trước bài kiểm tra
+                    <Play className="w-3.5 h-3.5" /> Xem trước trắc nghiệm
                   </button>
                 </div>
               </div>
