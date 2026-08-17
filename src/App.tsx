@@ -352,16 +352,6 @@ export default function App() {
     setIsAuthenticated(false);
   };
 
-  // Display a gorgeous premium loading screen while initializing auth
-  if (initializingAuth) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-        <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-600 text-sm font-semibold tracking-wide">Đang tải ứng dụng...</p>
-      </div>
-    );
-  }
-
   const filteredNotifications = React.useMemo(() => {
     if (!currentUser) return [];
     return systemNotifications.filter(notif => {
@@ -371,6 +361,16 @@ export default function App() {
       return !notif.targetStudentId || notif.targetStudentId === currentUser.id;
     });
   }, [systemNotifications, currentUser]);
+
+  // Display a gorgeous premium loading screen while initializing auth
+  if (initializingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+        <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-600 text-sm font-semibold tracking-wide">Đang tải ứng dụng...</p>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     if (!currentUser) return null;
