@@ -114,10 +114,11 @@ export interface SystemNotification {
   id: string;
   title: string;
   content: string;
-  type: 'system_update' | 'badge_info' | 'class_reminder' | 'announcement';
+  type: 'system_update' | 'badge_info' | 'class_reminder' | 'announcement' | 'personal_reminder';
   badge: string;
   badgeColor?: string;
   createdAt: string;
+  targetStudentId?: string;
 }
 
 

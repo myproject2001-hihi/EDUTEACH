@@ -362,6 +362,16 @@ export default function App() {
     );
   }
 
+  const filteredNotifications = React.useMemo(() => {
+    if (!currentUser) return [];
+    return systemNotifications.filter(notif => {
+      if (currentUser.role === 'teacher' || currentUser.role === 'admin') {
+        return true;
+      }
+      return !notif.targetStudentId || notif.targetStudentId === currentUser.id;
+    });
+  }, [systemNotifications, currentUser]);
+
   const renderContent = () => {
     if (!currentUser) return null;
     const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
@@ -508,7 +518,7 @@ export default function App() {
                 onOpenGuide={() => setShowGuideOnboarding(true)}
                 assignments={assignments}
                 submissions={submissions}
-                systemNotifications={systemNotifications}
+                systemNotifications={filteredNotifications}
                 classes={classes}
               >
                 {renderContent()}

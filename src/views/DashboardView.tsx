@@ -14,10 +14,10 @@ import {
   isSameMonth
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy, Award, Lock, Sparkles, Trophy, Shield, Coins } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy, Award, Lock, Sparkles, Trophy, Shield, Coins, Bell, BellRing } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, increment } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { UserAvatar } from '../components/UserAvatar';
 import { AssignmentListSkeleton } from '../components/Skeletons';
@@ -115,6 +115,36 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
   const [isClaiming, setIsClaiming] = React.useState(false);
   const [claimSuccess, setClaimSuccess] = React.useState(false);
+  const [remindedIds, setRemindedIds] = React.useState<string[]>([]);
+
+  const handleRequestReminder = async (assignmentId: string, title: string, dueDate: string) => {
+    try {
+      const id = `personal_remind_${user.id}_${assignmentId}`;
+      const dueDateStr = new Date(dueDate).toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      
+      const newNotif = {
+        id,
+        title: `⏰ Nhắc nhở: Sắp tới hạn bài tập "${title}"`,
+        content: `Chào em ${user.name}, bài tập này sắp hết hạn nộp vào lúc ${dueDateStr}. Em nhớ tranh thủ làm bài để đảm bảo đúng hạn nhé!`,
+        type: 'personal_reminder',
+        badge: '⏰ Nhắc Nhở',
+        badgeColor: 'amber',
+        createdAt: new Date().toISOString(),
+        targetStudentId: user.id
+      };
+      
+      await setDoc(doc(db, 'system_notifications', id), newNotif);
+      setRemindedIds(prev => [...prev, assignmentId]);
+    } catch (error) {
+      console.error("Lỗi khi tạo nhắc nhở:", error);
+    }
+  };
 
   const assignments = React.useMemo(() => {
     if (isAdmin) return rawAssignments;
@@ -318,9 +348,29 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                             <AlertCircle className="w-3.5 h-3.5" /> Quá hạn (Trừ điểm)
                           </span>
                         ) : (
-                          <button className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
-                            Làm ngay
-                          </button>
+                          <div className="flex items-center gap-2 w-full sm:w-auto" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleRequestReminder(assignment.id, assignment.title, assignment.dueDate)}
+                              className={`px-3 py-2 border font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shrink-0 ${
+                                remindedIds.includes(assignment.id)
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                  : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-500 hover:text-indigo-600'
+                              }`}
+                            >
+                              {remindedIds.includes(assignment.id) ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5" /> Đã đặt nhắc
+                                </>
+                              ) : (
+                                <>
+                                  <Bell className="w-3.5 h-3.5" /> Nhắc lại cho tôi
+                                </>
+                              )}
+                            </button>
+                            <button className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                              Làm ngay
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>

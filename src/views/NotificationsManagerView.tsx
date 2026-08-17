@@ -35,7 +35,10 @@ export function NotificationsManagerView({ user }: NotificationsManagerViewProps
       (snapshot) => {
         const list: SystemNotification[] = [];
         snapshot.forEach((docSnap) => {
-          list.push(docSnap.data() as SystemNotification);
+          const data = docSnap.data() as SystemNotification;
+          if (!data.targetStudentId) {
+            list.push(data);
+          }
         });
         list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setNotifList(list);

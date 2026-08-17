@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'motion/react';
 import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video } from 'lucide-react';
 import { Role, User, Assignment, Submission, SystemNotification, ClassSession } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 export function getAvatarInitial(name?: string): string {
   if (!name || !name.trim()) return 'U';
@@ -45,6 +47,36 @@ function formatRelativeTime(dateString: string): string {
 export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'unread' | 'all'>('unread');
+  const [remindedIds, setRemindedIds] = useState<string[]>([]);
+
+  const handleRequestReminder = async (assignmentId: string, title: string, dueDate: string) => {
+    try {
+      const id = `personal_remind_${user.id}_${assignmentId}`;
+      const dueDateStr = new Date(dueDate).toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      
+      const newNotif = {
+        id,
+        title: `⏰ Nhắc nhở: Sắp tới hạn bài tập "${title}"`,
+        content: `Chào em ${user.name}, bài tập này sắp hết hạn nộp vào lúc ${dueDateStr}. Em nhớ tranh thủ làm bài để đảm bảo đúng hạn nhé!`,
+        type: 'personal_reminder',
+        badge: '⏰ Nhắc Nhở',
+        badgeColor: 'amber',
+        createdAt: new Date().toISOString(),
+        targetStudentId: user.id
+      };
+      
+      await setDoc(doc(db, 'system_notifications', id), newNotif);
+      setRemindedIds(prev => [...prev, assignmentId]);
+    } catch (error) {
+      console.error("Lỗi khi tạo nhắc nhở:", error);
+    }
+  };
 
   const handleMarkAsRead = (notifId: string) => {
     const currentRead = user.readNotifications || [];
@@ -606,16 +638,37 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                             {upcomingAssignments.map(assignment => {
                               const hoursLeft = Math.max(1, Math.ceil((new Date(assignment.dueDate!).getTime() - Date.now()) / (60 * 60 * 1000)));
                               return (
-                                <div key={assignment.id} className="flex gap-3 items-start p-2 rounded-xl bg-orange-50/50 border border-orange-100/50 hover:bg-orange-50 transition-colors">
+                                <div key={assignment.id} className="flex gap-3 items-start p-2 rounded-xl bg-orange-50/50 border border-orange-100/50 hover:bg-orange-50 transition-colors relative group/item w-full">
                                   <div className="w-8 h-8 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0 mt-0.5 animate-pulse">
                                     ⏰
                                   </div>
-                                  <div>
-                                    <p className="text-xs font-bold text-slate-800">{assignment.title}</p>
-                                    <p className="text-[10px] text-slate-600 font-medium mt-0.5 leading-relaxed">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-slate-800 truncate">{assignment.title}</p>
+                                    <p className="text-[10px] text-slate-600 font-medium mt-0.5 leading-relaxed truncate">
                                       {assignment.classSessionTitle ? `${assignment.classSessionTitle} - ` : ''}Dạng: {assignment.type === 'game' ? 'Game' : assignment.type === 'online_test' ? 'Trắc nghiệm' : 'Tự luận'}
                                     </p>
-                                    <span className="text-[10px] text-orange-600 font-extrabold block mt-1">Còn {hoursLeft} giờ</span>
+                                    <div className="flex items-center justify-between gap-2 mt-1.5 flex-wrap">
+                                      <span className="text-[10px] text-orange-600 font-extrabold">Còn {hoursLeft} giờ</span>
+                                      
+                                      <button
+                                        onClick={() => handleRequestReminder(assignment.id, assignment.title, assignment.dueDate!)}
+                                        className={`text-[9px] px-1.5 py-0.5 rounded border font-black flex items-center gap-0.5 cursor-pointer transition-colors ${
+                                          remindedIds.includes(assignment.id)
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                            : 'bg-white border-orange-200 hover:border-orange-300 text-orange-600 hover:bg-orange-50'
+                                        }`}
+                                      >
+                                        {remindedIds.includes(assignment.id) ? (
+                                          <>
+                                            <Check className="w-2.5 h-2.5 stroke-[3]" /> Đã đặt nhắc
+                                          </>
+                                        ) : (
+                                          <>
+                                            <BellRing className="w-2.5 h-2.5" /> Nhắc tôi
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               );

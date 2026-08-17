@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Assignment, Submission, User } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, X, AlertCircle, FileText, ExternalLink } from 'lucide-react';
+import { Bell, X, AlertCircle, FileText, ExternalLink, Check } from 'lucide-react';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface AssignmentReminderProps {
   user: User;
@@ -20,6 +22,36 @@ export interface AssignmentToast {
 
 export function AssignmentReminder({ user, assignments, submissions }: AssignmentReminderProps) {
   const [toasts, setToasts] = useState<AssignmentToast[]>([]);
+  const [remindedIds, setRemindedIds] = useState<string[]>([]);
+
+  const handleRequestReminder = async (assignmentId: string, title: string, dueDate: string) => {
+    try {
+      const id = `personal_remind_${user.id}_${assignmentId}`;
+      const dueDateStr = new Date(dueDate).toLocaleString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      
+      const newNotif = {
+        id,
+        title: `⏰ Nhắc nhở: Sắp tới hạn bài tập "${title}"`,
+        content: `Chào em ${user.name}, bài tập này sắp hết hạn nộp vào lúc ${dueDateStr}. Em nhớ tranh thủ làm bài để đảm bảo đúng hạn nhé!`,
+        type: 'personal_reminder',
+        badge: '⏰ Nhắc Nhở',
+        badgeColor: 'amber',
+        createdAt: new Date().toISOString(),
+        targetStudentId: user.id
+      };
+      
+      await setDoc(doc(db, 'system_notifications', id), newNotif);
+      setRemindedIds(prev => [...prev, assignmentId]);
+    } catch (error) {
+      console.error("Lỗi khi tạo nhắc nhở:", error);
+    }
+  };
   
   // Track notified assignment IDs using sessionStorage to prevent duplicate alerts on page reloads
   const [notifiedAssignmentIds, setNotifiedAssignmentIds] = useState<string[]>(() => {
@@ -143,10 +175,22 @@ export function AssignmentReminder({ user, assignments, submissions }: Assignmen
                 <FileText className="w-4 h-4" /> Làm Bài Ngay
               </button>
               <button
-                onClick={() => dismissToast(toast.id)}
-                className="px-3 py-2 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-500 hover:text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                onClick={() => handleRequestReminder(toast.assignmentId, toast.title, toast.dueDate)}
+                className={`px-3 py-2 border font-extrabold rounded-xl text-xs transition-colors flex items-center gap-1 shrink-0 ${
+                  remindedIds.includes(toast.assignmentId)
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-slate-200 hover:border-orange-300 hover:bg-orange-50 text-slate-500 hover:text-orange-600'
+                }`}
               >
-                Để sau
+                {remindedIds.includes(toast.assignmentId) ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" /> Đã đặt nhắc
+                  </>
+                ) : (
+                  <>
+                    <Bell className="w-3.5 h-3.5" /> Nhắc nhở tôi
+                  </>
+                )}
               </button>
             </div>
           </motion.div>
