@@ -12,16 +12,31 @@ interface StudentsReportProps {
 
 export function StudentsReportView({ progressData }: StudentsReportProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(progressData[0] || null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(null);
 
   const [className, setClassName] = useState(() => localStorage.getItem('class_name') || '123456');
-  const [academicYear, setAcademicYear] = useState(() => localStorage.getItem('academic_year') || 'Khóa 2024 - 2025');
+  const [academicYear, setAcademicYear] = useState(() => localStorage.getItem('academic_year') || 'Khóa 2026 - 2027');
 
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'roster' | 'requests'>('roster');
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);
+
+  // Lắng nghe danh sách tất cả người dùng thời gian thực
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setAllUsers(list);
+    }, (error) => {
+      console.error("Lỗi tải danh sách người dùng:", error);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'reset_requests'), (snapshot) => {
@@ -37,6 +52,61 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     });
     return () => unsubscribe();
   }, []);
+
+  // Lọc danh sách học sinh từ bộ sưu tập users
+  const studentUsers = React.useMemo(() => {
+    return allUsers.filter(u => u.role === 'student');
+  }, [allUsers]);
+
+  // Tổng hợp danh sách học sinh theo mã lớp học đang chọn
+  const combinedRoster = React.useMemo(() => {
+    const filterClass = className.trim().toLowerCase();
+
+    // Lọc học sinh có mã lớp khớp với bộ lọc (hoặc nếu để trống/Tất cả thì hiện hết)
+    const matchedUsers = studentUsers.filter(u => {
+      if (!filterClass || filterClass === 'tất cả') return true;
+      const uClass = (u.className || u.connectionCode || '').trim().toLowerCase();
+      return uClass === filterClass;
+    });
+
+    return matchedUsers.map(u => {
+      const existingProgress = progressData.find(p => p.studentId === u.id || (p.studentName && u.name && p.studentName.trim().toLowerCase() === u.name.trim().toLowerCase()));
+      if (existingProgress) {
+        return {
+          ...existingProgress,
+          studentId: u.id,
+          studentName: u.name || existingProgress.studentName,
+          phoneStudent: u.phoneStudent || existingProgress.phoneStudent || '',
+          phoneParent: u.phoneParent || existingProgress.phoneParent || '',
+          className: u.className || existingProgress.className || className,
+        };
+      }
+      return {
+        studentId: u.id,
+        studentName: u.name || 'Học sinh',
+        phoneStudent: u.phoneStudent || '',
+        phoneParent: u.phoneParent || '',
+        className: u.className || className,
+        completionRate: 0,
+        averageGrade: 0,
+        attendanceRate: 100,
+        recentGrades: [],
+      };
+    });
+  }, [studentUsers, progressData, className]);
+
+  useEffect(() => {
+    if (combinedRoster.length > 0) {
+      if (!selectedStudent) {
+        setSelectedStudent(combinedRoster[0]);
+      } else {
+        const updated = combinedRoster.find(s => s.studentId === selectedStudent.studentId);
+        if (updated) setSelectedStudent(updated);
+      }
+    } else {
+      setSelectedStudent(null);
+    }
+  }, [combinedRoster]);
 
   const handleApproveRequest = async (requestId: string, username: string) => {
     // Tạo mật khẩu tạm ngẫu nhiên: ví dụ Edu@2026_ + số ngẫu nhiên 4 chữ số
@@ -86,9 +156,10 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     }
   };
 
-  const filteredData = progressData.filter(s => 
+  const filteredData = combinedRoster.filter(s => 
     s.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.phoneStudent && s.phoneStudent.includes(searchTerm))
+    (s.phoneStudent && s.phoneStudent.includes(searchTerm)) ||
+    (s.phoneParent && s.phoneParent.includes(searchTerm))
   );
 
   return (
@@ -160,7 +231,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
           </div>
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={progressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={combinedRoster} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="studentName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} dy={8} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} domain={[0, 10]} />
@@ -183,7 +254,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
           </div>
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={progressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={combinedRoster} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="studentName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} dy={8} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} domain={[0, 100]} />
@@ -283,14 +354,25 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredData.map((student) => (
-                    <tr 
-                      key={student.studentId} 
-                      onClick={() => setSelectedStudent(student)}
-                      className={`hover:bg-indigo-50/50 cursor-pointer transition-colors ${
-                        selectedStudent?.studentId === student.studentId ? 'bg-indigo-50/80 font-semibold' : ''
-                      }`}
-                    >
+                  {filteredData.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                        <User className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p className="font-bold text-slate-700 text-sm">Chưa có học sinh nào trong lớp "{className}"</p>
+                        <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                          Gán mã lớp <strong className="text-indigo-600">{className}</strong> cho học sinh tại mục <i>Console Quản trị &gt; Đổi vai trò / Đổi mã lớp</i> hoặc nhập mã lớp khác ở ô phía trên.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredData.map((student) => (
+                      <tr 
+                        key={student.studentId} 
+                        onClick={() => setSelectedStudent(student)}
+                        className={`hover:bg-indigo-50/50 cursor-pointer transition-colors ${
+                          selectedStudent?.studentId === student.studentId ? 'bg-indigo-50/80 font-semibold' : ''
+                        }`}
+                      >
                       <td className="px-5 py-4 font-bold text-slate-900">
                         <div>
                           <p className="text-sm">{student.studentName}</p>
@@ -311,7 +393,8 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                         <button className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Xem tiến độ</button>
                       </td>
                     </tr>
-                  ))}
+                  ))
+                )}
                 </tbody>
               </table>
             </div>

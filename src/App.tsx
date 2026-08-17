@@ -7,11 +7,11 @@ import { StudentsReportView } from './views/StudentsReportView';
 import { SimulationsView } from './views/SimulationsView';
 import { AuthView } from './views/AuthView';
 import { currentUserMock } from './mockData';
-import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress, SystemNotification } from './types';
+import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress, SystemNotification, LoveLetter } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, updateDoc, increment } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 
 import { SettingsView } from './views/SettingsView';
 import { AdminConsoleView } from './views/AdminConsoleView';
@@ -19,6 +19,9 @@ import { GuideOnboardingModal } from './components/GuideOnboardingModal';
 import { ClassSessionReminder } from './components/ClassSessionReminder';
 import { AssignmentReminder } from './components/AssignmentReminder';
 import { NotificationsManagerView } from './views/NotificationsManagerView';
+import { saveSimulationToFirestore } from './lib/simulationStorage';
+import { LoveLetterModal } from './components/LoveLetterModal';
+import { RobotGuide } from './components/RobotGuide';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,10 +37,21 @@ export default function App() {
   const [progressData, setProgressData] = useState<StudentProgress[]>([]);
   const [simulations, setSimulations] = useState<HTMLSimulation[]>([]);
   const [systemNotifications, setSystemNotifications] = useState<SystemNotification[]>([]);
+  const [loveLetters, setLoveLetters] = useState<LoveLetter[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [activeUnreadLetter, setActiveUnreadLetter] = useState<LoveLetter | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [initializingAuth, setInitializingAuth] = useState(true);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
+  const [sessionReadLetters, setSessionReadLetters] = useState<string[]>(() => {
+    try {
+      const stored = sessionStorage.getItem('session_read_letters');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // 1. Setup Firebase Auth state listener and real-time user profile sync
   useEffect(() => {
@@ -200,6 +214,29 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'system_notifications');
     });
 
+    // Listen to love letters
+    const unsubscribeLetters = onSnapshot(collection(db, 'love_letters'), (snapshot) => {
+      const list: LoveLetter[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as LoveLetter);
+      });
+      list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setLoveLetters(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'love_letters');
+    });
+
+    // Listen to all registered users (for targeting/management)
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const list: User[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as User);
+      });
+      setAllUsers(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
+    });
+
     return () => {
       unsubscribeAssignments();
       unsubscribeSubmissions();
@@ -207,8 +244,91 @@ export default function App() {
       unsubscribeClasses();
       unsubscribeProgress();
       unsubscribeNotifications();
+      unsubscribeLetters();
+      unsubscribeUsers();
     };
   }, [isAuthenticated]);
+
+  // Effect to evaluate active unread letter for currentUser upon login
+  useEffect(() => {
+    if (!currentUser || loveLetters.length === 0) {
+      setActiveUnreadLetter(null);
+      return;
+    }
+
+    const match = loveLetters.find((letter) => {
+      const isImage1Target = ['class', 'specific_user', 'all_students', 'all_teachers'].includes(letter.targetType);
+
+      if (isImage1Target) {
+        // Image 1 target types: ONLY filter out if read in the CURRENT session
+        if (sessionReadLetters.includes(letter.id)) {
+          return false;
+        }
+      } else {
+        // Image 2 target (next_registered): Filter out if read globally in Firestore
+        if (letter.readByUsers && letter.readByUsers.includes(currentUser.id)) {
+          return false;
+        }
+      }
+
+      if (letter.targetType === 'all_students' && currentUser.role === 'student') return true;
+      if (letter.targetType === 'all_teachers' && currentUser.role === 'teacher') return true;
+      if (letter.targetType === 'specific_user' && letter.targetValue === currentUser.id) return true;
+
+      if (letter.targetType === 'class') {
+        const cls = (letter.targetValue || '').toLowerCase().trim();
+        const userCls = (currentUser.className || '').toLowerCase().trim();
+        if (cls && userCls && (userCls === cls || cls.includes(userCls) || userCls.includes(cls))) {
+          return true;
+        }
+      }
+
+      if (letter.targetType === 'next_registered') {
+        // Any user registered AFTER or ON the letter's creation date gets this welcome letter on first login
+        const userCreated = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : 0;
+        const letterCreated = new Date(letter.createdAt).getTime();
+        
+        // Give a safe 5-second leeway buffer
+        if (userCreated >= (letterCreated - 5000)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (match) {
+      setActiveUnreadLetter(match);
+    } else {
+      setActiveUnreadLetter(null);
+    }
+  }, [currentUser, loveLetters, sessionReadLetters]);
+
+  const handleMarkLetterRead = async (letterId: string) => {
+    if (!currentUser) return;
+    try {
+      const letter = loveLetters.find(l => l.id === letterId);
+      if (letter) {
+        const isImage1Target = ['class', 'specific_user', 'all_students', 'all_teachers'].includes(letter.targetType);
+        
+        if (isImage1Target) {
+          // Add to current session-based read list so it immediately hides in this session
+          const updatedSession = [...sessionReadLetters, letterId];
+          setSessionReadLetters(updatedSession);
+          sessionStorage.setItem('session_read_letters', JSON.stringify(updatedSession));
+        }
+        
+        // For analytics and status tracking (or global read for Image 2), save to readByUsers in Firestore
+        const letterRef = doc(db, 'love_letters', letterId);
+        await updateDoc(letterRef, {
+          readByUsers: arrayUnion(currentUser.id)
+        });
+      }
+      setActiveUnreadLetter(null);
+    } catch (err) {
+      console.error('Lỗi khi cập nhật trạng thái đã đọc thư:', err);
+    }
+  };
 
   const handleUpdateUser = async (updated: User) => {
     if (auth.currentUser) {
@@ -309,24 +429,15 @@ export default function App() {
   };
 
   const handleAddSimulation = async (newSim: HTMLSimulation) => {
-    const simId = newSim.id || `sim_${Date.now()}`;
-    const simData = {
-      id: simId,
-      title: newSim.title || 'Mô phỏng mới',
-      description: newSim.description || '',
-      url: newSim.url || '',
-      htmlContent: newSim.htmlContent || '',
-      thumbnail: newSim.thumbnail || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80',
-      category: newSim.category || 'Đại Số',
-      hasQuiz: !!newSim.hasQuiz,
-      teacherId: newSim.teacherId || currentUser?.id || '',
-      teacherName: newSim.teacherName || currentUser?.name || 'Giáo viên',
-      createdAt: new Date().toISOString(),
-    };
     try {
-      await setDoc(doc(db, 'simulations', simId), simData);
+      await saveSimulationToFirestore({
+        ...newSim,
+        teacherId: newSim.teacherId || currentUser?.id || '',
+        teacherName: newSim.teacherName || currentUser?.name || 'Giáo viên',
+      });
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `simulations/${simId}`);
+      console.error('Lỗi lưu mô phỏng:', error);
+      handleFirestoreError(error, OperationType.CREATE, `simulations/${newSim.id}`);
     }
   };
 
@@ -357,6 +468,8 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    sessionStorage.removeItem('session_read_letters');
+    setSessionReadLetters([]);
     await signOut(auth);
     setIsAuthenticated(false);
   };
@@ -384,12 +497,13 @@ export default function App() {
   const renderContent = () => {
     if (!currentUser) return null;
     const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
+    const activeUser = { ...currentUser, role };
 
     switch (activeTab) {
       case 'dashboard':
         return (
           <DashboardView 
-            user={currentUser} 
+            user={activeUser} 
             assignments={assignments} 
             submissions={submissions}
             classes={classes}
@@ -402,10 +516,12 @@ export default function App() {
       case 'admin':
         return (role === 'admin' || currentUser.role === 'admin') ? (
           <AdminConsoleView 
-            user={currentUser} 
+            user={activeUser} 
             assignments={assignments} 
             classes={classes} 
             simulations={simulations} 
+            submissions={submissions}
+            loveLetters={loveLetters}
             isLoadingAssignments={isLoadingAssignments}
           />
         ) : null;
@@ -413,7 +529,7 @@ export default function App() {
         return (
           <AssignmentsView 
             key="assignments"
-            user={currentUser}
+            user={activeUser}
             assignments={assignments}
             submissions={submissions}
             isLoadingAssignments={isLoadingAssignments}
@@ -431,7 +547,7 @@ export default function App() {
         return (
           <AssignmentsView 
             key="games"
-            user={currentUser}
+            user={activeUser}
             assignments={assignments}
             submissions={submissions}
             isLoadingAssignments={isLoadingAssignments}
@@ -449,7 +565,7 @@ export default function App() {
         return (
           <AssignmentsView 
             key="flashcards"
-            user={currentUser}
+            user={activeUser}
             assignments={assignments}
             submissions={submissions}
             isLoadingAssignments={isLoadingAssignments}
@@ -464,19 +580,26 @@ export default function App() {
           />
         );
       case 'schedule':
-        return <ScheduleView user={currentUser} classes={classes} onAddClass={handleAddClass} />;
+        return <ScheduleView user={activeUser} classes={classes} onAddClass={handleAddClass} />;
       case 'notifications-manager':
-        return isTeacherOrAdmin ? <NotificationsManagerView user={currentUser} /> : null;
+        return isTeacherOrAdmin ? (
+          <NotificationsManagerView
+            user={activeUser}
+            loveLetters={loveLetters}
+            usersList={allUsers}
+            classesList={classes.map((c) => c.title || c.id)}
+          />
+        ) : null;
       case 'students':
         return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} /> : null;
       case 'simulations':
-        return <SimulationsView user={currentUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
+        return <SimulationsView user={activeUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'settings':
-        return isTeacherOrAdmin ? <SettingsView user={currentUser} /> : null;
+        return isTeacherOrAdmin ? <SettingsView user={activeUser} /> : null;
       default:
         return (
           <DashboardView 
-            user={currentUser} 
+            user={activeUser} 
             assignments={assignments} 
             submissions={submissions} 
             classes={classes} 
@@ -534,6 +657,19 @@ export default function App() {
               </Layout>
               <ClassSessionReminder user={currentUser} classes={classes} />
               <AssignmentReminder user={currentUser} assignments={assignments} submissions={submissions} />
+              <RobotGuide 
+                user={{ ...currentUser, role }} 
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+              
+              {activeUnreadLetter && (
+                <LoveLetterModal
+                  letter={activeUnreadLetter}
+                  currentUser={currentUser}
+                  onClose={() => handleMarkLetterRead(activeUnreadLetter.id)}
+                />
+              )}
             </>
           )}
           

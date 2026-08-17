@@ -15,6 +15,7 @@ export interface User {
   connectionCode?: string;
   points?: number; // Điểm tích lũy cá nhân
   readNotifications?: string[]; // IDs of notifications marked as read
+  createdAt?: string;
 }
 
 export interface QuizQuestion {
@@ -54,6 +55,7 @@ export interface Assignment {
 export interface Submission {
   id: string;
   assignmentId: string;
+  assignmentTitle?: string;
   studentId: string;
   studentName?: string;
   content: string;
@@ -61,6 +63,7 @@ export interface Submission {
   grade?: number;
   feedback?: string;
   fileUrl?: string;
+  imageUrls?: string[];
   quizAnswers?: Record<string, number>; // questionId -> optionIndex
   isPenalty?: boolean; // Nộp muộn / chưa nộp bị trừ điểm
   teacherId?: string;
@@ -74,6 +77,8 @@ export interface ClassSession {
   endTime: string;
   link: string;
   note?: string;
+  description?: string;
+  createdAt?: string;
   teacherId?: string;
   teacherName?: string;
 }
@@ -87,6 +92,7 @@ export interface HTMLSimulation {
   category?: string;
   hasQuiz?: boolean;
   htmlContent?: string;
+  createdAt?: string;
   teacherId?: string;
   teacherName?: string;
 }
@@ -119,6 +125,23 @@ export interface SystemNotification {
   badgeColor?: string;
   createdAt: string;
   targetStudentId?: string;
+}
+
+export interface LoveLetter {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: 'admin' | 'teacher' | 'student';
+  title: string;
+  content: string;
+  envelopeStyle: 'rose_love' | 'pastel_gold' | 'ocean_blue' | 'vintage_warm';
+  fontStyle?: string; // itim | marck | patrick | mali | sriracha
+  targetType: 'next_registered' | 'class' | 'specific_user' | 'all_teachers' | 'all_students';
+  targetValue?: string; // Tên lớp, ID user, v.v.
+  targetUserName?: string;
+  createdAt: string;
+  readByUsers?: string[];
+  alreadyClaimedUserId?: string;
 }
 
 

@@ -21,6 +21,7 @@ import { collection, onSnapshot, doc, updateDoc, increment, setDoc } from 'fireb
 import { motion } from 'motion/react';
 import { UserAvatar } from '../components/UserAvatar';
 import { AssignmentListSkeleton } from '../components/Skeletons';
+import { StudentLoveLetterForm } from '../components/StudentLoveLetterForm';
 
 interface DashboardProps {
   user: User;
@@ -113,8 +114,6 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   const isAdmin = user.role === 'admin';
   const isTeacher = user.role === 'teacher' || isAdmin;
   const [className, setClassName] = React.useState(() => localStorage.getItem('class_name') || '123456');
-  const [isClaiming, setIsClaiming] = React.useState(false);
-  const [claimSuccess, setClaimSuccess] = React.useState(false);
   const [remindedIds, setRemindedIds] = React.useState<string[]>([]);
 
   const handleRequestReminder = async (assignmentId: string, title: string, dueDate: string) => {
@@ -171,8 +170,6 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   const [selectedDate, setSelectedDate] = React.useState<Date>(new Date());
   const [dashboardNotes, setDashboardNotes] = React.useState<Record<string, string>>({
     [format(new Date(), 'yyyy-MM-dd')]: 'Ôn tập công thức Toán & chuẩn bị vào phòng học trực tuyến đúng giờ.',
-    '2026-08-06': 'Giao bài tập Đại số - Tiết 24 trước buổi học tiếp theo.',
-    '2026-08-10': 'Kiểm tra trắc nghiệm Online: Phương trình lượng giác.',
   });
   const [newNoteText, setNewNoteText] = React.useState('');
 
@@ -180,12 +177,39 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   const mySubmissions = submissions.filter(s => s.studentId === user.id);
   const nextClass = classes.find(c => new Date(c.endTime) >= new Date()) || classes[0];
 
-  // Monthly progress mock data for student progress graph
-  const monthlyProgressData = [
-    { month: 'Tháng 8', diemKiemTra: 8.0, diemMoPhong: 8.5, trungBinh: 8.2 },
-    { month: 'Tháng 9', diemKiemTra: 8.8, diemMoPhong: 9.0, trungBinh: 8.9 },
-    { month: 'Tháng 10', diemKiemTra: 9.2, diemMoPhong: 9.5, trungBinh: 9.3 },
-  ];
+  // Monthly progress calculated dynamically from actual student submissions
+  const monthlyProgressData = React.useMemo(() => {
+    const gradedSubs = mySubmissions.filter(s => s.grade !== undefined && s.grade !== null);
+    if (gradedSubs.length === 0) return [];
+
+    const groups: Record<string, { quizScores: number[]; simScores: number[] }> = {};
+
+    gradedSubs.forEach(sub => {
+      const d = new Date(sub.submittedAt || Date.now());
+      const monthKey = `Tháng ${d.getMonth() + 1}`;
+      if (!groups[monthKey]) {
+        groups[monthKey] = { quizScores: [], simScores: [] };
+      }
+      const assign = assignments.find(a => a.id === sub.assignmentId);
+      const isSim = assign?.type === 'simulation';
+      if (isSim) {
+        groups[monthKey].simScores.push(sub.grade!);
+      } else {
+        groups[monthKey].quizScores.push(sub.grade!);
+      }
+    });
+
+    return Object.keys(groups).map(m => {
+      const g = groups[m];
+      const avgQuiz = g.quizScores.length > 0 ? Number((g.quizScores.reduce((a, b) => a + b, 0) / g.quizScores.length).toFixed(1)) : 0;
+      const avgSim = g.simScores.length > 0 ? Number((g.simScores.reduce((a, b) => a + b, 0) / g.simScores.length).toFixed(1)) : 0;
+      return {
+        month: m,
+        diemKiemTra: avgQuiz,
+        diemMoPhong: avgSim,
+      };
+    });
+  }, [mySubmissions, assignments]);
 
   // Teacher status logic
   const [usersList, setUsersList] = useState<User[]>([]);
@@ -204,7 +228,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   }, []);
 
   const studentsInClass = usersList.filter(u => u.role === 'student' && (!u.className || u.className === className));
-  const effectiveTotalStudents = studentsInClass.length > 0 ? studentsInClass.length : 3;
+  const effectiveTotalStudents = studentsInClass.length;
   const recentAssignment = assignments[0];
   const submittedStudentIds = submissions.filter(s => s.assignmentId === recentAssignment?.id).map(s => s.studentId);
   const submittedCountForRecent = submittedStudentIds.length;
@@ -476,19 +500,29 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 </div>
               </div>
 
-              <div className="h-72 w-full mt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyProgressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} dy={8} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} domain={[0, 10]} />
-                    <Tooltip contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
-                    <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: 'bold' }} />
-                    <Bar dataKey="diemKiemTra" name="Bài kiểm tra trắc nghiệm" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={24} />
-                    <Bar dataKey="diemMoPhong" name="Thực hành Mô phỏng" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {monthlyProgressData.length > 0 ? (
+                <div className="h-72 w-full mt-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyProgressData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} dy={8} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} domain={[0, 10]} />
+                      <Tooltip contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                      <Legend wrapperStyle={{ paddingTop: '10px', fontSize: '12px', fontWeight: 'bold' }} />
+                      <Bar dataKey="diemKiemTra" name="Bài kiểm tra trắc nghiệm" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={24} />
+                      <Bar dataKey="diemMoPhong" name="Thực hành Mô phỏng" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 mt-2">
+                  <TrendingUp className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                  <p className="font-bold text-slate-700 text-sm">Chưa có dữ liệu kết quả học tập</p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Hãy hoàn thành các bài tập kiểm tra và mô phỏng được giao để theo dõi tiến độ học tập thực tế nhé!
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -510,7 +544,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                   <p className="text-xs text-slate-500 mt-1">Đạt điểm tích lũy từ các hoạt động học tập để mở khóa huy hiệu danh giá</p>
                 </div>
                 
-                {/* Real-time points counter & daily bonus claim */}
+                {/* Real-time points counter */}
                 <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-3 rounded-2xl self-start sm:self-center">
                   <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl">
                     <Coins className="w-4 h-4 text-amber-500 shrink-0" />
@@ -518,48 +552,6 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                       {(user.points || 0).toLocaleString()} <span className="text-[10px] text-slate-500 font-semibold">Xu</span>
                     </span>
                   </div>
-                  
-                  <button
-                    type="button"
-                    disabled={isClaiming || claimSuccess}
-                    onClick={async () => {
-                      if (isClaiming || claimSuccess) return;
-                      setIsClaiming(true);
-                      try {
-                        const studentRef = doc(db, 'users', user.id);
-                        await updateDoc(studentRef, {
-                          points: increment(50)
-                        });
-                        setClaimSuccess(true);
-                        setTimeout(() => setClaimSuccess(false), 2500);
-                      } catch (err) {
-                        console.error("Lỗi khi cộng xu thử nghiệm:", err);
-                      } finally {
-                        setIsClaiming(false);
-                      }
-                    }}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1 shadow-sm ${
-                      claimSuccess 
-                        ? 'bg-emerald-500 text-white shadow-emerald-200/30'
-                        : isClaiming 
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-indigo-200/30'
-                    }`}
-                  >
-                    {claimSuccess ? (
-                      <>
-                        <Check className="w-3 h-3" />
-                        <span>Đã cộng +50 xu!</span>
-                      </>
-                    ) : isClaiming ? (
-                      <span>Đang nhận...</span>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3 h-3 text-amber-300" />
-                        <span>Nhận 50 xu chuyên cần</span>
-                      </>
-                    )}
-                  </button>
                 </div>
               </div>
 
@@ -683,6 +675,17 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 })}
               </motion.div>
             </motion.div>
+          )}
+
+          {/* STUDENT LOVE LETTER SYSTEM */}
+          {!isTeacher && (
+            <div className="pt-2">
+              <StudentLoveLetterForm
+                currentUser={user}
+                classes={classes}
+                usersList={usersList}
+              />
+            </div>
           )}
 
         </div>

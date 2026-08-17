@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { User, SystemNotification } from '../types';
+import { User, SystemNotification, LoveLetter } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, setDoc, doc, deleteDoc } from 'firebase/firestore';
-import { BellRing, Plus, Trash2, Search, Sparkles, Check, Clock, Shield, Award, BookOpen, Volume2 } from 'lucide-react';
+import { BellRing, Plus, Trash2, Search, Sparkles, Check, Clock, Shield, Award, BookOpen, Volume2, Heart, Mail } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationListSkeleton } from '../components/Skeletons';
+import { LoveLetterManager } from '../components/LoveLetterManager';
 
 interface NotificationsManagerViewProps {
   user: User;
+  loveLetters?: LoveLetter[];
+  usersList?: User[];
+  classesList?: string[];
 }
 
-export function NotificationsManagerView({ user }: NotificationsManagerViewProps) {
+export function NotificationsManagerView({ user, loveLetters = [], usersList = [], classesList = [] }: NotificationsManagerViewProps) {
   const isAdmin = user.role === 'admin';
   const isTeacher = user.role === 'teacher' || isAdmin;
 
+  const [activeSubTab, setActiveSubTab] = useState<'notifications' | 'letters'>('notifications');
   const [notifList, setNotifList] = useState<SystemNotification[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -27,6 +32,10 @@ export function NotificationsManagerView({ user }: NotificationsManagerViewProps
   const [badgeColor, setBadgeColor] = useState(isAdmin ? 'emerald' : 'indigo');
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const showNotify = (type: 'success' | 'error' | 'info', msg: string) => {
+    setMessage({ type: type === 'info' ? 'success' : type, text: msg });
+  };
 
   useEffect(() => {
     // Listen to notifications
@@ -120,15 +129,42 @@ export function NotificationsManagerView({ user }: NotificationsManagerViewProps
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10 px-4 md:px-0">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* Header & Navigation Subtabs */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Quản lý Bảng thông báo</h2>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Trung Tâm Truyền Thông & Thư Nhắn</h2>
           <p className="text-slate-500 text-sm mt-0.5">
             {isAdmin 
-              ? 'Tạo cập nhật hệ thống, báo điểm số, huy hiệu hoặc gửi thông báo chung đến bảng tin của học sinh.' 
-              : 'Gửi thông báo bài tập đã chấm, cập nhật điểm, huy hiệu học tập hoặc gửi lời nhắc nhở.'}
+              ? 'Tạo thông báo bảng tin, cập nhật hệ thống hoặc gửi thư phong bì chào mừng đến học sinh & giáo viên.' 
+              : 'Gửi thông báo bài tập đã chấm, huy hiệu hoặc soạn bức thư phong bì chào mừng học sinh.'}
           </p>
+        </div>
+
+        {/* Subtab Buttons */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200/80">
+          <button
+            onClick={() => setActiveSubTab('notifications')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              activeSubTab === 'notifications'
+                ? 'bg-white text-indigo-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BellRing className="w-4 h-4 text-indigo-600" />
+            <span>Thông Báo Bảng Tin ({notifList.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('letters')}
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              activeSubTab === 'letters'
+                ? 'bg-white text-rose-700 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Heart className="w-4 h-4 text-rose-500 fill-rose-100" />
+            <span>Thư Yêu Thương ({loveLetters.length})</span>
+          </button>
         </div>
       </div>
 
@@ -143,7 +179,16 @@ export function NotificationsManagerView({ user }: NotificationsManagerViewProps
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {activeSubTab === 'letters' ? (
+        <LoveLetterManager
+          currentUser={user}
+          letters={loveLetters}
+          usersList={usersList}
+          classesList={classesList}
+          showNotify={showNotify}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Create Form */}
         <div className="lg:col-span-1 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
           <div>
@@ -389,6 +434,7 @@ export function NotificationsManagerView({ user }: NotificationsManagerViewProps
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -3,13 +3,14 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
 import { FlashcardPreviewModal } from '../components/FlashcardPreviewModal';
+import { SimulationFrame } from '../components/SimulationFrame';
 import { db } from '../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -354,6 +355,61 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
   return { groupTitle: initialGroupTitle, parsedQuestions: questionsList };
 }
 
+export function questionsToRawCode(questions?: QuizQuestion[]): string {
+  if (!questions || questions.length === 0) return SAMPLE_TEMPLATES.mau2;
+  return questions.map((q, idx) => {
+    let str = `${q.numStr || `Câu ${idx + 1}.`} ${q.question || ''}\n`;
+    
+    if (q.type === 'multiple_choice' && q.options) {
+      const labels = ['A.', 'B.', 'C.', 'D.'];
+      q.options.forEach((opt, oIdx) => {
+        if (opt) str += `${labels[oIdx] || 'A.'} ${opt}\n`;
+      });
+    } else if (q.type === 'true_false' && q.subOptions) {
+      const labels = ['a)', 'b)', 'c)', 'd)'];
+      q.subOptions.forEach((sOpt, sIdx) => {
+        if (sOpt) str += `${labels[sIdx] || 'a)'} ${sOpt}\n`;
+      });
+    } else if (q.type === 'matching' && q.matchingPairs) {
+      q.matchingPairs.forEach(pair => {
+        str += `${pair.left} - ${pair.right}\n`;
+      });
+    }
+
+    if (q.solutionText || q.correctAnswer !== undefined || q.method) {
+      str += `\nHướng dẫn giải\n`;
+      if (q.method) {
+        str += `Phương pháp: ${q.method}\n`;
+      }
+      if (q.type === 'multiple_choice' && typeof q.correctAnswer === 'number') {
+        const char = ['A', 'B', 'C', 'D'][q.correctAnswer] || 'A';
+        str += `Đáp án đúng là: ${char}.\n`;
+      } else if (q.type === 'true_false' && Array.isArray(q.correctAnswer)) {
+        const tfStr = q.correctAnswer.map(v => v === 1 ? 'đúng' : 'sai').join(', ');
+        str += `Đáp án đúng là: ${tfStr}.\n`;
+      } else if (q.correctAnswer !== undefined && typeof q.correctAnswer !== 'object') {
+        str += `Đáp án đúng là: ${q.correctAnswer}.\n`;
+      }
+      if (q.solutionText) {
+        str += `${q.solutionText}\n`;
+      }
+    }
+    return str;
+  }).join('\n\n');
+}
+
+export function formatForDateTimeInput(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return '';
+  }
+}
+
 export function AssignmentsView({ 
   user, 
   assignments: rawAssignments, 
@@ -481,6 +537,8 @@ export function AssignmentsView({
   }, [rawAssignments, user, isAdmin, viewMode]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
+  const [deleteConfirmAssignment, setDeleteConfirmAssignment] = useState<Assignment | null>(null);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(assignments[0] || null);
 
@@ -873,7 +931,31 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     URL.revokeObjectURL(url);
   };
 
-  const handleCreateAssignment = (e?: React.FormEvent | React.MouseEvent) => {
+  const handleOpenEditModal = (assignment: Assignment) => {
+    setEditingAssignment(assignment);
+    setNewType(assignment.type);
+    setNewTitle(assignment.title || '');
+    setNewDescription(assignment.description || '');
+    setNewDueDate(formatForDateTimeInput(assignment.dueDate));
+    setNewSessionTitle(assignment.classSessionTitle || 'Đại số 10 - Tiết 23');
+    setNewPdfUrl(assignment.pdfUrl || '');
+    setNewSimUrl(assignment.simulationUrl || '');
+    setNewGameType(assignment.gameType || 'quiz_nghieng_dau');
+    setNewGameFormats(assignment.gameFormats || ['multiple_choice', 'true_false']);
+    setNewIsMandatory(assignment.isMandatory || false);
+    setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
+    
+    if (assignment.questions && assignment.questions.length > 0) {
+      setRawQuestionCode(questionsToRawCode(assignment.questions));
+    } else {
+      setRawQuestionCode(SAMPLE_TEMPLATES.mau2);
+    }
+
+    setCreateStep(1);
+    setShowCreateModal(true);
+  };
+
+  const handleSaveAssignment = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
     
     let finalQuestions = questions;
@@ -896,10 +978,10 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       }
     }
 
-    onAddAssignment({
+    const assignmentData = {
       title: newTitle || (newType === 'game' ? 'Game Học Tập' : newType === 'flashcard' ? 'Bộ Flashcard' : 'Bài tập buổi học mới'),
       description: newDescription || 'Các em hoàn thành bài tập đầy đủ đúng hạn trước khi vào giờ học tiếp theo.',
-      dueDate: newDueDate || new Date(Date.now() + 86400000 * 2).toISOString(),
+      dueDate: newDueDate ? new Date(newDueDate).toISOString() : new Date(Date.now() + 86400000 * 2).toISOString(),
       classSessionTitle: newSessionTitle,
       type: newType,
       pdfUrl: newPdfUrl || undefined,
@@ -909,8 +991,28 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       isMandatory: newIsMandatory,
       flashcards: newType === 'flashcard' ? newFlashcards : undefined,
       questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
-    });
+    };
+
+    if (editingAssignment) {
+      const updatedAssignment: Assignment = {
+        ...editingAssignment,
+        ...assignmentData,
+      };
+      try {
+        await setDoc(doc(db, 'assignments', editingAssignment.id), updatedAssignment, { merge: true });
+        if (selectedAssignment?.id === editingAssignment.id) {
+          setSelectedAssignment(updatedAssignment);
+        }
+      } catch (err) {
+        console.error("Error updating assignment:", err);
+        alert("Có lỗi xảy ra khi cập nhật bài tập!");
+      }
+    } else {
+      onAddAssignment(assignmentData);
+    }
+
     setShowCreateModal(false);
+    setEditingAssignment(null);
     setCreateStep(1);
     // Reset
     setNewTitle('');
@@ -921,6 +1023,20 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     setGameSubStep(1);
     setFlashcardSubStep(1);
     setNewGameFormats(['multiple_choice', 'true_false']);
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string) => {
+    try {
+      await deleteDoc(doc(db, 'assignments', assignmentId));
+      if (selectedAssignment?.id === assignmentId) {
+        const remaining = assignments.filter(a => a.id !== assignmentId);
+        setSelectedAssignment(remaining[0] || null);
+      }
+      setDeleteConfirmAssignment(null);
+    } catch (err) {
+      console.error("Error deleting assignment:", err);
+      alert("Có lỗi xảy ra khi xóa bài tập!");
+    }
   };
 
   const handleStudentSubmit = (e?: React.FormEvent) => {
@@ -1279,21 +1395,30 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       {/* Top Header Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Bài Tập Sau Buổi Học</h2>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+            {viewMode === 'games' 
+              ? 'Trò Chơi Học Tập & Tương Tác'
+              : viewMode === 'flashcards' 
+              ? 'Bộ Thẻ Ghi Nhớ (Flashcard)' 
+              : 'Bài Tập Sau Buổi Học'}
+          </h2>
           <p className="text-sm text-slate-500 mt-0.5">
-            {isTeacher 
-              ? 'Nơi tạo bài tập trắc nghiệm online, PDF, bài thực hành và quản lý tình trạng làm bài' 
-              : 'Nơi học sinh làm bài tập từ giáo viên, bắt buộc phải hoàn thành trước buổi học tiếp theo'}
+            {viewMode === 'games'
+              ? (isTeacher ? 'Nơi tạo và giao các trò chơi tương tác ôn tập kiến thức cho học sinh' : 'Luyện tập kiến thức vui nhộn qua các trò chơi tương tác')
+              : viewMode === 'flashcards'
+              ? (isTeacher ? 'Nơi tạo và quản lý các bộ thẻ ghi nhớ giúp học sinh học thuộc khái niệm, từ vựng và định nghĩa' : 'Ghi nhớ định nghĩa, khái niệm và thuật ngữ qua các bộ thẻ ghi nhớ sinh động')
+              : (isTeacher ? 'Nơi tạo bài tập trắc nghiệm online, PDF, bài thực hành và quản lý tình trạng làm bài' : 'Nơi học sinh làm bài tập từ giáo viên, bắt buộc phải hoàn thành trước buổi học tiếp theo')}
           </p>
         </div>
 
         {isTeacher && (
           <button 
             onClick={() => {
-              // Reset type and fields on open
+              setEditingAssignment(null);
               setNewType(viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
               setNewTitle('');
               setNewDescription('');
+              setNewDueDate('');
               setNewPdfUrl('');
               setNewSimUrl('');
               setSelectedSimId('');
@@ -1302,7 +1427,6 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               setGameSubStep(1);
               setFlashcardSubStep(1);
               setCreateStep(1);
-              setNewType(viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
               setShowCreateModal(true);
             }}
             className="flex items-center px-5 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl hover:bg-indigo-700 transition-colors shadow-sm"
@@ -1401,17 +1525,31 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
                         {totalSubs} đã nộp
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setUnsubmittedModalAssignment(assignment);
-                        }}
-                        className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center gap-1 shadow-sm"
-                      >
-                        <AlertTriangle className="w-3 h-3" />
-                        <span>Danh sách chưa nộp</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenEditModal(assignment);
+                          }}
+                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold rounded-xl transition-colors flex items-center gap-1 border border-amber-200 shadow-sm"
+                          title="Chỉnh sửa bài tập"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Sửa</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUnsubmittedModalAssignment(assignment);
+                          }}
+                          className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center gap-1 shadow-sm"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>Chưa nộp</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1440,17 +1578,38 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   </div>
                   
                   {isTeacher && (
-                    <button 
-                      onClick={() => {
-                        const summary = `📝 [BÀI TẬP]: ${selectedAssignment.title}\nHạn nộp: ${format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\nCác em học sinh đăng nhập hệ thống để hoàn thành bài tập nhé!`;
-                        navigator.clipboard.writeText(summary);
-                        alert('Đã sao chép tóm tắt bài tập vào bộ nhớ tạm!');
-                      }}
-                      className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors"
-                    >
-                      <Copy className="w-4 h-4 text-indigo-600" />
-                      Sao chép tóm tắt bài tập
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button 
+                        type="button"
+                        onClick={() => handleOpenEditModal(selectedAssignment)}
+                        className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
+                        title="Chỉnh sửa bài tập này"
+                      >
+                        <Pencil className="w-4 h-4 text-amber-600" />
+                        Chỉnh sửa
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setDeleteConfirmAssignment(selectedAssignment)}
+                        className="flex items-center gap-1.5 text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
+                        title="Xóa bài tập này"
+                      >
+                        <Trash2 className="w-4 h-4 text-rose-600" />
+                        Xóa
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const summary = `📝 [BÀI TẬP]: ${selectedAssignment.title}\nHạn nộp: ${format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\nCác em học sinh đăng nhập hệ thống để hoàn thành bài tập nhé!`;
+                          navigator.clipboard.writeText(summary);
+                          alert('Đã sao chép tóm tắt bài tập vào bộ nhớ tạm!');
+                        }}
+                        className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors"
+                      >
+                        <Copy className="w-4 h-4 text-indigo-600" />
+                        Sao chép tóm tắt
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1543,28 +1702,15 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   {showEmbeddedSim && (
                     <div className="relative w-full h-[550px] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-inner">
                       {(() => {
-                        const matchedSim = (simulations || []).find(s => s.url === selectedAssignment.simulationUrl);
-                        if (matchedSim && matchedSim.htmlContent) {
-                          return (
-                            <iframe 
-                              srcDoc={matchedSim.htmlContent}
-                              className="absolute inset-0 w-full h-full border-0 bg-white"
-                              allowFullScreen
-                              sandbox="allow-scripts allow-same-origin"
-                              title={selectedAssignment.title}
-                            />
-                          );
-                        } else {
-                          return (
-                            <iframe 
-                              src={selectedAssignment.simulationUrl}
-                              className="absolute inset-0 w-full h-full border-0 bg-white"
-                              allowFullScreen
-                              sandbox="allow-scripts allow-same-origin"
-                              title={selectedAssignment.title}
-                            />
-                          );
-                        }
+                        const matchedSim = (simulations || []).find(s => s.url === selectedAssignment.simulationUrl || s.id === selectedAssignment.simulationUrl);
+                        return (
+                          <SimulationFrame 
+                            simulation={matchedSim}
+                            fallbackUrl={selectedAssignment.simulationUrl}
+                            sandbox="allow-scripts allow-same-origin"
+                            title={selectedAssignment.title}
+                          />
+                        );
                       })()}
                     </div>
                   )}
@@ -2699,10 +2845,10 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               ) : (
                 <button 
                   type="button"
-                  onClick={handleCreateAssignment}
+                  onClick={handleSaveAssignment}
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-100 uppercase tracking-wider ml-auto"
                 >
-                  Tạo & Giao bài ngay
+                  {editingAssignment ? 'Lưu thay đổi' : 'Tạo & Giao bài ngay'}
                 </button>
               )}
             </div>
@@ -3303,6 +3449,22 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
           </div>
         )}
       </AnimatePresence>
+
+      {/* DELETE ASSIGNMENT CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmAssignment}
+        onClose={() => setDeleteConfirmAssignment(null)}
+        onConfirm={() => {
+          if (deleteConfirmAssignment) {
+            handleDeleteAssignment(deleteConfirmAssignment.id);
+          }
+        }}
+        title="Xác nhận xóa bài tập"
+        message={`Bạn có chắc chắn muốn xóa bài tập "${deleteConfirmAssignment?.title}"? Tất cả dữ liệu liên quan bài tập này sẽ bị xóa khỏi hệ thống.`}
+        confirmText="Xóa bài tập"
+        cancelText="Hủy"
+        variant="danger"
+      />
 
     </div>
   );

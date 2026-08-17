@@ -391,9 +391,9 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
   return (
     <div className="flex h-screen w-full overflow-hidden font-sans text-slate-800 bg-[#f8fafc]">
       
-      {/* Desktop Sidebar Navigation */}
+      {/* Desktop & Tablet Sidebar Navigation */}
       <aside className="hidden md:flex group w-20 hover:w-64 bg-white text-slate-600 flex-col border-r border-slate-200 absolute z-50 transition-all duration-300 ease-in-out shadow-[4px_0_24px_rgba(0,0,0,0.02)] hover:shadow-[12px_0_32px_rgba(0,0,0,0.05)] overflow-hidden h-full left-0 top-0 print:hidden">
-        <nav className="flex-1 px-3 space-y-2 overflow-y-auto mt-6 custom-scrollbar">
+        <nav className="flex-1 px-3 space-y-2 overflow-y-auto mt-4 sm:mt-6 custom-scrollbar">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -401,14 +401,15 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               <button
                 key={item.id}
                 onClick={() => handleTabClick(item.id)}
-                className={`w-full flex items-center gap-4 px-3 py-3 text-sm rounded-xl transition-all font-medium whitespace-nowrap overflow-hidden ${
+                data-tour={item.id}
+                className={`w-full flex items-center gap-4 px-3 py-3 text-sm 2xl:text-base rounded-xl transition-all font-medium whitespace-nowrap overflow-hidden min-h-[44px] ${
                   isActive
-                    ? 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+                    ? 'bg-indigo-50 text-indigo-600 border border-indigo-100 font-bold'
                     : 'hover:bg-slate-50 text-slate-600 hover:text-slate-900 border border-transparent'
                 }`}
               >
                 <div className="shrink-0 w-8 h-8 flex items-center justify-center">
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  <Icon className={`w-5 h-5 2xl:w-6 2xl:h-6 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`} />
                 </div>
                 <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 truncate">
                   {item.label}
@@ -426,8 +427,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
              <div className="flex items-center gap-3">
                <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
                <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-0 group-hover:w-auto">
-                 <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
-                 <p className="text-[11px] font-medium text-slate-500 truncate capitalize mt-0.5">
+                 <p className="text-sm 2xl:text-base font-bold text-slate-900 truncate">{user.name}</p>
+                 <p className="text-[11px] 2xl:text-xs font-medium text-slate-500 truncate capitalize mt-0.5">
                    {activeRole === 'admin' ? 'Quản trị viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                  </p>
                </div>
@@ -437,11 +438,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative ml-0 md:ml-20 print:ml-0 transition-all duration-300 bg-[#f8fafc] pb-16 md:pb-0 print:pb-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative ml-0 md:ml-20 print:ml-0 transition-all duration-300 bg-[#f8fafc] pb-24 md:pb-0 print:pb-0">
         {/* Top Header */}
-        <header className="h-16 sm:h-20 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 shrink-0 z-40 sticky top-0 shadow-sm print:hidden">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <h2 className="text-base sm:text-xl font-bold text-slate-900 tracking-tight truncate">
+        <header className="h-16 sm:h-20 2xl:h-24 bg-white/90 backdrop-blur-xl border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 md:px-8 shrink-0 z-40 sticky top-0 shadow-sm print:hidden">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <h2 className="text-base sm:text-xl 2xl:text-2xl font-bold text-slate-900 tracking-tight truncate">
               {navItems.find(item => item.id === activeTab)?.label || 'Bảng điều khiển'}
             </h2>
             {isEditingYear ? (
@@ -481,7 +482,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 </button>
               </div>
             ) : (
-              <div className="hidden sm:flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-100 shrink-0 select-none group/year">
+              <div className="hidden md:flex items-center gap-1 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-100 shrink-0 select-none group/year">
                 <span>{academicYear}</span>
                 {isTeacher && (
                   <button
@@ -500,16 +501,16 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             )}
           </div>
           
-          <div className="flex items-center gap-3 sm:gap-5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 md:gap-5 shrink-0">
             <div className="relative">
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
-                className={`p-2 hover:bg-slate-50 rounded-full transition-colors relative ${
+                className={`p-2 hover:bg-slate-50 rounded-full transition-colors relative min-w-[40px] min-h-[40px] flex items-center justify-center ${
                   showNotifications ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-400 hover:text-slate-600'
                 }`}
                 title="Thông báo"
               >
-                <BellRing className="w-5 h-5" />
+                <BellRing className="w-5 h-5 2xl:w-6 2xl:h-6" />
                 {hasUnread && (
                   <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white animate-pulse"></span>
                 )}
@@ -787,15 +788,15 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
           </div>
         </header>
         
-        <div className="flex-1 overflow-auto p-3 sm:p-6 md:p-8 custom-scrollbar">
-          <div className="w-full h-full max-w-7xl 2xl:max-w-[1600px] mx-auto">
+        <div className="flex-1 overflow-auto p-3 sm:p-5 md:p-6 lg:p-8 2xl:p-10 custom-scrollbar">
+          <div className="w-full h-full max-w-7xl 2xl:max-w-[1750px] 3xl:max-w-[2200px] mx-auto">
             {children}
           </div>
         </div>
       </main>
 
-      {/* Mobile & Tablet Touch Bottom Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 z-40 px-2 py-1.5 flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1 sm:gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.04)] print:hidden">
+      {/* Mobile & Tablet Touch Bottom Navigation Bar with Safe Area Support */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-200/90 z-40 px-2 pt-1 pb-safe flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] print:hidden">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -803,14 +804,14 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             <button
               key={item.id}
               onClick={() => handleTabClick(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all shrink-0 min-w-[62px] ${
-                isActive ? 'text-indigo-600 font-bold bg-indigo-50/60' : 'text-slate-500 hover:text-slate-800'
+              className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-2xl transition-all shrink-0 min-w-[64px] min-h-[46px] touch-manipulation ${
+                isActive ? 'text-indigo-600 font-bold bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-slate-900 active:scale-95'
               }`}
             >
-              <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-indigo-100/80' : ''}`}>
+              <div className={`p-1 rounded-xl transition-colors ${isActive ? 'bg-indigo-100/90 text-indigo-700' : ''}`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <span className="text-[10px] mt-0.5 truncate max-w-[68px]">{item.label}</span>
+              <span className="text-[10px] sm:text-[11px] font-semibold mt-0.5 truncate max-w-[70px] tracking-tight">{item.label}</span>
             </button>
           );
         })}

@@ -1,30 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotification } from '../types';
+import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotification, Submission, LoveLetter } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing } from 'lucide-react';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 import { NotificationsManagerView } from './NotificationsManagerView';
 import { TableSkeleton, NotificationListSkeleton } from '../components/Skeletons';
+import { LoveLetterManager } from '../components/LoveLetterManager';
+
+export interface AuditItemDetails {
+  description?: string;
+  dueDate?: string;
+  questionCount?: number;
+  pdfUrl?: string;
+  simulationUrl?: string;
+  gameType?: string;
+  flashcardsCount?: number;
+  isMandatory?: boolean;
+  thumbnail?: string;
+  category?: string;
+  timeRange?: string;
+  subject?: string;
+  grade?: number;
+  feedback?: string;
+  imageCount?: number;
+  fileUrl?: string;
+}
+
+export interface AuditItem {
+  id: string;
+  title: string;
+  categoryType: 'assignment' | 'simulation' | 'class' | 'submission';
+  categoryLabel: string;
+  uploaderName: string;
+  uploaderRole: 'teacher' | 'student' | 'admin' | 'unknown';
+  createdAtFormatted: string;
+  relativeTime: string;
+  timestamp: number;
+  classSessionTitle?: string;
+  collectionName: 'assignments' | 'simulations' | 'class_sessions' | 'submissions';
+  details: AuditItemDetails;
+  rawObj: any;
+}
 
 interface AdminConsoleViewProps {
   user: User;
   assignments: Assignment[];
   classes: ClassSession[];
   simulations: HTMLSimulation[];
+  submissions?: Submission[];
+  loveLetters?: LoveLetter[];
   isLoadingAssignments?: boolean;
 }
 
-export function AdminConsoleView({ user, assignments, classes, simulations }: AdminConsoleViewProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications'>('users');
+export function AdminConsoleView({ user, assignments, classes, simulations, submissions, loveLetters = [] }: AdminConsoleViewProps) {
+  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications' | 'letters'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [loadingResets, setLoadingResets] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'teacher' | 'student'>('all');
+
+  // Resource Audit Console state
+  const [resSearchTerm, setResSearchTerm] = useState('');
+  const [resCategoryFilter, setResCategoryFilter] = useState<'all' | 'assignment' | 'simulation' | 'class' | 'submission'>('all');
+  const [resUploaderFilter, setResUploaderFilter] = useState<string>('all');
+  const [resSortOrder, setResSortOrder] = useState<'newest' | 'oldest' | 'title'>('newest');
+  const [resDisplayMode, setResDisplayMode] = useState<'table' | 'cards'>('table');
+  const [inspectItem, setInspectItem] = useState<AuditItem | null>(null);
+  const [deleteConfirmResource, setDeleteConfirmResource] = useState<{ id: string; title: string; collectionName: string } | null>(null);
+  const [deletingResource, setDeletingResource] = useState(false);
+
+  // Resource Class Allocation state
+  const [assignClassResource, setAssignClassResource] = useState<AuditItem | null>(null);
+  const [targetClassScopeOption, setTargetClassScopeOption] = useState<'all' | 'specific' | 'custom'>('all');
+  const [selectedClassesList, setSelectedClassesList] = useState<string[]>([]);
+  const [customClassInput, setCustomClassInput] = useState<string>('');
+  const [savingClassAllocation, setSavingClassAllocation] = useState(false);
 
   // Notification manager state
   const [notifList, setNotifList] = useState<SystemNotification[]>([]);
@@ -273,6 +328,250 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
     }
   };
 
+  const availableClassOptions = Array.from(new Set([
+    ...classes.map(c => c.title),
+    ...classes.map(c => c.subject).filter(Boolean),
+    ...usersList.map(u => u.className).filter(Boolean) as string[],
+    'Lớp 10A1', 'Lớp 10A2', 'Lớp 11A1', 'Lớp 11A2', 'Lớp 12A1', 'Lớp 12A2', 'Khối 10', 'Khối 11', 'Khối 12', 'Đội tuyển Học sinh giỏi'
+  ])).filter(Boolean);
+
+  const handleOpenAssignModal = (item: AuditItem) => {
+    setAssignClassResource(item);
+    const existingTitle = item.classSessionTitle || 'Toàn bộ học sinh';
+    if (existingTitle === 'Toàn bộ học sinh' || existingTitle === 'Toàn hệ thống' || existingTitle === 'Kho Mô phỏng chung') {
+      setTargetClassScopeOption('all');
+      setSelectedClassesList([]);
+      setCustomClassInput('');
+    } else {
+      setTargetClassScopeOption('specific');
+      const parts = existingTitle.split(',').map(s => s.trim()).filter(Boolean);
+      setSelectedClassesList(parts);
+      setCustomClassInput('');
+    }
+  };
+
+  const handleSaveClassAllocation = async () => {
+    if (!assignClassResource) return;
+    setSavingClassAllocation(true);
+    try {
+      let finalScopeText = '';
+      if (targetClassScopeOption === 'all') {
+        finalScopeText = 'Toàn bộ học sinh';
+      } else if (targetClassScopeOption === 'specific') {
+        if (selectedClassesList.length === 0) {
+          showNotify('error', 'Vui lòng chọn ít nhất 1 lớp học phù hợp!');
+          setSavingClassAllocation(false);
+          return;
+        }
+        finalScopeText = selectedClassesList.join(', ');
+      } else {
+        if (!customClassInput.trim()) {
+          showNotify('error', 'Vui lòng nhập tên lớp hoặc phạm vi tùy chỉnh!');
+          setSavingClassAllocation(false);
+          return;
+        }
+        finalScopeText = customClassInput.trim();
+      }
+
+      const ref = doc(db, assignClassResource.collectionName, assignClassResource.id);
+      if (assignClassResource.collectionName === 'assignments') {
+        await updateDoc(ref, { classSessionTitle: finalScopeText });
+      } else if (assignClassResource.collectionName === 'simulations') {
+        await updateDoc(ref, { category: finalScopeText, classSessionTitle: finalScopeText });
+      } else if (assignClassResource.collectionName === 'class_sessions') {
+        await updateDoc(ref, { subject: finalScopeText, classSessionTitle: finalScopeText });
+      } else if (assignClassResource.collectionName === 'submissions') {
+        await updateDoc(ref, { assignmentTitle: `${assignClassResource.rawObj.assignmentTitle || 'Bài làm'} (${finalScopeText})` });
+      }
+
+      showNotify('success', `Đã thiết lập phân bổ tài nguyên "${assignClassResource.title}" đến lớp: ${finalScopeText}`);
+      setAssignClassResource(null);
+      if (inspectItem?.id === assignClassResource.id) {
+        setInspectItem({ ...inspectItem, classSessionTitle: finalScopeText });
+      }
+    } catch (err: any) {
+      console.error(err);
+      showNotify('error', `Không thể cập nhật phân bổ lớp: ${err.message || 'Lỗi hệ thống'}`);
+    } finally {
+      setSavingClassAllocation(false);
+    }
+  };
+
+  // Helper to format audit timestamps
+  const formatAuditDate = (dateStr?: string) => {
+    if (!dateStr) {
+      return { full: 'Ghi nhận hệ thống', relative: 'Tự động', timestamp: 0 };
+    }
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) {
+        return { full: dateStr, relative: 'Ghi nhận', timestamp: 0 };
+      }
+      const full = d.toLocaleString('vi-VN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      
+      const diffMs = Date.now() - d.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      let relative = '';
+      if (diffMins < 1) relative = 'Vừa xong';
+      else if (diffMins < 60) relative = `${diffMins} phút trước`;
+      else if (diffHours < 24) relative = `${diffHours} giờ trước`;
+      else relative = `${diffDays} ngày trước`;
+
+      return { full, relative, timestamp: d.getTime() };
+    } catch {
+      return { full: dateStr, relative: '', timestamp: 0 };
+    }
+  };
+
+  // Consolidate all system resources into unified Audit list
+  const rawAuditItems: AuditItem[] = [
+    ...assignments.map(a => {
+      const timeInfo = formatAuditDate(a.createdAt || a.dueDate);
+      return {
+        id: a.id,
+        title: a.title,
+        categoryType: 'assignment' as const,
+        categoryLabel: a.type === 'online_test' ? 'Đề kiểm tra Trắc nghiệm' 
+                     : a.type === 'game' ? 'Trò chơi học tập' 
+                     : a.type === 'flashcard' ? 'Bộ Flashcards' 
+                     : a.type === 'simulation' ? 'Bài tập Mô phỏng'
+                     : 'Bài tập Tự luận',
+        uploaderName: a.teacherName || 'Giáo viên phụ trách',
+        uploaderRole: 'teacher' as const,
+        createdAtFormatted: timeInfo.full,
+        relativeTime: timeInfo.relative,
+        timestamp: timeInfo.timestamp,
+        classSessionTitle: a.classSessionTitle || 'Toàn bộ học sinh',
+        collectionName: 'assignments' as const,
+        details: {
+          description: a.description,
+          dueDate: a.dueDate ? formatAuditDate(a.dueDate).full : 'Không có',
+          questionCount: a.questions?.length || 0,
+          pdfUrl: a.pdfUrl,
+          simulationUrl: a.simulationUrl,
+          gameType: a.gameType,
+          flashcardsCount: a.flashcards?.length || 0,
+          isMandatory: a.isMandatory
+        },
+        rawObj: a
+      };
+    }),
+    ...simulations.map(s => {
+      const timeInfo = formatAuditDate(s.createdAt);
+      return {
+        id: s.id,
+        title: s.title,
+        categoryType: 'simulation' as const,
+        categoryLabel: `Thí nghiệm HTML5 (${s.category || 'Tương tác'})`,
+        uploaderName: s.teacherName || 'Giáo viên / Admin',
+        uploaderRole: 'teacher' as const,
+        createdAtFormatted: timeInfo.full,
+        relativeTime: timeInfo.relative,
+        timestamp: timeInfo.timestamp,
+        classSessionTitle: 'Kho Mô phỏng chung',
+        collectionName: 'simulations' as const,
+        details: {
+          description: s.description,
+          simulationUrl: s.url,
+          thumbnail: s.thumbnail,
+          category: s.category
+        },
+        rawObj: s
+      };
+    }),
+    ...classes.map(c => {
+      const timeInfo = formatAuditDate(c.createdAt);
+      return {
+        id: c.id,
+        title: c.title,
+        categoryType: 'class' as const,
+        categoryLabel: 'Lịch học / Buổi học',
+        uploaderName: c.teacherName || 'Giáo viên',
+        uploaderRole: 'teacher' as const,
+        createdAtFormatted: timeInfo.full,
+        relativeTime: timeInfo.relative,
+        timestamp: timeInfo.timestamp,
+        classSessionTitle: c.subject || 'Nhiều lớp',
+        collectionName: 'class_sessions' as const,
+        details: {
+          description: c.description,
+          timeRange: `${c.startTime} - ${c.endTime}`,
+          subject: c.subject
+        },
+        rawObj: c
+      };
+    }),
+    ...(submissions || []).map(sub => {
+      const timeInfo = formatAuditDate(sub.submittedAt);
+      return {
+        id: sub.id,
+        title: `Bài làm: ${sub.studentName || 'Học sinh'} (${sub.assignmentTitle || 'Bài tập'})`,
+        categoryType: 'submission' as const,
+        categoryLabel: 'Bài nộp Học sinh',
+        uploaderName: sub.studentName || 'Học sinh',
+        uploaderRole: 'student' as const,
+        createdAtFormatted: timeInfo.full,
+        relativeTime: timeInfo.relative,
+        timestamp: timeInfo.timestamp,
+        classSessionTitle: 'Bài làm cá nhân',
+        collectionName: 'submissions' as const,
+        details: {
+          description: sub.content,
+          grade: sub.grade,
+          feedback: sub.feedback,
+          imageCount: sub.imageUrls?.length || 0,
+          fileUrl: sub.fileUrl
+        },
+        rawObj: sub
+      };
+    })
+  ];
+
+  // List of unique uploader names for filter dropdown
+  const uniqueUploaders = Array.from(new Set(rawAuditItems.map(item => item.uploaderName))).filter(Boolean);
+
+  // Filter and sort audit list
+  const filteredAuditItems = rawAuditItems.filter(item => {
+    const queryStr = resSearchTerm.toLowerCase();
+    const matchesSearch = item.title.toLowerCase().includes(queryStr) ||
+                          item.uploaderName.toLowerCase().includes(queryStr) ||
+                          (item.classSessionTitle && item.classSessionTitle.toLowerCase().includes(queryStr)) ||
+                          item.id.toLowerCase().includes(queryStr);
+    
+    const matchesCategory = resCategoryFilter === 'all' || item.categoryType === resCategoryFilter;
+    const matchesUploader = resUploaderFilter === 'all' || item.uploaderName === resUploaderFilter;
+
+    return matchesSearch && matchesCategory && matchesUploader;
+  }).sort((a, b) => {
+    if (resSortOrder === 'newest') return b.timestamp - a.timestamp;
+    if (resSortOrder === 'oldest') return a.timestamp - b.timestamp;
+    return a.title.localeCompare(b.title);
+  });
+
+  const confirmDeleteResource = async () => {
+    if (!deleteConfirmResource) return;
+    setDeletingResource(true);
+    try {
+      await deleteDoc(doc(db, deleteConfirmResource.collectionName, deleteConfirmResource.id));
+      showNotify('success', `Đã xóa tài nguyên "${deleteConfirmResource.title}" khỏi Firestore thành công!`);
+      if (inspectItem?.id === deleteConfirmResource.id) {
+        setInspectItem(null);
+      }
+      setDeleteConfirmResource(null);
+    } catch (err: any) {
+      console.error(err);
+      showNotify('error', `Không thể xóa tài nguyên: ${err.message || 'Lỗi hệ thống'}`);
+    } finally {
+      setDeletingResource(false);
+    }
+  };
+
   const handleSystemReset = async () => {
     if (!window.confirm('Bạn có chắc chắn muốn reset lại toàn bộ hệ thống và khởi động lại từ đầu không? Thao tác này sẽ xóa cache, đăng xuất và làm mới ứng dụng.')) {
       return;
@@ -310,7 +609,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100/60 border border-indigo-200 text-indigo-700 rounded-full text-xs font-bold uppercase tracking-wider">
                 <Shield className="w-3.5 h-3.5" />
-                Trung tâm Quản trị viên (Admin Console)
+                Trung tâm Quản trị viên
               </span>
               {superAdminUser ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100/60 border border-amber-200 text-amber-800 rounded-full text-xs font-black">
@@ -336,13 +635,13 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <div className="bg-white/10 backdrop-blur-md border border-white/10 p-4 rounded-2xl flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+            <div className="bg-white border border-amber-200/90 shadow-sm p-4 rounded-2xl flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">
                 <Key className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs text-slate-300 font-medium">Yêu cầu quên mật khẩu</p>
-                <p className="text-xl font-black text-amber-400">{pendingResetCount} chờ xử lý</p>
+                <p className="text-xs text-slate-800 font-bold uppercase tracking-wide">Yêu cầu quên mật khẩu</p>
+                <p className="text-xl font-black text-amber-600">{pendingResetCount} chờ xử lý</p>
               </div>
             </div>
           </div>
@@ -428,7 +727,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             }`}
           >
             <Key className="w-4 h-4" />
-            Duyệt Cấp Lại Mật Khẩu
+            Cấp Lại Mật Khẩu
             {pendingResetCount > 0 && (
               <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
                 {pendingResetCount}
@@ -445,7 +744,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            Tài Nguyên Hệ Thống (Bài tập/Lớp/Mô phỏng)
+            Tài Nguyên Hệ Thống
           </button>
 
           <button
@@ -459,6 +758,18 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
             <BellRing className="w-4 h-4" />
             Thông báo Hệ thống ({notifList.length})
           </button>
+
+          <button
+            onClick={() => setActiveTab('letters')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'letters'
+                ? 'border-indigo-600 text-rose-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Heart className="w-4 h-4 text-rose-500 fill-rose-100" />
+            Thư Yêu Thương ({loveLetters.length})
+          </button>
         </div>
 
         <button
@@ -467,7 +778,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
           className="mb-4 sm:mb-0 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 border border-rose-200 shadow-sm"
         >
           <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset lại hệ thống</span>
+          <span>Reset</span>
         </button>
       </div>
 
@@ -714,104 +1025,398 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
         </div>
       )}
 
-      {/* TAB 3: SYSTEM RESOURCES */}
+      {/* TAB 3: RESOURCE AUDIT CONSOLE */}
       {activeTab === 'resources' && (
-        <div className="space-y-8">
-          {/* Section: Classes */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
+        <div className="space-y-6">
+          {/* Audit Dashboard Overview Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0">
+                <Layers className="w-5 h-5" />
+              </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Calendar className="w-5 h-5 text-indigo-600" />
-                  Toàn bộ Buổi Học / Lịch Học Toàn Hệ Thống ({classes.length})
-                </h3>
-                <p className="text-xs text-slate-500">Quản trị viên có thể xem và kiểm tra tất cả các buổi học do bất kỳ giáo viên nào tạo ra</p>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng tài nguyên</p>
+                <p className="text-xl font-black text-slate-900">{rawAuditItems.length}</p>
               </div>
             </div>
 
-            {classes.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Chưa có buổi học nào trên hệ thống.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {classes.map((c) => (
-                  <div key={c.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">{c.title}</h4>
-                      <p className="text-xs text-slate-500">{c.startTime} - {c.endTime} {c.subject && `• ${c.subject}`}</p>
-                      <p className="text-[11px] text-indigo-600 font-medium mt-1">
-                        Tạo bởi: {c.teacherName || 'Giáo viên'}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 font-bold shrink-0">
+                <FileText className="w-5 h-5" />
               </div>
-            )}
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bài tập & Đề thi</p>
+                <p className="text-xl font-black text-slate-900">{assignments.length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 font-bold shrink-0">
+                <Cpu className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mô phỏng HTML5</p>
+                <p className="text-xl font-black text-slate-900">{simulations.length}</p>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 font-bold shrink-0">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Buổi học / Lịch</p>
+                <p className="text-xl font-black text-slate-900">{classes.length}</p>
+              </div>
+            </div>
+
+            <div className="col-span-2 sm:col-span-1 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 font-bold shrink-0">
+                <UploadCloud className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bài nộp học sinh</p>
+                <p className="text-xl font-black text-slate-900">{submissions?.length || 0}</p>
+              </div>
+            </div>
           </div>
 
-          {/* Section: Assignments */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-600" />
-                Toàn bộ Bài Tập / Đề Kiểm Tra ({assignments.length})
-              </h3>
-              <p className="text-xs text-slate-500">Danh sách bài tập tự luận & trắc nghiệm online từ tất cả các lớp</p>
+          {/* Search, Filter & Controls Bar */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+              {/* Search Box */}
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo tên bài đăng, người tải lên, tên lớp, ID..."
+                  value={resSearchTerm}
+                  onChange={(e) => setResSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                />
+                {resSearchTerm && (
+                  <button 
+                    onClick={() => setResSearchTerm('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Uploader Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Người đăng:</span>
+                <select
+                  value={resUploaderFilter}
+                  onChange={(e) => setResUploaderFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="all">Tất cả người đăng ({uniqueUploaders.length})</option>
+                  {uniqueUploaders.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sort Order */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Sắp xếp:</span>
+                <select
+                  value={resSortOrder}
+                  onChange={(e) => setResSortOrder(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="newest">⏰ Mới nhất trước</option>
+                  <option value="oldest">⌛ Cũ nhất trước</option>
+                  <option value="title">🔤 Theo tên (A-Z)</option>
+                </select>
+              </div>
+
+              {/* Display Mode Toggle */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl shrink-0">
+                <button
+                  onClick={() => setResDisplayMode('table')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${
+                    resDisplayMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <ListFilter className="w-3.5 h-3.5" />
+                  Bảng
+                </button>
+                <button
+                  onClick={() => setResDisplayMode('cards')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg flex items-center gap-1.5 transition-all ${
+                    resDisplayMode === 'cards' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Thẻ
+                </button>
+              </div>
             </div>
 
-            {assignments.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Chưa có bài tập nào trên hệ thống.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {assignments.map((a) => (
-                  <div key={a.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+            {/* Category Filter Pills */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-2 scrollbar-none">
+              {[
+                { key: 'all', label: `Tất cả (${rawAuditItems.length})`, icon: Layers },
+                { key: 'assignment', label: `Bài tập / Đề thi (${assignments.length})`, icon: FileText },
+                { key: 'simulation', label: `Mô phỏng HTML5 (${simulations.length})`, icon: Cpu },
+                { key: 'class', label: `Lịch / Buổi học (${classes.length})`, icon: Calendar },
+                { key: 'submission', label: `Bài nộp học sinh (${submissions?.length || 0})`, icon: UploadCloud },
+              ].map((btn) => {
+                const Icon = btn.icon;
+                const isSelected = resCategoryFilter === btn.key;
+                return (
+                  <button
+                    key={btn.key}
+                    onClick={() => setResCategoryFilter(btn.key as any)}
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {btn.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Audit Items Render (Table / Grid) */}
+          {filteredAuditItems.length === 0 ? (
+            <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+              <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                <Search className="w-6 h-6" />
+              </div>
+              <p className="font-bold text-slate-700 text-sm">Không tìm thấy tài nguyên phù hợp</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Thử thay đổi từ khóa tìm kiếm hoặc bỏ chọn các bộ lọc theo loại/người đăng.
+              </p>
+            </div>
+          ) : resDisplayMode === 'table' ? (
+            /* Table View */
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3.5 px-4">Tài nguyên & Mã Firestore</th>
+                      <th className="py-3.5 px-4">Người tải lên / Tác giả</th>
+                      <th className="py-3.5 px-4">Thời gian ghi nhận</th>
+                      <th className="py-3.5 px-4">Thông số / Phạm vi</th>
+                      <th className="py-3.5 px-4 text-right">Thao tác Admin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs font-medium">
+                    {filteredAuditItems.map((item) => (
+                      <tr key={`${item.collectionName}_${item.id}`} className="hover:bg-slate-50/60 transition-colors">
+                        {/* Title & Category Badge */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                              item.categoryType === 'assignment' ? 'bg-blue-50 text-blue-600' :
+                              item.categoryType === 'simulation' ? 'bg-purple-50 text-purple-600' :
+                              item.categoryType === 'class' ? 'bg-amber-50 text-amber-600' :
+                              'bg-emerald-50 text-emerald-600'
+                            }`}>
+                              {item.categoryType === 'assignment' && <FileText className="w-4 h-4" />}
+                              {item.categoryType === 'simulation' && <Cpu className="w-4 h-4" />}
+                              {item.categoryType === 'class' && <Calendar className="w-4 h-4" />}
+                              {item.categoryType === 'submission' && <UploadCloud className="w-4 h-4" />}
+                            </div>
+                            <div className="space-y-0.5 max-w-md">
+                              <p className="font-bold text-slate-900 text-xs line-clamp-1">{item.title}</p>
+                              <div className="flex items-center gap-2">
+                                <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                  {item.categoryLabel}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">ID: {item.id}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Uploader Info */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
+                              {item.uploaderName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-xs">{item.uploaderName}</p>
+                              <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase ${
+                                item.uploaderRole === 'student' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'
+                              }`}>
+                                {item.uploaderRole === 'student' ? 'Học sinh' : 'Giáo viên'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Timestamp Info */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="space-y-0.5">
+                            <p className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              {item.createdAtFormatted}
+                            </p>
+                            {item.relativeTime && (
+                              <p className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block">
+                                {item.relativeTime}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Specific Details */}
+                        <td className="py-3.5 px-4 text-slate-600">
+                          <div className="space-y-0.5 text-xs">
+                            {item.classSessionTitle && (
+                              <p className="text-[11px] font-semibold text-slate-700">🏫 Lớp: {item.classSessionTitle}</p>
+                            )}
+                            {item.details.questionCount > 0 && (
+                              <p className="text-[11px] text-slate-500">❓ {item.details.questionCount} câu hỏi trắc nghiệm</p>
+                            )}
+                            {item.details.dueDate && (
+                              <p className="text-[11px] text-slate-500">⏳ Hạn: {item.details.dueDate}</p>
+                            )}
+                            {item.details.grade !== undefined && (
+                              <p className="text-[11px] font-bold text-emerald-600">💯 Điểm: {item.details.grade}</p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Admin Action Buttons */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenAssignModal(item)}
+                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                              title="Thiết lập phân bổ tài nguyên cho lớp học phù hợp"
+                            >
+                              <Shield className="w-3.5 h-3.5 text-amber-600" />
+                              Phân bổ lớp
+                            </button>
+                            <button
+                              onClick={() => setInspectItem(item)}
+                              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                              title="Xem chi tiết thông tin nhật ký"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              Chi tiết
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmResource({ id: item.id, title: item.title, collectionName: item.collectionName })}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                              title="Xóa tài nguyên khỏi hệ thống"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* Cards View */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredAuditItems.map((item) => (
+                <div key={`${item.collectionName}_${item.id}`} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-3 hover:border-indigo-200 transition-all">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase flex items-center gap-1 ${
+                      item.categoryType === 'assignment' ? 'bg-blue-50 text-blue-700' :
+                      item.categoryType === 'simulation' ? 'bg-purple-50 text-purple-700' :
+                      item.categoryType === 'class' ? 'bg-amber-50 text-amber-700' :
+                      'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {item.categoryType === 'assignment' && <FileText className="w-3 h-3" />}
+                      {item.categoryType === 'simulation' && <Cpu className="w-3 h-3" />}
+                      {item.categoryType === 'class' && <Calendar className="w-3 h-3" />}
+                      {item.categoryType === 'submission' && <UploadCloud className="w-3 h-3" />}
+                      {item.categoryLabel}
+                    </span>
+
+                    <span className="text-[10px] font-mono text-slate-400">ID: {item.id.slice(0, 8)}...</span>
+                  </div>
+
+                  <h4 className="font-bold text-slate-900 text-sm line-clamp-2">{item.title}</h4>
+
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-slate-900 text-sm">{a.title}</h4>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 uppercase">
-                        {a.type === 'online_test' ? 'Trắc nghiệm' : 'Nộp file'}
-                      </span>
+                      <span className="text-slate-500 font-medium">Tác giả đăng:</span>
+                      <span className="font-bold text-slate-800">{item.uploaderName}</span>
                     </div>
-                    <p className="text-xs text-slate-500">Hạn nộp: {a.dueDate}</p>
-                    <p className="text-[11px] text-indigo-600 font-medium">
-                      Giáo viên phụ trách: {a.teacherName || 'Giáo viên'}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
-          {/* Section: Simulations */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Cpu className="w-5 h-5 text-indigo-600" />
-                Toàn bộ Thí Nghiệm & Mô Phỏng Thực Tế Ảo ({simulations.length})
-              </h3>
-              <p className="text-xs text-slate-500">Thí nghiệm tương tác HTML5 / PhET do giáo viên tải lên hoặc tích hợp</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 font-medium">Thời gian:</span>
+                      <span className="font-bold text-indigo-600">{item.createdAtFormatted}</span>
+                    </div>
+
+                    {item.classSessionTitle && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 font-medium">Phạm vi / Lớp:</span>
+                        <span className="font-medium text-slate-700">{item.classSessionTitle}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                    <button
+                      onClick={() => handleOpenAssignModal(item)}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                    >
+                      <Shield className="w-3.5 h-3.5 text-amber-600" />
+                      Phân bổ lớp
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setInspectItem(item)}
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Chi tiết
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmResource({ id: item.id, title: item.title, collectionName: item.collectionName })}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                        title="Xóa tài nguyên"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            {simulations.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Chưa có mô phỏng nào trên hệ thống.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {simulations.map((s) => (
-                  <div key={s.id} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
-                    <img src={s.thumbnail} alt={s.title} className="w-12 h-12 rounded-xl object-cover" />
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-xs line-clamp-1">{s.title}</h4>
-                      <p className="text-[11px] text-slate-400">{s.category || 'Mô phỏng'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       )}
 
       {/* TAB 4: SYSTEM NOTIFICATIONS */}
       {activeTab === 'notifications' && (
-        <NotificationsManagerView user={user} />
+        <NotificationsManagerView
+          user={user}
+          loveLetters={loveLetters}
+          usersList={usersList}
+          classesList={classes.map(c => c.title || c.id)}
+        />
+      )}
+
+      {/* TAB 5: LOVE LETTERS */}
+      {activeTab === 'letters' && (
+        <LoveLetterManager
+          currentUser={user}
+          letters={loveLetters}
+          usersList={usersList}
+          classesList={classes.map(c => c.title || c.id)}
+          showNotify={showNotify}
+        />
       )}
 
       {/* MODAL: CHANGE ROLE */}
@@ -961,6 +1566,349 @@ export function AdminConsoleView({ user, assignments, classes, simulations }: Ad
           </div>
         </div>
       )}
+
+      {/* MODAL: RESOURCE AUDIT DETAIL INSPECTION */}
+      {inspectItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 border border-slate-200 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 uppercase">
+                  {inspectItem.categoryLabel}
+                </span>
+                <h3 className="font-extrabold text-slate-900 text-lg">{inspectItem.title}</h3>
+                <p className="text-xs text-slate-400 font-mono">Firestore Doc ID: {inspectItem.id}</p>
+              </div>
+              <button
+                onClick={() => setInspectItem(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Audit Log Box */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                <Clock className="w-4 h-4 text-indigo-600" />
+                Thông Tin Nhật Ký Tải Lên System Audit
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-1">
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Tác giả thực hiện:</p>
+                  <p className="font-extrabold text-slate-800 text-sm">{inspectItem.uploaderName}</p>
+                  <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 uppercase">
+                    {inspectItem.uploaderRole === 'student' ? 'Học sinh' : 'Giáo viên phụ trách'}
+                  </span>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-1">
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Thời gian ghi nhận:</p>
+                  <p className="font-extrabold text-indigo-600 text-sm">{inspectItem.createdAtFormatted}</p>
+                  {inspectItem.relativeTime && (
+                    <p className="text-[10px] font-medium text-slate-500">({inspectItem.relativeTime})</p>
+                  )}
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-1">
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Bộ sưu tập Firestore:</p>
+                  <p className="font-mono text-slate-700 font-bold">{inspectItem.collectionName}</p>
+                </div>
+
+                <div className="bg-white p-3 rounded-xl border border-slate-100 space-y-1">
+                  <p className="text-slate-400 font-bold text-[10px] uppercase">Phạm vi / Buổi học:</p>
+                  <p className="font-bold text-slate-800">{inspectItem.classSessionTitle || 'Toàn hệ thống'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Specific Details Section */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">Chi Tiết Nội Dung</h4>
+
+              {inspectItem.details.description && (
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 mb-1">Mô tả / Lời nhắn:</p>
+                  <p className="text-xs text-slate-800 whitespace-pre-wrap leading-relaxed">{inspectItem.details.description}</p>
+                </div>
+              )}
+
+              {/* PDF link or Simulation URL */}
+              {inspectItem.details.pdfUrl && (
+                <a
+                  href={inspectItem.details.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between text-indigo-700 font-bold text-xs hover:bg-indigo-100 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Mở tệp đính kèm (PDF)
+                  </span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+
+              {inspectItem.details.simulationUrl && (
+                <a
+                  href={inspectItem.details.simulationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between text-purple-700 font-bold text-xs hover:bg-purple-100 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Cpu className="w-4 h-4" />
+                    Mở đường dẫn mô phỏng thực tế ảo HTML5
+                  </span>
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+
+              {/* Questions list if assignment */}
+              {inspectItem.categoryType === 'assignment' && inspectItem.rawObj.questions && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-slate-700">Danh sách câu hỏi trắc nghiệm ({inspectItem.rawObj.questions.length}):</p>
+                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                    {inspectItem.rawObj.questions.map((q: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                        <p className="font-bold text-slate-800">Câu {idx + 1}: {q.question}</p>
+                        {q.options && q.options.length > 0 && (
+                          <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-600 pl-2">
+                            {q.options.map((opt: string, optIdx: number) => (
+                              <p key={optIdx} className={q.correctAnswer === optIdx ? 'font-bold text-emerald-600' : ''}>
+                                {String.fromCharCode(65 + optIdx)}. {opt}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenAssignModal(inspectItem)}
+                  className="px-4 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <Shield className="w-4 h-4 text-amber-600" />
+                  Thiết lập lớp áp dụng
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteConfirmResource({
+                      id: inspectItem.id,
+                      title: inspectItem.title,
+                      collectionName: inspectItem.collectionName
+                    });
+                  }}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Xóa tài nguyên
+                </button>
+              </div>
+
+              <button
+                onClick={() => setInspectItem(null)}
+                className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RESOURCE CLASS ALLOCATION SETUP */}
+      {assignClassResource && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Thiết Lập Phân Bổ Lớp Áp Dụng</h3>
+                  <p className="text-xs text-slate-500">Quyền Admin nhận định & gán tài nguyên cho lớp học phù hợp</p>
+                </div>
+              </div>
+              <button onClick={() => setAssignClassResource(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Resource Summary */}
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+              <p className="font-bold text-slate-400 text-[10px] uppercase">Tài nguyên đang chọn:</p>
+              <p className="font-extrabold text-slate-900 text-sm line-clamp-1">{assignClassResource.title}</p>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                  {assignClassResource.categoryLabel}
+                </span>
+                <span className="text-[10px] text-slate-500">Tác giả: {assignClassResource.uploaderName}</span>
+              </div>
+            </div>
+
+            {/* Scope Selector Options */}
+            <div className="space-y-3">
+              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                Chọn Phạm Vi Lớp Học Áp Dụng
+              </label>
+
+              <div className="space-y-2 text-xs">
+                <label className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
+                  targetClassScopeOption === 'all' ? 'bg-indigo-50/60 border-indigo-300 font-bold text-indigo-900' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="scopeOpt"
+                      checked={targetClassScopeOption === 'all'}
+                      onChange={() => setTargetClassScopeOption('all')}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="font-bold">🌐 Toàn bộ học sinh / Tất cả các lớp</p>
+                      <p className="text-[11px] text-slate-400 font-normal">Mọi học sinh trên hệ thống đều có thể xem và hoàn thành</p>
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
+                  targetClassScopeOption === 'specific' ? 'bg-indigo-50/60 border-indigo-300 font-bold text-indigo-900' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="scopeOpt"
+                      checked={targetClassScopeOption === 'specific'}
+                      onChange={() => setTargetClassScopeOption('specific')}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="font-bold">🏫 Lựa chọn các lớp cụ thể từ danh sách</p>
+                      <p className="text-[11px] text-slate-400 font-normal">Tích chọn một hoặc nhiều lớp học trong hệ thống</p>
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
+                  targetClassScopeOption === 'custom' ? 'bg-indigo-50/60 border-indigo-300 font-bold text-indigo-900' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="scopeOpt"
+                      checked={targetClassScopeOption === 'custom'}
+                      onChange={() => setTargetClassScopeOption('custom')}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <div>
+                      <p className="font-bold">✍️ Tùy chỉnh tên lớp / Khối học đặc biệt</p>
+                      <p className="text-[11px] text-slate-400 font-normal">Tự nhập phạm vi (vd: Lớp Chuyên Toán, Đội Tuyển HG, Khối 12...)</p>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {/* Specific Classes Selection List */}
+              {targetClassScopeOption === 'specific' && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 max-h-40 overflow-y-auto">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Tích chọn lớp phù hợp:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {availableClassOptions.map((clsName) => {
+                      const isChecked = selectedClassesList.includes(clsName);
+                      return (
+                        <label
+                          key={clsName}
+                          className={`flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
+                            isChecked ? 'bg-indigo-100 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedClassesList([...selectedClassesList, clsName]);
+                              } else {
+                                setSelectedClassesList(selectedClassesList.filter(c => c !== clsName));
+                              }
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="truncate">{clsName}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Class Text Input */}
+              {targetClassScopeOption === 'custom' && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Nhập tên lớp / nhóm học áp dụng:</label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: Lớp 10A1 Specialist, Khối 11 Bồi dưỡng..."
+                    value={customClassInput}
+                    onChange={(e) => setCustomClassInput(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setAssignClassResource(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleSaveClassAllocation}
+                disabled={savingClassAllocation}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {savingClassAllocation ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Đang lưu...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Xác Nhận Phân Bổ
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Resource Deletion */}
+      <ConfirmModal
+        isOpen={!!deleteConfirmResource}
+        onClose={() => setDeleteConfirmResource(null)}
+        onConfirm={confirmDeleteResource}
+        title="Xác nhận xóa tài nguyên hệ thống"
+        message={`Bạn có chắc chắn muốn xóa tài nguyên "${deleteConfirmResource?.title}" khỏi Firestore? Thao tác này sẽ gỡ bỏ hoàn toàn bài đăng khỏi hệ thống.`}
+        confirmText="Xóa vĩnh viễn"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        loading={deletingResource}
+      />
 
       {/* Custom Center-Zoom Confirmation Modal for User Deletion */}
       <ConfirmModal

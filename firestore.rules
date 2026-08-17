@@ -14,7 +14,9 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')) ||
         (request.auth.token != null && 
          'email' in request.auth.token && 
-         request.auth.token.email.endsWith('@eduteach.com'))
+         (request.auth.token.email.endsWith('@eduteach.com') || 
+          request.auth.token.email.endsWith('@educonnect.com') ||
+          request.auth.token.email == 'qtvminhngoc0204@educonnect.com'))
       );
     }
 
@@ -48,7 +50,7 @@ service cloud.firestore {
     }
 
     // Simulations collection
-    match /simulations/{simulationId} {
+    match /simulations/{simulationId=**} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
     }
@@ -63,6 +65,14 @@ service cloud.firestore {
     match /system_notifications/{notificationId} {
       allow read: if isAuthenticated();
       allow write: if isTeacher();
+    }
+
+    // Love letters collection
+    match /love_letters/{letterId} {
+      allow read: if isAuthenticated();
+      allow create: if isTeacher();
+      allow update: if isAuthenticated();
+      allow delete: if isTeacher();
     }
 
     match /settings/{document=**} {

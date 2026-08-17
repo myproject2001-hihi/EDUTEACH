@@ -96,6 +96,24 @@
         "badgeColor": "string (optional)",
         "createdAt": "string"
       }
+    },
+    "love_letters": {
+      "description": "Love letters and celebratory messages sent by teachers to students",
+      "fields": {
+        "id": "string",
+        "senderId": "string",
+        "senderName": "string",
+        "senderRole": "string ('admin' | 'teacher')",
+        "title": "string",
+        "content": "string",
+        "envelopeStyle": "string ('rose_love' | 'pastel_gold' | 'ocean_blue' | 'vintage_warm')",
+        "targetType": "string ('next_registered' | 'class' | 'specific_user' | 'all_teachers' | 'all_students')",
+        "targetValue": "string (optional)",
+        "targetUserName": "string (optional)",
+        "createdAt": "string",
+        "readByUsers": "array (optional)",
+        "alreadyClaimedUserId": "string (optional)"
+      }
     }
   }
 }

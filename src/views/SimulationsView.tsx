@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { HTMLSimulation, User } from '../types';
-import { Play, Maximize2, Minimize2, X, Plus, ExternalLink, Sparkles, Filter, Code, Upload, Image } from 'lucide-react';
+import { Play, Maximize2, Minimize2, X, Plus, ExternalLink, Filter, Code, Upload, Image, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { SimulationFrame } from '../components/SimulationFrame';
+import { loadSimulationHtmlContent, saveSimulationToFirestore } from '../lib/simulationStorage';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 interface SimulationsProps {
   user: User;
@@ -10,7 +14,6 @@ interface SimulationsProps {
 
 export function SimulationsView({ user, simulations: initialSims, onAddSimulation }: SimulationsProps) {
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
-  const isAdmin = user.role === 'admin';
 
   // Filter simList for Teacher vs Admin
   const filteredSimList = React.useMemo(() => {
@@ -55,18 +58,23 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     }
   };
 
-  // Teacher modal for adding custom simulation / HTML link
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newUrl, setNewUrl] = useState('');
-  const [newHtmlContent, setNewHtmlContent] = useState('');
-  const [newSourceType, setNewSourceType] = useState<'url' | 'html_code'>('url');
-  const [newCategory, setNewCategory] = useState('Đại Số');
-  const [newThumbnailSource, setNewThumbnailSource] = useState<'url' | 'upload' | 'default'>('default');
-  const [newThumbnailUrl, setNewThumbnailUrl] = useState('');
-  const [newThumbnailFile, setNewThumbnailFile] = useState<string | null>(null);
+  // Modal State for Add & Edit Simulation
+  const [showModal, setShowModal] = useState(false);
+  const [editingSim, setEditingSim] = useState<HTMLSimulation | null>(null);
+  const [expandedDescIds, setExpandedDescIds] = useState<Record<string, boolean>>({});
+
+  const [formTitle, setFormTitle] = useState('');
+  const [formDesc, setFormDesc] = useState('');
+  const [formUrl, setFormUrl] = useState('');
+  const [formHtmlContent, setFormHtmlContent] = useState('');
+  const [formSourceType, setFormSourceType] = useState<'url' | 'html_code'>('url');
+  const [formCategory, setFormCategory] = useState('Đại Số');
+  const [formThumbnailSource, setFormThumbnailSource] = useState<'url' | 'upload' | 'default'>('default');
+  const [formThumbnailUrl, setFormThumbnailUrl] = useState('');
+  const [formThumbnailFile, setFormThumbnailFile] = useState<string | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingHtml, setIsLoadingHtml] = useState(false);
 
   const categories = ['Tất cả', 'Đại Số', 'Hình Học', 'Khác'];
 
@@ -74,49 +82,134 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     ? simList 
     : simList.filter(s => s.category === selectedCategory);
 
-  const handleAddSim = async (e: React.FormEvent) => {
+  // Open modal for creating a new simulation
+  const handleOpenAddModal = () => {
+    setEditingSim(null);
+    setFormTitle('');
+    setFormDesc('');
+    setFormUrl('');
+    setFormHtmlContent('');
+    setFormSourceType('url');
+    setFormCategory('Đại Số');
+    setFormThumbnailSource('default');
+    setFormThumbnailUrl('');
+    setFormThumbnailFile(null);
+    setShowModal(true);
+  };
+
+  // Open modal for editing an existing simulation
+  const handleOpenEditModal = async (sim: HTMLSimulation) => {
+    setEditingSim(sim);
+    setFormTitle(sim.title || '');
+    setFormDesc(sim.description || '');
+    setFormCategory(sim.category || 'Đại Số');
+    setFormUrl(sim.url || '');
+
+    const isHtml = !!sim.htmlContent;
+    setFormSourceType(isHtml ? 'html_code' : 'url');
+
+    // Handle Thumbnail Source detection
+    const defaultThumb = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
+    if (sim.thumbnail && sim.thumbnail.startsWith('data:image')) {
+      setFormThumbnailSource('upload');
+      setFormThumbnailFile(sim.thumbnail);
+      setFormThumbnailUrl('');
+    } else if (sim.thumbnail && sim.thumbnail !== defaultThumb) {
+      setFormThumbnailSource('url');
+      setFormThumbnailUrl(sim.thumbnail);
+      setFormThumbnailFile(null);
+    } else {
+      setFormThumbnailSource('default');
+      setFormThumbnailUrl('');
+      setFormThumbnailFile(null);
+    }
+
+    setShowModal(true);
+
+    if (isHtml) {
+      setIsLoadingHtml(true);
+      try {
+        const fullHtml = await loadSimulationHtmlContent(sim);
+        setFormHtmlContent(fullHtml);
+      } catch (err) {
+        console.error('Lỗi giải nén mã HTML khi sửa:', err);
+        setFormHtmlContent(sim.htmlContent || '');
+      } finally {
+        setIsLoadingHtml(false);
+      }
+    } else {
+      setFormHtmlContent('');
+    }
+  };
+
+  // Submit form for creating or updating simulation
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
     setIsSubmitting(true);
 
     try {
-      let resolvedThumbnail = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
-      if (newThumbnailSource === 'url' && newThumbnailUrl) {
-        resolvedThumbnail = newThumbnailUrl.trim();
-      } else if (newThumbnailSource === 'upload' && newThumbnailFile) {
-        resolvedThumbnail = newThumbnailFile;
+      const defaultThumb = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80';
+      let resolvedThumbnail = defaultThumb;
+      if (formThumbnailSource === 'url' && formThumbnailUrl) {
+        resolvedThumbnail = formThumbnailUrl.trim();
+      } else if (formThumbnailSource === 'upload' && formThumbnailFile) {
+        resolvedThumbnail = formThumbnailFile;
       }
 
-      const newSim: HTMLSimulation = {
-        id: `sim_${Date.now()}`,
-        title: newTitle.trim() || 'Mô phỏng mới',
-        description: newDesc.trim() || '',
-        url: newSourceType === 'url' ? newUrl.trim() : '',
-        htmlContent: newSourceType === 'html_code' ? newHtmlContent : '',
+      const simId = editingSim ? editingSim.id : `sim_${Date.now()}`;
+
+      const simData: HTMLSimulation = {
+        id: simId,
+        title: formTitle.trim() || 'Mô phỏng mới',
+        description: formDesc.trim() || '',
+        url: formSourceType === 'url' ? formUrl.trim() : '',
+        htmlContent: formSourceType === 'html_code' ? formHtmlContent : '',
         thumbnail: resolvedThumbnail,
-        category: newCategory || 'Khác',
-        hasQuiz: false,
-        teacherId: user.id || '',
-        teacherName: user.name || 'Giáo viên',
+        category: formCategory || 'Khác',
+        hasQuiz: editingSim ? editingSim.hasQuiz : false,
+        teacherId: editingSim ? editingSim.teacherId : (user.id || ''),
+        teacherName: editingSim ? editingSim.teacherName : (user.name || 'Giáo viên'),
       };
 
-      setSimList(prev => [newSim, ...prev]);
-      if (onAddSimulation) {
-        await onAddSimulation(newSim);
+      // Save to Firestore with compression & chunking support
+      await saveSimulationToFirestore(simData);
+
+      // Update local state list
+      setSimList(prev => {
+        const exists = prev.some(s => s.id === simId);
+        if (exists) {
+          return prev.map(s => s.id === simId ? simData : s);
+        } else {
+          return [simData, ...prev];
+        }
+      });
+
+      if (onAddSimulation && !editingSim) {
+        onAddSimulation(simData);
       }
 
-      setShowAddModal(false);
-      setNewTitle('');
-      setNewDesc('');
-      setNewUrl('');
-      setNewHtmlContent('');
-      setNewThumbnailSource('default');
-      setNewThumbnailUrl('');
-      setNewThumbnailFile(null);
+      setShowModal(false);
+      setEditingSim(null);
     } catch (err) {
-      console.error("Lỗi khi thêm mô phỏng:", err);
+      console.error("Lỗi khi lưu mô phỏng:", err);
+      alert("Đã xảy ra lỗi khi lưu mô phỏng. Vui lòng thử lại!");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle simulation deletion
+  const handleDeleteSim = async (simId: string, title: string) => {
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa bài mô phỏng "${title}"?`)) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'simulations', simId));
+      setSimList(prev => prev.filter(s => s.id !== simId));
+    } catch (err) {
+      console.error("Lỗi khi xóa mô phỏng:", err);
+      alert("Lỗi khi xóa mô phỏng!");
     }
   };
 
@@ -136,11 +229,18 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
             <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase shrink-0">
               {activeSim.category || 'Mô phỏng Tương tác'}
             </span>
-            <h2 className="font-bold text-slate-900 text-lg truncate">{activeSim.title}</h2>
+            <div className="min-w-0">
+              <h2 className="font-bold text-slate-900 text-base sm:text-lg truncate">{activeSim.title}</h2>
+              {activeSim.description && (
+                <p className="text-xs text-slate-500 line-clamp-1 truncate max-w-xl" title={activeSim.description}>
+                  {activeSim.description}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Nút Zoom Toàn màn hình ở vị trí khung đỏ */}
+            {/* Nút Zoom Toàn màn hình */}
             <button 
               onClick={toggleFullscreen}
               className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-md border border-indigo-500"
@@ -186,21 +286,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
         </div>
 
         <div className="flex-1 bg-white relative overflow-hidden">
-          {activeSim.htmlContent ? (
-            <iframe 
-              srcDoc={activeSim.htmlContent}
-              className="absolute inset-0 w-full h-full border-0 bg-white"
-              allowFullScreen
-              title={activeSim.title}
-            />
-          ) : (
-            <iframe 
-              src={activeSim.url}
-              className="absolute inset-0 w-full h-full border-0"
-              allowFullScreen
-              title={activeSim.title}
-            />
-          )}
+          <SimulationFrame simulation={activeSim} />
         </div>
       </div>
     );
@@ -226,7 +312,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
 
           {isTeacher && (
             <button 
-              onClick={() => setShowAddModal(true)}
+              onClick={handleOpenAddModal}
               className="px-5 py-3 bg-white text-emerald-800 font-bold text-xs sm:text-sm rounded-2xl hover:bg-emerald-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
@@ -283,19 +369,59 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
 
               <div className="p-5">
                 <h3 className="font-bold text-slate-900 text-base mb-2 group-hover:text-indigo-600 transition-colors">{sim.title}</h3>
-                <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{sim.description}</p>
+                <div className="relative">
+                  <p 
+                    className={`text-xs text-slate-600 leading-relaxed transition-all duration-300 ${
+                      expandedDescIds[sim.id] ? '' : 'line-clamp-2'
+                    }`}
+                  >
+                    {sim.description}
+                  </p>
+                  {sim.description && sim.description.length > 70 && (
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedDescIds(prev => ({ ...prev, [sim.id]: !prev[sim.id] }));
+                      }}
+                      className="mt-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline inline-flex items-center gap-1 focus:outline-none"
+                    >
+                      {expandedDescIds[sim.id] ? 'Thu gọn ▲' : 'Xem thêm ▼'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="p-5 pt-0 flex items-center justify-between gap-3">
+            <div className="p-5 pt-0 flex items-center justify-between gap-2">
               <button 
                 onClick={() => setActiveSim(sim)}
                 className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-colors"
               >
                 <Play className="w-3.5 h-3.5" />
-                Trải nghiệm ngay
+                Trải nghiệm
               </button>
               
+              {isTeacher && (
+                <>
+                  <button 
+                    onClick={() => handleOpenEditModal(sim)}
+                    className="p-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition-colors border border-amber-200"
+                    title="Sửa thông tin mô phỏng"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+
+                  <button 
+                    onClick={() => handleDeleteSim(sim.id, sim.title)}
+                    className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors border border-rose-200"
+                    title="Xóa mô phỏng"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </>
+              )}
+
               {!sim.htmlContent && sim.url && (
                 <a 
                   href={sim.url}
@@ -312,258 +438,275 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
         ))}
       </div>
 
-      {/* TEACHER ADD MODAL */}
-      {showAddModal && (
+      {/* TEACHER ADD / EDIT MODAL */}
+      {showModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="bg-white border border-slate-200/80 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Header - Fixed at Top */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                 <Code className="w-5 h-5 text-indigo-600" />
-                Thêm Mô Phỏng / HTML Tĩnh
+                {editingSim ? 'Chỉnh Sửa Bài Mô Phỏng' : 'Thêm Mô Phỏng / HTML Tĩnh'}
               </h3>
-              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-full">
+              <button 
+                onClick={() => setShowModal(false)} 
+                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddSim} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Tên bài mô phỏng Toán:</label>
-                <input 
-                  required type="text"
-                  value={newTitle} onChange={e => setNewTitle(e.target.value)}
-                  className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="VD: Mô phỏng Đồ thị Hàm số bậc hai"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Môn học / Phân loại Toán:</label>
-                <select 
-                  value={newCategory} onChange={e => setNewCategory(e.target.value)}
-                  className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="Đại Số">Đại Số</option>
-                  <option value="Hình Học">Hình Học</option>
-                  <option value="Khác">Khác</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Hình thức nhúng:</label>
-                <div className="flex gap-4 mb-1">
-                  <label className="flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="sourceType" 
-                      checked={newSourceType === 'url'} 
-                      onChange={() => setNewSourceType('url')} 
-                    />
-                    Đường dẫn URL
-                  </label>
-                  <label className="flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer">
-                    <input 
-                      type="radio" 
-                      name="sourceType" 
-                      checked={newSourceType === 'html_code'} 
-                      onChange={() => setNewSourceType('html_code')} 
-                    />
-                    Đính kèm file / Dán mã HTML
-                  </label>
-                </div>
-              </div>
-
-              {newSourceType === 'url' ? (
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Đường link mô phỏng (URL):</label>
-                  <input 
-                    required type="url"
-                    value={newUrl} onChange={e => setNewUrl(e.target.value)}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="https://phet.colorado.edu/sims/html/..."
-                  />
+            {/* Scrollable Body Container */}
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+              {isLoadingHtml ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                  <p className="text-xs font-semibold">Đang tải mã nguồn mô phỏng...</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <form onSubmit={handleSubmitForm} className="space-y-4 text-xs">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1.5">Tải lên tệp HTML của bạn (.html):</label>
-                    <div className="p-4 border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl bg-slate-50 hover:bg-indigo-50/20 transition-all relative flex flex-col items-center justify-center text-center cursor-pointer">
-                      <input 
-                        type="file" 
-                        accept=".html"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const text = event.target?.result;
-                            if (typeof text === 'string') {
-                              setNewHtmlContent(text);
-                              if (!newTitle) {
-                                const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-                                setNewTitle(nameWithoutExt);
-                              }
-                            }
-                          };
-                          reader.readAsText(file);
-                        }}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                      />
-                      <Upload className="w-8 h-8 text-indigo-500 mb-1.5" />
-                      <p className="font-bold text-slate-700 text-[11px]">Chọn file .html từ máy tính</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Kéo thả file vào đây hoặc bấm để chọn tệp</p>
+                    <label className="block font-bold text-slate-700 mb-1">Tên bài mô phỏng Toán:</label>
+                    <input 
+                      required type="text"
+                      value={formTitle} onChange={e => setFormTitle(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="VD: Mô phỏng Đồ thị Hàm số bậc hai"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Môn học / Phân loại Toán:</label>
+                    <select 
+                      value={formCategory} onChange={e => setFormCategory(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="Đại Số">Đại Số</option>
+                      <option value="Hình Học">Hình Học</option>
+                      <option value="Khác">Khác</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Hình thức nhúng:</label>
+                    <div className="flex gap-4 mb-1">
+                      <label className="flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="sourceType" 
+                          checked={formSourceType === 'url'} 
+                          onChange={() => setFormSourceType('url')} 
+                        />
+                        Đường dẫn URL
+                      </label>
+                      <label className="flex items-center gap-1.5 font-semibold text-slate-700 cursor-pointer">
+                        <input 
+                          type="radio" 
+                          name="sourceType" 
+                          checked={formSourceType === 'html_code'} 
+                          onChange={() => setFormSourceType('html_code')} 
+                        />
+                        Đính kèm file / Dán mã HTML
+                      </label>
                     </div>
                   </div>
 
-                  <div>
-                    <textarea 
-                      rows={5}
-                      value={newHtmlContent} onChange={e => setNewHtmlContent(e.target.value)}
-                      className="w-full p-2.5 border border-slate-300 rounded-xl outline-none font-mono text-[10px] resize-y bg-slate-50 focus:bg-white"
-                      placeholder="Dán mã HTML/CSS/JS tại đây..."
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Ảnh bìa mô phỏng:</label>
-                <div className="flex gap-3 mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewThumbnailSource('default')}
-                    className={`flex-1 py-1.5 px-3 border rounded-xl font-bold transition-all ${
-                      newThumbnailSource === 'default'
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Mặc định
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewThumbnailSource('url')}
-                    className={`flex-1 py-1.5 px-3 border rounded-xl font-bold transition-all ${
-                      newThumbnailSource === 'url'
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Đường dẫn URL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewThumbnailSource('upload')}
-                    className={`flex-1 py-1.5 px-3 border rounded-xl font-bold transition-all ${
-                      newThumbnailSource === 'upload'
-                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                        : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Tải ảnh lên
-                  </button>
-                </div>
-
-                {newThumbnailSource === 'url' && (
-                  <div className="space-y-2">
-                    <input 
-                      type="url"
-                      value={newThumbnailUrl}
-                      onChange={e => setNewThumbnailUrl(e.target.value)}
-                      className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="Dán link ảnh (https://...)"
-                    />
-                    {newThumbnailUrl && (
-                      <div className="mt-1 h-20 w-32 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-                        <img src={newThumbnailUrl} alt="Preview" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {newThumbnailSource === 'upload' && (
-                  <div className="space-y-2">
-                    <div className="p-3 border border-dashed border-slate-300 hover:border-indigo-500 rounded-xl bg-slate-50/50 hover:bg-indigo-50/10 transition-all relative flex flex-col items-center justify-center text-center cursor-pointer">
+                  {formSourceType === 'url' ? (
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Đường link mô phỏng (URL):</label>
                       <input 
-                        type="file" 
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const rawData = event.target?.result;
-                            if (typeof rawData === 'string') {
-                              const img = new window.Image();
-                              img.onload = () => {
-                                const canvas = document.createElement('canvas');
-                                const maxWidth = 500;
-                                const maxHeight = 350;
-                                let width = img.width;
-                                let height = img.height;
-                                if (width > maxWidth) {
-                                  height = Math.round((height * maxWidth) / width);
-                                  width = maxWidth;
-                                }
-                                if (height > maxHeight) {
-                                  width = Math.round((width * maxHeight) / height);
-                                  height = maxHeight;
-                                }
-                                canvas.width = width;
-                                canvas.height = height;
-                                const ctx = canvas.getContext('2d');
-                                if (ctx) {
-                                  ctx.drawImage(img, 0, 0, width, height);
-                                  setNewThumbnailFile(canvas.toDataURL('image/jpeg', 0.85));
-                                } else {
-                                  setNewThumbnailFile(rawData);
+                        required type="url"
+                        value={formUrl} onChange={e => setFormUrl(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="https://phet.colorado.edu/sims/html/..."
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1.5">Tải lên / Thay thế tệp HTML (.html):</label>
+                        <div className="p-4 border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-2xl bg-slate-50 hover:bg-indigo-50/20 transition-all relative flex flex-col items-center justify-center text-center cursor-pointer">
+                          <input 
+                            type="file" 
+                            accept=".html"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const text = event.target?.result;
+                                if (typeof text === 'string') {
+                                  setFormHtmlContent(text);
+                                  if (!formTitle) {
+                                    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+                                    setFormTitle(nameWithoutExt);
+                                  }
                                 }
                               };
-                              img.onerror = () => setNewThumbnailFile(rawData);
-                              img.src = rawData;
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                      />
-                      <Image className="w-6 h-6 text-indigo-500 mb-1" />
-                      <p className="font-bold text-slate-700 text-[10px]">Tải ảnh lên từ thiết bị</p>
+                              reader.readAsText(file);
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <Upload className="w-8 h-8 text-indigo-500 mb-1.5" />
+                          <p className="font-bold text-slate-700 text-[11px]">Chọn file .html từ máy tính</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">Kéo thả file vào đây hoặc bấm để chọn tệp</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <textarea 
+                          rows={5}
+                          value={formHtmlContent} onChange={e => setFormHtmlContent(e.target.value)}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl outline-none font-mono text-[10px] resize-y bg-slate-50 focus:bg-white custom-scrollbar"
+                          placeholder="Dán mã HTML/CSS/JS tại đây..."
+                        />
+                      </div>
                     </div>
-                    {newThumbnailFile && (
+                  )}
+
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Ảnh bìa mô phỏng:</label>
+                    <div className="flex gap-3 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormThumbnailSource('default')}
+                        className={`flex-1 py-1.5 px-3 border rounded-xl font-bold transition-all ${
+                          formThumbnailSource === 'default'
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        Mặc định
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormThumbnailSource('url')}
+                        className={`flex-1 py-1.5 px-3 border rounded-xl font-bold transition-all ${
+                          formThumbnailSource === 'url'
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        Đường dẫn URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormThumbnailSource('upload')}
+                        className={`flex-1 py-1.5 px-3 border rounded-xl font-bold transition-all ${
+                          formThumbnailSource === 'upload'
+                            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        Tải ảnh lên
+                      </button>
+                    </div>
+
+                    {formThumbnailSource === 'url' && (
+                      <div className="space-y-2">
+                        <input 
+                          type="url"
+                          value={formThumbnailUrl}
+                          onChange={e => setFormThumbnailUrl(e.target.value)}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Dán link ảnh (https://...)"
+                        />
+                        {formThumbnailUrl && (
+                          <div className="mt-1 h-20 w-32 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                            <img src={formThumbnailUrl} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {formThumbnailSource === 'upload' && (
+                      <div className="space-y-2">
+                        <div className="p-3 border border-dashed border-slate-300 hover:border-indigo-500 rounded-xl bg-slate-50/50 hover:bg-indigo-50/10 transition-all relative flex flex-col items-center justify-center text-center cursor-pointer">
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const rawData = event.target?.result;
+                                if (typeof rawData === 'string') {
+                                  const img = new window.Image();
+                                  img.onload = () => {
+                                    const canvas = document.createElement('canvas');
+                                    const maxWidth = 1280;
+                                    const maxHeight = 800;
+                                    let width = img.width;
+                                    let height = img.height;
+                                    if (width > maxWidth) {
+                                      height = Math.round((height * maxWidth) / width);
+                                      width = maxWidth;
+                                    }
+                                    if (height > maxHeight) {
+                                      width = Math.round((width * maxHeight) / height);
+                                      height = maxHeight;
+                                    }
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    if (ctx) {
+                                      ctx.imageSmoothingEnabled = true;
+                                      ctx.imageSmoothingQuality = 'high';
+                                      ctx.drawImage(img, 0, 0, width, height);
+                                      setFormThumbnailFile(canvas.toDataURL('image/jpeg', 0.92));
+                                    } else {
+                                      setFormThumbnailFile(rawData);
+                                    }
+                                  };
+                                  img.onerror = () => setFormThumbnailFile(rawData);
+                                  img.src = rawData;
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <Image className="w-6 h-6 text-indigo-500 mb-1" />
+                          <p className="font-bold text-slate-700 text-[10px]">Tải ảnh lên từ thiết bị</p>
+                        </div>
+                        {formThumbnailFile && (
+                          <div className="mt-1 h-20 w-32 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                            <img src={formThumbnailFile} alt="Preview" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {formThumbnailSource === 'default' && (
                       <div className="mt-1 h-20 w-32 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-                        <img src={newThumbnailFile} alt="Preview" className="w-full h-full object-cover" />
+                        <img src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80" alt="Preview default" className="w-full h-full object-cover" />
                       </div>
                     )}
                   </div>
-                )}
 
-                {newThumbnailSource === 'default' && (
-                  <div className="mt-1 h-20 w-32 rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-                    <img src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80" alt="Preview default" className="w-full h-full object-cover" />
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Mô tả ngắn gọn:</label>
+                    <textarea 
+                      rows={2}
+                      value={formDesc} onChange={e => setFormDesc(e.target.value)}
+                      className="w-full p-2.5 border border-slate-300 rounded-xl outline-none resize-none custom-scrollbar"
+                      placeholder="Yêu cầu học sinh thực hành gì..."
+                    />
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Mô tả ngắn gọn:</label>
-                <textarea 
-                  rows={2}
-                  value={newDesc} onChange={e => setNewDesc(e.target.value)}
-                  className="w-full p-2.5 border border-slate-300 rounded-xl outline-none resize-none"
-                  placeholder="Yêu cầu học sinh thực hành gì..."
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 rounded-xl">
-                  Hủy
-                </button>
-                <button type="submit" className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-sm transition-colors">
-                  Thêm vào Thư viện
-                </button>
-              </div>
-            </form>
+                  <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 sticky bottom-0 bg-white">
+                    <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 rounded-xl">
+                      Hủy
+                    </button>
+                    <button type="submit" disabled={isSubmitting} className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-sm transition-colors flex items-center gap-1.5">
+                      {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {editingSim ? 'Cập Nhật Thay Đổi' : 'Thêm vào Thư viện'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
