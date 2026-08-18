@@ -50,8 +50,44 @@ export function FlashcardQuizGame({
     // If structured questions already exist, use them and randomize their option order
     if (questions && questions.length > 0) {
       return questions.map((q, idx) => {
-        const rawOpts: string[] = (q.options && q.options.length > 0) ? [...q.options] : ['A', 'B', 'C', 'D'];
-        const correctIdxOrig = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
+        let validOpts = (q.options || []).map(o => (o || '').trim()).filter(Boolean);
+        
+        let cleanedQuestion = q.question || '';
+
+        // If options are missing or empty, try extracting A. B. C. D. from question text
+        if (validOpts.length < 2 && cleanedQuestion) {
+          const optAM = cleanedQuestion.match(/(?:^|\n|\s)(?:[AА][\.:\)]|\([AА]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[BВ][\.:\)]|\([BВ]\)))|$)/i);
+          const optBM = cleanedQuestion.match(/(?:^|\n|\s)(?:[BВ][\.:\)]|\([BВ]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[CС][\.:\)]|\([CС]\)))|$)/i);
+          const optCM = cleanedQuestion.match(/(?:^|\n|\s)(?:[CС][\.:\)]|\([CС]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[DĐ][\.:\)]|\([DĐ]\)))|$)/i);
+          const optDM = cleanedQuestion.match(/(?:^|\n|\s)(?:[DĐ][\.:\)]|\([DĐ]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[A-D][\.:\)]|Lời giải|Hướng dẫn|Đáp án|$))|$)/i);
+
+          if (optAM && optBM) {
+            const extracted = [
+              optAM[1].trim().replace(/\.$/, ''),
+              optBM[1].trim().replace(/\.$/, ''),
+              optCM ? optCM[1].trim().replace(/\.$/, '') : '',
+              optDM ? optDM[1].trim().replace(/\.$/, '') : ''
+            ].filter(Boolean);
+
+            if (extracted.length >= 2) {
+              validOpts = extracted;
+              // Remove the options from question text so question doesn't repeat options
+              cleanedQuestion = cleanedQuestion.split(/(?:^|\n|\s)(?:[A-DА-Я][\.:\)]|\([A-DА-Я]\))/i)[0].trim();
+            }
+          }
+        }
+
+        // If still not enough options, fallback
+        if (validOpts.length === 0) {
+          validOpts = ['Phương án A', 'Phương án B', 'Phương án C', 'Phương án D'];
+        } else if (validOpts.length < 4) {
+          while (validOpts.length < 4) {
+            validOpts.push(`Phương án ${['A', 'B', 'C', 'D'][validOpts.length]}`);
+          }
+        }
+
+        const rawOpts = [...validOpts];
+        const correctIdxOrig = typeof q.correctAnswer === 'number' && q.correctAnswer >= 0 && q.correctAnswer < rawOpts.length ? q.correctAnswer : 0;
         const correctOptionValue = rawOpts[correctIdxOrig] ?? rawOpts[0];
         
         // Randomize option positions
@@ -60,7 +96,7 @@ export function FlashcardQuizGame({
 
         return {
           id: q.id || `q_${idx}`,
-          question: q.question,
+          question: cleanedQuestion,
           options: shuffledOpts,
           correctAnswer: newCorrectIdx >= 0 ? newCorrectIdx : 0,
           points: q.points || 10 / questions.length,

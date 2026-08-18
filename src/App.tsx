@@ -342,13 +342,13 @@ export default function App() {
 
   const handleAddAssignment = async (newAssignment: Omit<Assignment, 'id' | 'createdAt'>) => {
     const id = `a_${Date.now()}`;
-    const assignment: Assignment = {
+    const assignment: Assignment = JSON.parse(JSON.stringify({
       ...newAssignment,
       id,
       createdAt: new Date().toISOString(),
       teacherId: newAssignment.teacherId || currentUser?.id,
       teacherName: newAssignment.teacherName || currentUser?.name,
-    };
+    }));
     try {
       await setDoc(doc(db, 'assignments', id), assignment);
 
@@ -371,11 +371,11 @@ export default function App() {
 
   const handleSubmitWork = async (submission: Omit<Submission, 'id' | 'submittedAt'>) => {
     const id = `sub_${Date.now()}`;
-    const newSubmission: Submission = {
+    const newSubmission: Submission = JSON.parse(JSON.stringify({
       ...submission,
       id,
       submittedAt: new Date().toISOString(),
-    };
+    }));
     try {
       await setDoc(doc(db, 'submissions', id), newSubmission);
       
@@ -442,11 +442,11 @@ export default function App() {
   };
 
   const handleAddClass = async (newClass: ClassSession) => {
-    const classData: ClassSession = {
+    const classData: ClassSession = JSON.parse(JSON.stringify({
       ...newClass,
       teacherId: newClass.teacherId || currentUser?.id,
       teacherName: newClass.teacherName || currentUser?.name,
-    };
+    }));
     try {
       await setDoc(doc(db, 'class_sessions', classData.id), classData);
 

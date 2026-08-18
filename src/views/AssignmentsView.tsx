@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../types';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -18,6 +18,7 @@ import confetti from 'canvas-confetti';
 import { GameWizard } from '../components/GameWizard';
 import { FlashcardWizard } from '../components/FlashcardWizard';
 import { AssignmentListSkeleton, AssignmentDetailSkeleton, SubmissionsListSkeleton } from '../components/Skeletons';
+import { DateTimePicker24h } from '../components/DateTimePicker24h';
 
 interface AssignmentsProps {
   user: User;
@@ -260,11 +261,15 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       }
     });
 
-    const optAMatch = chunk.match(/A[\.:]\s*([^\n\t]+)/i);
-    const optBMatch = chunk.match(/B[\.:]\s*([^\n\t]+)/i);
+    // 1. Multiple Choice Options (A. / B. / C. / D. / A) / A: / [A] / (A))
+    const optAMatch = chunk.match(/(?:^|\n|\s)(?:[AА][\.:\)]|\([AА]\)|\[[AА]\])\s*([^\n\t]+)/);
+    const optBMatch = chunk.match(/(?:^|\n|\s)(?:[BВ][\.:\)]|\([BВ]\)|\[[BВ]\])\s*([^\n\t]+)/);
+    const optCMatch = chunk.match(/(?:^|\n|\s)(?:[CС][\.:\)]|\([CС]\)|\[[CС]\])\s*([^\n\t]+)/);
+    const optDMatch = chunk.match(/(?:^|\n|\s)(?:[DĐ][\.:\)]|\([DĐ]\)|\[[DĐ]\])\s*([^\n\t]+)/);
     
-    const subAMatch = chunk.match(/a[\)\.]\s*([^\n\t]+)/i);
-    const subBMatch = chunk.match(/b[\)\.]\s*([^\n\t]+)/i);
+    // 2. True/False Sub-options (a) / b) / c) / d))
+    const subAMatch = chunk.match(/(?:^|\n|\s)[aа][\)\.]\s*([^\n\t]+)/);
+    const subBMatch = chunk.match(/(?:^|\n|\s)[bв][\)\.]\s*([^\n\t]+)/);
 
     if (matchingPairs.length > 0) {
       type = 'matching';
@@ -274,28 +279,35 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       points = 0.25;
       options[0] = optAMatch[1].trim();
       options[1] = optBMatch[1].trim();
-      const optCMatch = chunk.match(/C[\.:]\s*([^\n\t]+)/i);
       if (optCMatch) options[2] = optCMatch[1].trim();
-      const optDMatch = chunk.match(/D[\.:]\s*([^\n\t]+)/i);
       if (optDMatch) options[3] = optDMatch[1].trim();
       
       for (let i = 0; i < 4; i++) {
-         options[i] = options[i].replace(/\s+[A-D][\.:].*/, '').trim();
+        // If multiple options were on the same line, clean trailing letters
+        options[i] = options[i].replace(/\s+(?:[B-D][\.:\)]|\([B-D]\)|\[[B-D]\]).*/, '').trim();
+        // Remove trailing full stop if it's not part of a math expression
+        if (options[i].endsWith('.') && !options[i].endsWith('..') && !options[i].includes('$')) {
+          options[i] = options[i].slice(0, -1).trim();
+        }
       }
     } else if (subAMatch && subBMatch) {
       type = 'true_false';
       points = 1.0;
       subOptions[0] = subAMatch[1].trim();
       subOptions[1] = subBMatch[1].trim();
-      const subCMatch = chunk.match(/c[\)\.]\s*([^\n\t]+)/i);
+      const subCMatch = chunk.match(/(?:^|\n|\s)[cс][\)\.]\s*([^\n\t]+)/);
       if (subCMatch) subOptions[2] = subCMatch[1].trim();
-      const subDMatch = chunk.match(/d[\)\.]\s*([^\n\t]+)/i);
+      const subDMatch = chunk.match(/(?:^|\n|\s)[dđ][\)\.]\s*([^\n\t]+)/);
       if (subDMatch) subOptions[3] = subDMatch[1].trim();
+
+      for (let i = 0; i < 4; i++) {
+        subOptions[i] = subOptions[i].replace(/\s+[b-d][\)\.].*/, '').trim();
+      }
     }
 
     let correctAnswer: number | string | number[] | undefined = undefined;
     const selectMatch = chunk.match(/Chọn\s+([A-D])/i);
-    const dapAnMatch = chunk.match(/Đáp án đúng là:\s*([^\n]+)/i);
+    const dapAnMatch = chunk.match(/(?:Đáp án đúng là|Đáp án|Chọn)\s*[:\.]?\s*([^\n]+)/i);
 
     if (selectMatch && type === 'multiple_choice') {
       const char = selectMatch[1].toUpperCase();
@@ -612,10 +624,15 @@ export function AssignmentsView({
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
+  const [newMaxAttempts, setNewMaxAttempts] = useState<number>(0); // 0 = vĩnh viễn (không giới hạn)
+  const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
 
   // Online test raw code input (Azota style)
   const [rawQuestionCode, setRawQuestionCode] = useState<string>(SAMPLE_TEMPLATES.mau2);
+
+  // Memoized parsed questions from rawQuestionCode to prevent heavy regex re-parsing on every re-render
+  const parsedQuestionsData = useMemo(() => parseRawCodeToQuestions(rawQuestionCode), [rawQuestionCode]);
 
   // Online test questions creation (Azota style)
   const [questions, setQuestions] = useState<QuizQuestion[]>([
@@ -978,6 +995,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     setNewGameType('quiz_nghieng_dau');
     setNewGameFormats(['multiple_choice', 'true_false']);
     setNewIsMandatory(false);
+    setNewMaxAttempts(0);
     setGameSubStep(1);
     setFlashcardSubStep(1);
     setCreateStep(1);
@@ -1019,6 +1037,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     setNewGameType(assignment.gameType || 'quiz_nghieng_dau');
     setNewGameFormats(assignment.gameFormats || ['multiple_choice', 'true_false']);
     setNewIsMandatory(assignment.isMandatory || false);
+    setNewMaxAttempts(assignment.maxAttempts !== undefined ? assignment.maxAttempts : 0);
     setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
     
     if (assignment.questions && assignment.questions.length > 0) {
@@ -1054,7 +1073,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       }
     }
 
-    const assignmentData = {
+    const rawAssignmentData = {
       title: newTitle || (newType === 'game' ? 'Game Học Tập' : newType === 'flashcard' ? 'Bộ Flashcard' : 'Bài tập buổi học mới'),
       description: newDescription || 'Các em hoàn thành bài tập đầy đủ đúng hạn trước khi vào giờ học tiếp theo.',
       dueDate: newDueDate ? new Date(newDueDate).toISOString() : new Date(Date.now() + 86400000 * 2).toISOString(),
@@ -1065,9 +1084,13 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       gameType: newType === 'game' ? newGameType : undefined,
       gameFormats: newType === 'game' ? newGameFormats : undefined,
       isMandatory: newIsMandatory,
+      maxAttempts: newMaxAttempts,
       flashcards: newType === 'flashcard' ? newFlashcards : undefined,
       questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
     };
+
+    // Remove explicit undefined fields which crashes Firestore v9
+    const assignmentData = JSON.parse(JSON.stringify(rawAssignmentData));
 
     if (editingAssignment) {
       const updatedAssignment: Assignment = {
@@ -1549,8 +1572,8 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           Đã nộp
                         </span>
                       ) : isPastDue ? (
-                        <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-rose-200">
-                          Quá hạn (Trừ điểm)
+                        <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-rose-200">
+                          Quá hạn (Vẫn mở làm)
                         </span>
                       ) : (
                         <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-200">
@@ -1564,21 +1587,27 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                     {assignment.title}
                   </h4>
 
-                  {assignment.isMandatory && (
-                    <span className="inline-block bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-2 mr-2">
-                      Bắt buộc
-                    </span>
-                  )}
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {assignment.isMandatory && (
+                      <span className="inline-block bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                        Bắt buộc
+                      </span>
+                    )}
 
-                  {assignment.classSessionTitle && (
-                    <span className="inline-block text-[10px] text-indigo-600 font-semibold mb-2 bg-indigo-50 px-2 py-0.5 rounded">
-                      Buổi học: {assignment.classSessionTitle}
+                    <span className="inline-block bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
+                      {assignment.maxAttempts ? `Tối đa ${assignment.maxAttempts} lần` : 'Làm vĩnh viễn'}
                     </span>
-                  )}
+
+                    {assignment.classSessionTitle && (
+                      <span className="inline-block text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded">
+                        Buổi học: {assignment.classSessionTitle}
+                      </span>
+                    )}
+                  </div>
 
                   <p className={`text-xs flex items-center font-medium ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
-                    <Clock className="w-3.5 h-3.5 mr-1" />
-                    Hạn: {format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}
+                    <Clock className="w-3.5 h-3.5 mr-1 text-indigo-500" />
+                    Hạn nộp: <span className="font-bold ml-1">{format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })} (24H)</span>
                   </p>
 
                   {isTeacher && (
@@ -1675,12 +1704,16 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 </div>
 
                 <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{selectedAssignment.title}</h2>
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 mt-2 pb-4 border-b border-slate-100">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-2 pb-4 border-b border-slate-100">
                   <span className="flex items-center font-medium text-slate-700">
                     <Clock className="w-4 h-4 mr-1.5 text-indigo-600" />
-                    Hạn nộp trước giờ học: <strong className="ml-1 text-slate-900">{format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}</strong>
+                    Hạn nộp (24H): <strong className="ml-1 text-slate-900">{format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}</strong>
                   </span>
-                  <span className="text-slate-400">•</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-lg">
+                    {selectedAssignment.maxAttempts ? `Tối đa ${selectedAssignment.maxAttempts} lần làm` : 'Làm vĩnh viễn (Tự do)'}
+                  </span>
+                  <span className="text-slate-300">•</span>
                   <span>Hoạt động theo buổi học</span>
                 </div>
               </div>
@@ -1691,11 +1724,11 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 <p>{selectedAssignment.description}</p>
               </div>
 
-              {/* Penalty Notice */}
-              <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl flex items-center gap-3 text-amber-900 text-xs">
-                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              {/* Policy Notice */}
+              <div className="bg-blue-50/70 border border-blue-200 p-3.5 rounded-2xl flex items-center gap-3 text-blue-900 text-xs">
+                <AlertTriangle className="w-5 h-5 text-blue-600 shrink-0" />
                 <span>
-                  <strong>Lưu ý quy định:</strong> Bài tập này cần được hoàn thành trước buổi học tương ứng. Nếu không làm đúng hạn sẽ bị trừ điểm chuyên cần!
+                  <strong>Quy định nộp bài & luyện tập:</strong> Học sinh bắt buộc hoàn thành trong thời gian giáo viên quy định. Nếu quá hạn nộp, học sinh vẫn có thể tiếp tục vào làm lại bài tập để ôn luyện kiến thức.
                 </span>
               </div>
 
@@ -1812,18 +1845,43 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 <div className="pt-4 border-t border-slate-100">
                   {(() => {
                     const mySub = submissions.find(s => s.assignmentId === selectedAssignment.id && s.studentId === user.id);
+                    const mySubs = submissions.filter(s => s.assignmentId === selectedAssignment.id && s.studentId === user.id);
+                    const attemptCount = mySubs.length;
+                    const maxAttempts = selectedAssignment.maxAttempts || 0; // 0 = vĩnh viễn
+                    const isPastDue = new Date(selectedAssignment.dueDate) < new Date();
+                    const canDoAgain = maxAttempts === 0 || attemptCount < maxAttempts || isPastDue;
                     
-                    if (mySub) {
+                    if (mySub && !isRetryingUpload) {
                       return (
                         <div className="bg-emerald-50/50 border border-emerald-200 rounded-2xl p-6 space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h3 className="font-bold text-emerald-900 flex items-center gap-2 text-base">
-                              <Check className="w-5 h-5 text-emerald-600" /> Em đã nộp bài tập này
-                            </h3>
-                            <span className="text-xs text-emerald-700 font-medium">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                                <Check className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <h3 className="font-bold text-emerald-900 text-base">
+                                  Em đã nộp bài tập này
+                                </h3>
+                                <p className="text-xs text-emerald-700 font-semibold">
+                                  Lượt làm bài: <strong className="text-emerald-900">Lần {attemptCount}{maxAttempts > 0 ? `/${maxAttempts}` : ' (Vĩnh viễn)'}</strong>
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs text-emerald-700 font-medium bg-emerald-100/60 px-3 py-1 rounded-full border border-emerald-200">
                               Thời gian nộp: {format(new Date(mySub.submittedAt), 'HH:mm dd/MM/yyyy')}
                             </span>
                           </div>
+
+                          {/* Friendly late banner */}
+                          {isPastDue && (
+                            <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-xl flex items-center gap-2.5 text-xs text-indigo-900">
+                              <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                              <span>
+                                <strong>Luyện tập tự do:</strong> Đã quá hạn nộp ban đầu của giáo viên, nhưng bạn vẫn có thể làm lại và luyện tập bao nhiêu lần tùy thích!
+                              </span>
+                            </div>
+                          )}
 
                           <div className="bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-800">
                             <p className="font-semibold text-xs text-slate-500 mb-1">Nội dung bài làm:</p>
@@ -1862,6 +1920,48 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                             </div>
                           ) : (
                             <p className="text-xs text-slate-500 italic">Đang chờ giáo viên chấm điểm...</p>
+                          )}
+
+                          {/* Retake / Retry Section */}
+                          {canDoAgain && (
+                            <div className="mt-4 pt-4 border-t border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-emerald-100/40 p-4 rounded-2xl border">
+                              <div className="text-xs text-emerald-950 font-medium">
+                                <p className="font-extrabold text-sm flex items-center gap-1.5 text-emerald-900">
+                                  <RotateCw className="w-4 h-4 text-emerald-600" />
+                                  {isPastDue ? 'Tiếp tục làm lại & luyện tập' : `Làm lại bài tập (Lượt ${attemptCount + 1}${maxAttempts > 0 ? `/${maxAttempts}` : ''})`}
+                                </p>
+                                <p className="text-[11px] text-emerald-800 mt-0.5">
+                                  {maxAttempts === 0 
+                                    ? 'Bài tập cho phép làm vĩnh viễn không giới hạn số lần.' 
+                                    : isPastDue 
+                                    ? 'Đã qua hạn nộp, bạn vẫn có thể làm lại để ôn tập kiến thức.' 
+                                    : `Bạn còn ${maxAttempts - attemptCount} lượt làm bài.`}
+                                </p>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (selectedAssignment.type === 'online_test') {
+                                    setIsExamStarted(true);
+                                    setExamTimeRemaining(900);
+                                    setTabSwitchCount(0);
+                                    setStudentQuizAnswers({});
+                                    await enterFullscreen();
+                                  } else if (selectedAssignment.type === 'game') {
+                                    setIsExamStarted(true);
+                                  } else if (selectedAssignment.type === 'flashcard') {
+                                    setShowFlashcardQuizTest(true);
+                                  } else {
+                                    setIsRetryingUpload(true);
+                                  }
+                                }}
+                                className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 shrink-0 uppercase tracking-wider active:scale-95"
+                              >
+                                <RotateCw className="w-3.5 h-3.5" />
+                                {selectedAssignment.type === 'game' ? 'Chơi lại game' : selectedAssignment.type === 'flashcard' ? 'Làm lại Flashcard' : 'Làm lại bài tập'}
+                              </button>
+                            </div>
                           )}
 
                           {selectedAssignment.type === 'online_test' && selectedAssignment.questions && (
@@ -2471,7 +2571,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       {showGamePreview && (
         <GamePreview 
           gameType={newGameType} 
-          questions={parseRawCodeToQuestions(rawQuestionCode).parsedQuestions} 
+          questions={parsedQuestionsData.parsedQuestions} 
           onClose={() => setShowGamePreview(false)} 
         />
       )}
@@ -2488,7 +2588,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         <FlashcardQuizGame
           assignmentTitle={selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard'}
           flashcards={selectedAssignment ? selectedAssignment.flashcards : newFlashcards}
-          questions={selectedAssignment ? selectedAssignment.questions : parseRawCodeToQuestions(rawQuestionCode).parsedQuestions}
+          questions={selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions}
           studentName={user.name}
           onFinish={(score, correctCount, answersMap) => {
             setShowFlashcardQuizTest(false);
@@ -2677,7 +2777,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
 
                     {/* 2. ONLINE TEST WORKSPACE */}
                     {newType === 'online_test' && (() => {
-                      const parsedData = parseRawCodeToQuestions(rawQuestionCode);
+                      const parsedData = parsedQuestionsData;
                       const lineCountArray = Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 12) }, (_, i) => i + 1);
 
                       return (
@@ -2878,25 +2978,68 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Thời gian giao đề (Hạn nộp):</label>
-                        <input 
-                          required type="datetime-local"
-                          value={newDueDate} onChange={e => setNewDueDate(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
+                        <DateTimePicker24h
+                          label="Thời gian giao đề (Hạn nộp 24H):"
+                          value={newDueDate}
+                          onChange={setNewDueDate}
+                          required
                         />
+                      </div>
+
+                      {/* Number of attempts options (1, 2, 3, ... vĩnh viễn) */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                          Số lần làm bài cho phép:
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {[
+                            { value: 0, label: 'Vĩnh viễn', desc: 'Không giới hạn số lần' },
+                            { value: 1, label: '1 lần', desc: 'Kiểm tra nghiêm túc' },
+                            { value: 2, label: '2 lần', desc: 'Cho phép làm lại 1 lần' },
+                            { value: 3, label: '3 lần', desc: 'Cho phép làm 3 lần' },
+                            { value: 5, label: '5 lần', desc: 'Tối đa 5 lượt làm' },
+                            { value: 10, label: '10 lần', desc: 'Tối đa 10 lượt làm' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setNewMaxAttempts(opt.value)}
+                              className={`p-3 rounded-2xl border text-left transition-all ${
+                                newMaxAttempts === opt.value
+                                  ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200 text-indigo-950 font-bold shadow-sm'
+                                  : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 text-slate-700 font-medium hover:bg-slate-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-extrabold">{opt.label}</span>
+                                {newMaxAttempts === opt.value && <Check className="w-4 h-4 text-indigo-600" />}
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-2.5 bg-blue-50/70 border border-blue-200/70 rounded-xl p-2.5 text-[11px] text-blue-800 space-y-1">
+                          <p className="font-semibold flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <strong>Cơ chế thời hạn & Số lần làm:</strong>
+                          </p>
+                          <p className="text-blue-700 leading-relaxed">
+                            Trong thời gian giáo viên quy định, học sinh <strong>bắt buộc phải làm</strong>. Sau khi lố thời gian nộp, học sinh <strong>vẫn được làm tiếp</strong> bao nhiêu lần cũng được để chủ động luyện tập và ôn lại kiến thức.
+                          </p>
+                        </div>
                       </div>
 
                       <div>
                         <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Mô tả & Hướng dẫn:</label>
                         <textarea 
-                          required rows={4}
+                          required rows={3}
                           value={newDescription} onChange={e => setNewDescription(e.target.value)}
                           className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 resize-none transition-shadow leading-relaxed"
                           placeholder="VD: Các em làm bài đầy đủ trước khi lên lớp học..."
                         />
                       </div>
 
-                      <div className="flex items-center gap-3 mt-4">
+                      <div className="flex items-center gap-3 pt-1">
                         <input
                           type="checkbox"
                           id="isMandatory"

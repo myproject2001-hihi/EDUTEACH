@@ -176,11 +176,16 @@ function LiveCamera({
       });
       
     let lastVideoTime = -1;
+    let lastInferTime = 0;
+    const INFER_INTERVAL_MS = 45; // Run AI detection at ~22 FPS to free CPU/GPU for smooth 60 FPS UI
+
     function predictWebcam() {
       if (videoRef.current && isActive) {
-        let startTimeMs = performance.now();
-        if (lastVideoTime !== videoRef.current.currentTime) {
+        const now = performance.now();
+        if (now - lastInferTime >= INFER_INTERVAL_MS && lastVideoTime !== videoRef.current.currentTime) {
+          lastInferTime = now;
           lastVideoTime = videoRef.current.currentTime;
+          let startTimeMs = performance.now();
           
           if (mode === 'face' && faceLandmarker) {
             const results = faceLandmarker.detectForVideo(videoRef.current, startTimeMs);

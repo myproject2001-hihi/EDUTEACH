@@ -15,6 +15,7 @@ import {
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { Video, Calendar as CalendarIcon, Clock, Bell, Plus, Edit2, X, Check, Copy, Share2 } from 'lucide-react';
+import { DateTimePicker24h } from '../components/DateTimePicker24h';
 
 interface ScheduleProps {
   user: User;
@@ -468,23 +469,19 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass }: Sche
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Thời gian bắt đầu:</label>
-                  <input 
-                    required type="datetime-local"
-                    value={startTime} onChange={e => setStartTime(e.target.value)}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Thời gian kết thúc:</label>
-                  <input 
-                    required type="datetime-local"
-                    value={endTime} onChange={e => setEndTime(e.target.value)}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl outline-none"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <DateTimePicker24h
+                  label="Thời gian bắt đầu 24H:"
+                  value={startTime}
+                  onChange={setStartTime}
+                  required
+                />
+                <DateTimePicker24h
+                  label="Thời gian kết thúc 24H:"
+                  value={endTime}
+                  onChange={setEndTime}
+                  required
+                />
               </div>
 
               <div>

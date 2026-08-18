@@ -46,6 +46,7 @@ export interface Assignment {
   gameType?: string; // ID game nếu type là 'game'
   gameFormats?: string[]; // Dạng câu hỏi của game
   isMandatory?: boolean; // Nút bắt buộc
+  maxAttempts?: number; // 0 hoặc undefined = Vĩnh viễn (Không giới hạn), 1 = 1 lần, 2, 3, 5, 10
   flashcards?: { id: string; front: string; back: string }[];
   createdAt: string;
   teacherId?: string;
