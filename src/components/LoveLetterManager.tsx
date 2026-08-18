@@ -80,7 +80,7 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
         envelopeStyle,
         targetType,
         targetValue: targetValue || '',
-        targetUserName: selectedUserObj ? selectedUserObj.name : undefined,
+        targetUserName: selectedUserObj ? selectedUserObj.name : 'Người nhận',
         createdAt: new Date().toISOString(),
         readByUsers: []
       };
@@ -120,7 +120,7 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
       envelopeStyle,
       targetType,
       targetValue: targetValue || '',
-      targetUserName: selectedUserObj ? selectedUserObj.name : undefined,
+      targetUserName: selectedUserObj ? selectedUserObj.name : 'Người nhận',
       createdAt: new Date().toISOString(),
       readByUsers: []
     };
