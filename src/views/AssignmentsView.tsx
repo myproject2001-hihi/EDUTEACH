@@ -2230,7 +2230,15 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           {activeCard && (
                             <div 
                               onClick={() => {
-                                setFlippedCards(prev => new Set(prev).add(activeCard.id));
+                                setFlippedCards(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(activeCard.id)) {
+                                    next.delete(activeCard.id);
+                                  } else {
+                                    next.add(activeCard.id);
+                                  }
+                                  return next;
+                                });
                               }}
                               className="w-full h-64 sm:h-80 md:h-96 perspective-1000 cursor-pointer group my-2"
                             >
@@ -2980,8 +2988,8 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   </div>
                 </div>
               ) : (
-                <div className="flex-1 overflow-y-auto p-5 bg-slate-50 flex items-center justify-center">
-                  <div className="w-full max-w-xl bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6">
+                <div className="flex-1 overflow-y-auto p-5 bg-slate-50 flex flex-col items-center justify-start">
+                  <div className="w-full max-w-xl bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6 my-auto">
                     <h4 className="text-xl font-extrabold text-slate-800 text-center">2. Thông tin bài tập</h4>
                     <p className="text-xs text-slate-500 text-center font-medium">Hoàn tất các thông tin chung trước khi giao bài cho học sinh.</p>
                     
