@@ -2978,6 +2978,18 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       </div>
 
                       <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Thuộc buổi học / Khóa học:</label>
+                        <input 
+                          required 
+                          type="text"
+                          value={newSessionTitle} 
+                          onChange={e => setNewSessionTitle(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
+                          placeholder="VD: Đại số 10 - Tiết 23..." 
+                        />
+                      </div>
+
+                      <div>
                         <DateTimePicker24h
                           label="Thời gian giao đề (Hạn nộp 24H):"
                           value={newDueDate}
