@@ -14,7 +14,7 @@ import {
   isSameMonth
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy, Award, Lock, Sparkles, Trophy, Shield, Coins, Bell, BellRing } from 'lucide-react';
+import { BookOpen, CheckCircle, Clock, Video, AlertCircle, TrendingUp, Calendar, ArrowRight, Play, UserCheck, Phone, MessageCircle, X, Check, Copy, Award, Lock, Sparkles, Trophy, Shield, Coins, Bell, BellRing, Layers, Gamepad2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, increment, setDoc } from 'firebase/firestore';
@@ -327,10 +327,11 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                     <div 
                       key={assignment.id}
                       onClick={() => {
+                        const targetTab = assignment.type === 'flashcard' ? 'flashcards' : assignment.type === 'game' ? 'games' : 'assignments';
                         if (onSelectAssignment) {
                           onSelectAssignment(assignment.id);
                         }
-                        onNavigate('assignments');
+                        onNavigate(targetTab);
                       }}
                       className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
                         isSubmitted 
@@ -344,13 +345,25 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold ${
                           isSubmitted ? 'bg-emerald-100 text-emerald-700' : isPastDue ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'
                         }`}>
-                          {isSubmitted ? <CheckCircle className="w-5 h-5" /> : assignment.type === 'simulation' ? <Play className="w-5 h-5" /> : <BookOpen className="w-5 h-5" />}
+                          {isSubmitted ? (
+                            <CheckCircle className="w-5 h-5" />
+                          ) : assignment.type === 'simulation' ? (
+                            <Play className="w-5 h-5" />
+                          ) : assignment.type === 'flashcard' ? (
+                            <Layers className="w-5 h-5" />
+                          ) : assignment.type === 'game' ? (
+                            <Gamepad2 className="w-5 h-5" />
+                          ) : assignment.type === 'online_test' ? (
+                            <Award className="w-5 h-5" />
+                          ) : (
+                            <BookOpen className="w-5 h-5" />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className="font-bold text-slate-900 text-sm sm:text-base line-clamp-1">{assignment.title}</h4>
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">
-                              {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Mô phỏng' : 'Nộp bài'}
+                              {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Mô phỏng' : assignment.type === 'flashcard' ? 'Flashcard' : assignment.type === 'game' ? 'Game' : assignment.type === 'lesson_check' ? 'Điểm danh' : 'Nộp bài'}
                             </span>
                             {shouldShowNewBadge(user?.id, assignment) && (
                               <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse uppercase tracking-wider">
@@ -399,10 +412,11 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                             </button>
                             <button
                               onClick={() => {
+                                const targetTab = assignment.type === 'flashcard' ? 'flashcards' : assignment.type === 'game' ? 'games' : 'assignments';
                                 if (onSelectAssignment) {
                                   onSelectAssignment(assignment.id);
                                 }
-                                onNavigate('assignments');
+                                onNavigate(targetTab);
                               }}
                               className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
                             >

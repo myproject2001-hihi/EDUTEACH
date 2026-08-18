@@ -16,10 +16,21 @@ interface RobotGuideProps {
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   onClose?: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function RobotGuide({ user, activeTab, onTabChange, onClose }: RobotGuideProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: controlledIsOpen, onOpenChange }: RobotGuideProps) {
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+  const setIsOpen = (val: boolean | ((prev: boolean) => boolean)) => {
+    const nextVal = typeof val === 'function' ? val(isOpen) : val;
+    if (onOpenChange) {
+      onOpenChange(nextVal);
+    } else {
+      setInternalIsOpen(nextVal);
+    }
+  };
   const [currentStep, setCurrentStep] = useState(0);
   const [typedText, setTypedText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -296,33 +307,6 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose }: RobotGuide
 
   return (
     <>
-      {/* Floating Sparkle Trigger Button in Bottom-Right Corner (lifted on mobile to avoid bottom nav) */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.button
-            initial={{ scale: 0, y: 50 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0, y: 50 }}
-            onClick={handleTriggerTour}
-            className="fixed bottom-20 md:bottom-6 right-3 sm:right-6 z-40 bg-gradient-to-r from-indigo-600 to-blue-600 text-white px-3.5 sm:px-5 py-2.5 sm:py-3.5 rounded-2xl shadow-[0_12px_40px_rgba(99,102,241,0.3)] hover:shadow-[0_18px_50px_rgba(99,102,241,0.5)] flex items-center gap-2 group border border-indigo-500/30 transition-all duration-300 pointer-events-auto touch-manipulation active:scale-95"
-            title="Bắt đầu Tour Khám phá thông minh"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <div className="relative flex items-center justify-center">
-              <Bot className="w-5 h-5 text-white animate-pulse" />
-              <span className="absolute -top-1 -right-1 flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75 animate-duration-1000"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
-              </span>
-            </div>
-            <span className="text-[11px] sm:text-xs font-extrabold tracking-wider whitespace-nowrap hidden xs:inline">
-              HƯỚNG DẪN 🤖
-            </span>
-          </motion.button>
-        )}
-      </AnimatePresence>
-
       {/* Main Guided Tour Assistant Overlays */}
       <AnimatePresence>
         {isOpen && (

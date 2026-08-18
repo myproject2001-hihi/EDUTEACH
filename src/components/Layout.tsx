@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot } from 'lucide-react';
 import { Role, User, Assignment, Submission, SystemNotification, ClassSession } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 import { db } from '../firebase';
@@ -23,6 +23,7 @@ interface LayoutProps {
   onUpdateUser?: (user: User) => void;
   onLogout?: () => void;
   onOpenGuide?: () => void;
+  onOpenRobot?: () => void;
   assignments?: Assignment[];
   submissions?: Submission[];
   systemNotifications?: SystemNotification[];
@@ -44,7 +45,7 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
+export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, onOpenRobot, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'unread' | 'all'>('unread');
   const [remindedIds, setRemindedIds] = useState<string[]>([]);
@@ -1188,6 +1189,23 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                   >
                     <BookOpen className="w-4 h-4" />
                     <span>Xem lại Hướng dẫn & Khám phá hệ thống</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Call Robot Guide button */}
+              {!isEditing && onOpenRobot && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileModal(false);
+                      onOpenRobot();
+                    }}
+                    className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-extrabold text-xs rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <Bot className="w-4 h-4 text-white" />
+                    <span>Gọi Robot Hướng Dẫn 🤖</span>
                   </button>
                 </div>
               )}

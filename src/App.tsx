@@ -42,6 +42,17 @@ export default function App() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [activeUnreadLetter, setActiveUnreadLetter] = useState<LoveLetter | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [robotOpen, setRobotOpen] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      const seen = localStorage.getItem('robot_seen_' + currentUser.id);
+      if (!seen) {
+        localStorage.setItem('robot_seen_' + currentUser.id, 'true');
+        setRobotOpen(true);
+      }
+    }
+  }, [currentUser?.id]);
   const [initializingAuth, setInitializingAuth] = useState(true);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);
@@ -655,6 +666,7 @@ export default function App() {
                 onUpdateUser={handleUpdateUser}
                 onLogout={handleLogout}
                 onOpenGuide={() => setShowGuideOnboarding(true)}
+                onOpenRobot={() => setRobotOpen(true)}
                 assignments={assignments}
                 submissions={submissions}
                 systemNotifications={filteredNotifications}
@@ -668,6 +680,8 @@ export default function App() {
                 user={{ ...currentUser, role }} 
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
+                isOpen={robotOpen}
+                onOpenChange={setRobotOpen}
               />
               
               {activeUnreadLetter && (
