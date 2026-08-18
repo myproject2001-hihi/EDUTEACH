@@ -70,9 +70,9 @@ service cloud.firestore {
     // Love letters collection
     match /love_letters/{letterId} {
       allow read: if isAuthenticated();
-      allow create: if isTeacher();
+      allow create: if isAuthenticated();
       allow update: if isAuthenticated();
-      allow delete: if isTeacher();
+      allow delete: if isAuthenticated();
     }
 
     match /settings/{document=**} {
