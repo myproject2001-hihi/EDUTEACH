@@ -656,6 +656,7 @@ export function AssignmentsView({
   const [studentQuizAnswers, setStudentQuizAnswers] = useState<Record<string, number>>({});
   const [showCamera, setShowCamera] = useState(false);
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set());
+  const [viewedCards, setViewedCards] = useState<Set<string>>(new Set());
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [mobileExamTab, setMobileExamTab] = useState<'questions' | 'bubble'>('questions');
   const [submitContent, setSubmitContent] = useState('');
@@ -726,7 +727,19 @@ export function AssignmentsView({
     setShowCheatWarning(false);
     setIsNotFullscreen(false);
     setExamTimeRemaining(900);
+    setFlippedCards(new Set());
+    setViewedCards(new Set());
+    setActiveCardIndex(0);
   }, [selectedAssignment]);
+
+  useEffect(() => {
+    if (selectedAssignment?.type === 'flashcard' && selectedAssignment.flashcards) {
+      const activeCard = selectedAssignment.flashcards[activeCardIndex];
+      if (activeCard) {
+        setViewedCards(prev => new Set(prev).add(activeCard.id));
+      }
+    }
+  }, [activeCardIndex, selectedAssignment]);
 
   useEffect(() => {
     let timerInterval: any = null;
@@ -2203,7 +2216,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                         <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 text-center max-w-xl mx-auto flex flex-col">
                           <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">{selectedAssignment.title}</h3>
                           <p className="text-xs text-slate-500">
-                            Bạn cần xem (lật) tất cả thẻ ghi nhớ để mở khóa bài kiểm tra.
+                            Bạn cần lật qua tất cả thẻ ghi nhớ để mở khóa bài kiểm tra.
                           </p>
                           
                           {activeCard && (
@@ -2258,7 +2271,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                               onClick={() => setActiveCardIndex(i => i - 1)}
                               className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50"
                             >
-                              Trước
+                              Lùi thẻ
                             </button>
                             <span className="text-sm font-bold text-slate-500">
                               {activeCardIndex + 1} / {selectedAssignment.flashcards?.length || 0}
@@ -2268,7 +2281,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                               onClick={() => setActiveCardIndex(i => i + 1)}
                               className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50"
                             >
-                              Sau
+                              Tiếp tục
                             </button>
                           </div>
 
@@ -2288,7 +2301,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                                 disabled
                                 className="w-full py-3.5 bg-slate-200 text-slate-400 font-bold text-sm rounded-2xl uppercase tracking-wider cursor-not-allowed"
                               >
-                                Xem hết thẻ để làm bài
+                                Lật hết thẻ để làm bài (Đã lật {flippedCards.size}/{selectedAssignment.flashcards?.length || 0})
                               </button>
                             )}
                           </div>
