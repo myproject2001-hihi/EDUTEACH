@@ -397,7 +397,15 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                                 </>
                               )}
                             </button>
-                            <button className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm">
+                            <button
+                              onClick={() => {
+                                if (onSelectAssignment) {
+                                  onSelectAssignment(assignment.id);
+                                }
+                                onNavigate('assignments');
+                              }}
+                              className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white font-bold text-xs rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                            >
                               Làm ngay
                             </button>
                           </div>
