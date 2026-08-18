@@ -19,6 +19,7 @@ import { GameWizard } from '../components/GameWizard';
 import { FlashcardWizard } from '../components/FlashcardWizard';
 import { AssignmentListSkeleton, AssignmentDetailSkeleton, SubmissionsListSkeleton } from '../components/Skeletons';
 import { DateTimePicker24h } from '../components/DateTimePicker24h';
+import { shouldShowNewBadge } from '../utils/resourceVisits';
 
 interface AssignmentsProps {
   user: User;
@@ -34,14 +35,6 @@ interface AssignmentsProps {
   simulations?: HTMLSimulation[];
   viewMode?: 'assignments' | 'games' | 'flashcards';
 }
-
-const isNewResource = (createdAt?: string) => {
-  if (!createdAt) return false;
-  const createdTime = new Date(createdAt).getTime();
-  const now = Date.now();
-  const diffHours = (now - createdTime) / (1000 * 60 * 60);
-  return diffHours <= 72; // Within 3 days
-};
 
 export const SAMPLE_TEMPLATES = {
   mau1: `Phần 1. TRẮC NGHIỆM
@@ -270,14 +263,14 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     });
 
     // 1. Multiple Choice Options (A. / B. / C. / D. / A) / A: / [A] / (A))
-    const optAMatch = chunk.match(/(?:^|\n|\s)(?:[AА][\.:\)]|\([AА]\)|\[[AА]\])\s*([^\n\t]+)/);
-    const optBMatch = chunk.match(/(?:^|\n|\s)(?:[BВ][\.:\)]|\([BВ]\)|\[[BВ]\])\s*([^\n\t]+)/);
-    const optCMatch = chunk.match(/(?:^|\n|\s)(?:[CС][\.:\)]|\([CС]\)|\[[CС]\])\s*([^\n\t]+)/);
-    const optDMatch = chunk.match(/(?:^|\n|\s)(?:[DĐ][\.:\)]|\([DĐ]\)|\[[DĐ]\])\s*([^\n\t]+)/);
+    const optAMatch = chunk.match(/(?:^|\n)\s*(?:[AА][\.:\)]|\([AА]\)|\[[AА]\])\s*([^\n\t]+)/);
+    const optBMatch = chunk.match(/(?:^|\n)\s*(?:[BВ][\.:\)]|\([BВ]\)|\[[BВ]\])\s*([^\n\t]+)/);
+    const optCMatch = chunk.match(/(?:^|\n)\s*(?:[CС][\.:\)]|\([CС]\)|\[[CС]\])\s*([^\n\t]+)/);
+    const optDMatch = chunk.match(/(?:^|\n)\s*(?:[DĐ][\.:\)]|\([DĐ]\)|\[[DĐ]\])\s*([^\n\t]+)/);
     
     // 2. True/False Sub-options (a) / b) / c) / d))
-    const subAMatch = chunk.match(/(?:^|\n|\s)[aа][\)\.]\s*([^\n\t]+)/);
-    const subBMatch = chunk.match(/(?:^|\n|\s)[bв][\)\.]\s*([^\n\t]+)/);
+    const subAMatch = chunk.match(/(?:^|\n)\s*[aа][\)\.]\s*([^\n\t]+)/);
+    const subBMatch = chunk.match(/(?:^|\n)\s*[bв][\)\.]\s*([^\n\t]+)/);
 
     if (matchingPairs.length > 0) {
       type = 'matching';
@@ -303,9 +296,9 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       points = 1.0;
       subOptions[0] = subAMatch[1].trim();
       subOptions[1] = subBMatch[1].trim();
-      const subCMatch = chunk.match(/(?:^|\n|\s)[cс][\)\.]\s*([^\n\t]+)/);
+      const subCMatch = chunk.match(/(?:^|\n)\s*[cс][\)\.]\s*([^\n\t]+)/);
       if (subCMatch) subOptions[2] = subCMatch[1].trim();
-      const subDMatch = chunk.match(/(?:^|\n|\s)[dđ][\)\.]\s*([^\n\t]+)/);
+      const subDMatch = chunk.match(/(?:^|\n)\s*[dđ][\)\.]\s*([^\n\t]+)/);
       if (subDMatch) subOptions[3] = subDMatch[1].trim();
 
       for (let i = 0; i < 4; i++) {
@@ -1583,7 +1576,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
                         {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Bài Mô phỏng' : 'Nộp bài'}
                       </span>
-                      {isNewResource(assignment.createdAt) && (
+                      {shouldShowNewBadge(user?.id, assignment) && (
                         <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse uppercase tracking-wider">
                           🔥 MỚI
                         </span>

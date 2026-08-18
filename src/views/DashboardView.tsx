@@ -22,14 +22,7 @@ import { motion } from 'motion/react';
 import { UserAvatar } from '../components/UserAvatar';
 import { AssignmentListSkeleton } from '../components/Skeletons';
 import { StudentLoveLetterForm } from '../components/StudentLoveLetterForm';
-
-const isNewResource = (createdAt?: string) => {
-  if (!createdAt) return false;
-  const createdTime = new Date(createdAt).getTime();
-  const now = Date.now();
-  const diffHours = (now - createdTime) / (1000 * 60 * 60);
-  return diffHours <= 72; // Within 3 days
-};
+import { shouldShowNewBadge } from '../utils/resourceVisits';
 
 interface DashboardProps {
   user: User;
@@ -359,7 +352,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">
                               {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Mô phỏng' : 'Nộp bài'}
                             </span>
-                            {isNewResource(assignment.createdAt) && (
+                            {shouldShowNewBadge(user?.id, assignment) && (
                               <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse uppercase tracking-wider">
                                 🔥 MỚI
                               </span>

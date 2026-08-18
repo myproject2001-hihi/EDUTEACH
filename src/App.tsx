@@ -22,6 +22,7 @@ import { NotificationsManagerView } from './views/NotificationsManagerView';
 import { saveSimulationToFirestore } from './lib/simulationStorage';
 import { LoveLetterModal } from './components/LoveLetterModal';
 import { RobotGuide } from './components/RobotGuide';
+import { checkAndIncrementNewResourceVisits } from './utils/resourceVisits';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -105,6 +106,12 @@ export default function App() {
   useEffect(() => {
     setShowGuideOnboarding(false);
   }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser && assignments.length > 0) {
+      checkAndIncrementNewResourceVisits(currentUser.id, assignments);
+    }
+  }, [currentUser, assignments]);
 
   // 2. Setup real-time listeners for database collections when authenticated
   useEffect(() => {
