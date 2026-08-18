@@ -35,6 +35,14 @@ interface AssignmentsProps {
   viewMode?: 'assignments' | 'games' | 'flashcards';
 }
 
+const isNewResource = (createdAt?: string) => {
+  if (!createdAt) return false;
+  const createdTime = new Date(createdAt).getTime();
+  const now = Date.now();
+  const diffHours = (now - createdTime) / (1000 * 60 * 60);
+  return diffHours <= 72; // Within 3 days
+};
+
 export const SAMPLE_TEMPLATES = {
   mau1: `Phần 1. TRẮC NGHIỆM
 Câu 1. (VD) Trong cuộc khai thác thuộc địa lần thứ hai ở Đông Dương 1919.1929, thực dân Pháp tập trung đầu tư vào
@@ -1571,9 +1579,16 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   }`}
                 >
                   <div className="flex justify-between items-start gap-2 mb-2">
-                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
-                      {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Bài Mô phỏng' : 'Nộp bài'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
+                        {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Bài Mô phỏng' : 'Nộp bài'}
+                      </span>
+                      {isNewResource(assignment.createdAt) && (
+                        <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse uppercase tracking-wider">
+                          🔥 MỚI
+                        </span>
+                      )}
+                    </div>
                     
                     {isTeacher ? (
                       <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-200">
