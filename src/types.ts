@@ -48,6 +48,7 @@ export interface Assignment {
   isMandatory?: boolean; // Nút bắt buộc
   maxAttempts?: number; // 0 hoặc undefined = Vĩnh viễn (Không giới hạn), 1 = 1 lần, 2, 3, 5, 10
   flashcards?: { id: string; front: string; back: string }[];
+  rawCode?: string; // Lưu giữ 100% nguyên vẹn mã nguồn đề thi người dùng nhập
   createdAt: string;
   teacherId?: string;
   teacherName?: string;

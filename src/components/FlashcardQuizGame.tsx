@@ -54,36 +54,31 @@ export function FlashcardQuizGame({
         
         let cleanedQuestion = q.question || '';
 
-        // If options are missing or empty, try extracting A. B. C. D. from question text
+        // If options are missing or empty in the array, try extracting A. B. C. D. from question text if properly formatted
         if (validOpts.length < 2 && cleanedQuestion) {
-          const optAM = cleanedQuestion.match(/(?:^|\n|\s)(?:[AА][\.:\)]|\([AА]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[BВ][\.:\)]|\([BВ]\)))|$)/i);
-          const optBM = cleanedQuestion.match(/(?:^|\n|\s)(?:[BВ][\.:\)]|\([BВ]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[CС][\.:\)]|\([CС]\)))|$)/i);
-          const optCM = cleanedQuestion.match(/(?:^|\n|\s)(?:[CС][\.:\)]|\([CС]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[DĐ][\.:\)]|\([DĐ]\)))|$)/i);
-          const optDM = cleanedQuestion.match(/(?:^|\n|\s)(?:[DĐ][\.:\)]|\([DĐ]\))\s*([\s\S]*?)(?=(?:(?:^|\n|\s)(?:[A-D][\.:\)]|Lời giải|Hướng dẫn|Đáp án|$))|$)/i);
+          const optAM = cleanedQuestion.match(/(?:^|\n)\s*(?:[AА][\.:])\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?:[BВ][\.:]))|$)/i);
+          const optBM = cleanedQuestion.match(/(?:^|\n)\s*(?:[BВ][\.:])\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?:[CС][\.:]))|$)/i);
+          const optCM = cleanedQuestion.match(/(?:^|\n)\s*(?:[CС][\.:])\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?:[DĐ][\.:]))|$)/i);
+          const optDM = cleanedQuestion.match(/(?:^|\n)\s*(?:[DĐ][\.:])\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?:Hướng dẫn|Lời giải|Giải thích|Đáp án|$))|$)/i);
 
           if (optAM && optBM) {
             const extracted = [
-              optAM[1].trim().replace(/\.$/, ''),
-              optBM[1].trim().replace(/\.$/, ''),
-              optCM ? optCM[1].trim().replace(/\.$/, '') : '',
-              optDM ? optDM[1].trim().replace(/\.$/, '') : ''
+              optAM[1].trim(),
+              optBM[1].trim(),
+              optCM ? optCM[1].trim() : '',
+              optDM ? optDM[1].trim() : ''
             ].filter(Boolean);
 
             if (extracted.length >= 2) {
               validOpts = extracted;
-              // Remove the options from question text so question doesn't repeat options
-              cleanedQuestion = cleanedQuestion.split(/(?:^|\n|\s)(?:[A-DА-Я][\.:\)]|\([A-DА-Я]\))/i)[0].trim();
+              cleanedQuestion = cleanedQuestion.split(/(?:^|\n)\s*[A-DА-Я][\.:]/i)[0].trim();
             }
           }
         }
 
-        // If still not enough options, fallback
+        // If still no options at all (e.g. short answer or pure cards), generate from flashcards or question text
         if (validOpts.length === 0) {
-          validOpts = ['Phương án A', 'Phương án B', 'Phương án C', 'Phương án D'];
-        } else if (validOpts.length < 4) {
-          while (validOpts.length < 4) {
-            validOpts.push(`Phương án ${['A', 'B', 'C', 'D'][validOpts.length]}`);
-          }
+          validOpts = ['Đúng', 'Sai'];
         }
 
         const rawOpts = [...validOpts];

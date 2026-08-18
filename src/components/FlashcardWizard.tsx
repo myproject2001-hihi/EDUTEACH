@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Eye, Play, X, HelpCircle, Download, Upload, Plus } from 'lucide-react';
+import { Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2 } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 
 interface Flashcard {
@@ -83,10 +83,22 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   <button 
                     type="button"
                     onClick={() => setShowFlashcardPreview(true)}
-                    className="px-3 sm:px-4 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold rounded-xl text-xs border border-emerald-200 flex items-center gap-1.5 transition-colors shadow-sm"
+                    className="px-3 sm:px-4 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs border border-indigo-200 flex items-center gap-1.5 transition-colors shadow-sm"
                     title="Xem trước trải nghiệm học lật thẻ của học sinh"
                   >
-                    <Eye className="w-3.5 h-3.5 text-emerald-700" /> Xem trước bộ thẻ
+                    <Eye className="w-3.5 h-3.5" /> Preview bộ thẻ
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Bạn có chắc chắn muốn xóa tất cả thẻ hiện có?')) {
+                        setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
+                      }
+                    }}
+                    className="px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm"
+                    title="Xóa trắng danh sách thẻ"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả
                   </button>
                   <button 
                     type="button"
@@ -186,17 +198,20 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 <div className="flex items-center gap-2">
                   <button 
                     type="button"
-                    onClick={() => setFlashcardSubStep(1)}
-                    className="px-3 py-1.5 text-slate-600 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-200"
+                    onClick={() => setRawQuestionCode('')}
+                    title="Xóa trắng mã nguồn câu hỏi"
+                    className="p-1.5 px-2.5 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
                   >
-                    ⬅️ Quay lại
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa trắng</span>
                   </button>
                   <button 
                     type="button"
                     onClick={() => setShowFlashcardQuizTest(true)} 
-                    className="px-4 py-1.5 bg-emerald-600 text-white font-bold rounded-xl text-xs hover:bg-emerald-700 flex items-center gap-1.5 border border-emerald-500 transition-colors shadow-sm"
+                    title="Xem trước bài kiểm tra trắc nghiệm flashcard"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 border border-indigo-500 transition-all shadow-sm"
                   >
-                    <Play className="w-3.5 h-3.5" /> Xem trước trắc nghiệm
+                    <Play className="w-3.5 h-3.5" /> Preview
                   </button>
                 </div>
               </div>

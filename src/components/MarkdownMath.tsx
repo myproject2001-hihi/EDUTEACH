@@ -42,8 +42,8 @@ function RawMarkdownMath({ content, className = '' }: MarkdownMathProps) {
   const processedContent = useMemo(() => {
     if (!isComplex) return text;
     return text
-      .replace(/\\\(([\s\S]*?)\\\)/g, (_match, p1) => '$' + p1 + '$')
-      .replace(/\\\[([\s\S]*?)\\\]/g, (_match, p1) => '$$' + p1 + '$$');
+      .replace(/\\\s*\(([\s\S]*?)\\\s*\)/g, (_match, p1) => '$' + p1 + '$')
+      .replace(/\\\s*\[([\s\S]*?)\\\s*\]/g, (_match, p1) => '$$' + p1 + '$$');
   }, [text, isComplex]);
 
   if (!isComplex) {

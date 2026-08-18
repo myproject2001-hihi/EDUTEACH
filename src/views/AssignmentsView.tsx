@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -123,7 +123,7 @@ export function cleanQuestionText(text: string): string {
   if (!text) return '';
   return text
     .replace(/^\s*(Câu|Bài)\s*\d+\s*[\.:]?\s*/gi, '')
-    .replace(/^\s*\([A-Z]+\)\s*/gi, '')
+    .replace(/^\s*\((?:NB|TH|VD|VDC|B1|B2|B3|B4|M1|M2|M3|M4)\)\s*/gi, '')
     .replace(/^\s*[\.:]\s*/, '')
     .trim();
 }
@@ -164,7 +164,7 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     const numStr = `Câu ${qNum}.`;
 
     const existingQ = questionsList.find(q => q.numStr === numStr);
-    const hasOptions = trimmedChunk.match(/^[A-D][\.:]/m) || trimmedChunk.match(/^[a-d][\)\.]/m);
+    const hasOptions = trimmedChunk.match(/(?:^|\n)\s*(?<!\\)[A-DА-Я][\.:]/m) || trimmedChunk.match(/(?:^|\n)\s*(?<!\\)[a-d][\)\.]/m);
     
     if (existingQ && !hasOptions) {
       const dapAnMatch = chunk.match(/Đáp án đúng là\s*[:\.]?\s*([^\n]+)/i) || chunk.match(/Chọn\s+([A-D])/i);
@@ -197,7 +197,6 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       solText = solText.replace(/Đáp án đúng là\s*[:\.]?\s*[^\n]+/gi, '').trim();
       solText = solText.replace(/Chọn\s+[A-D][\.:]?[^\n]*/gi, '').trim();
       solText = solText.replace(/(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Giải chi tiết|Cách giải)\s*[:\.]?/gi, '').trim();
-      solText = solText.replace(/(^|\n)\s*PHẦN\s+[IVX]+[\s\S]*$/i, '').trim();
       solText = solText.replace(/^[-–—]\s*/, '').trim();
       
       if (solText) {
@@ -213,8 +212,8 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
     else if (chunk.includes('(VDC)')) levelBadge = 'VDC';
 
     let questionText = '';
-    const qLineMatch = chunk.match(/^(?:Câu|Bài)\s*\d+[\.:]?\s*(\([A-Z]+\))?\s*([^\n]+)/im);
-    if (qLineMatch) {
+    const qLineMatch = chunk.match(/^(?:Câu|Bài)\s*\d+[\.:]?\s*(\((?:NB|TH|VD|VDC|B1|B2|B3|B4)\))?\s*([^\n]*)/im);
+    if (qLineMatch && qLineMatch[2]) {
       questionText = qLineMatch[2].trim();
     }
     
@@ -234,7 +233,11 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
        }
     }
     if (questionLines.length > 0) {
-      questionText += '\n' + questionLines.join('\n');
+      if (questionText) {
+        questionText += '\n' + questionLines.join('\n');
+      } else {
+        questionText = questionLines.join('\n');
+      }
     }
 
     questionText = cleanQuestionText(questionText);
@@ -262,15 +265,17 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       }
     });
 
-    // 1. Multiple Choice Options (A. / B. / C. / D. / A) / A: / [A] / (A))
-    const optAMatch = chunk.match(/(?:^|\n)\s*(?:[AА][\.:\)]|\([AА]\)|\[[AА]\])\s*([^\n\t]+)/);
-    const optBMatch = chunk.match(/(?:^|\n)\s*(?:[BВ][\.:\)]|\([BВ]\)|\[[BВ]\])\s*([^\n\t]+)/);
-    const optCMatch = chunk.match(/(?:^|\n)\s*(?:[CС][\.:\)]|\([CС]\)|\[[CС]\])\s*([^\n\t]+)/);
-    const optDMatch = chunk.match(/(?:^|\n)\s*(?:[DĐ][\.:\)]|\([DĐ]\)|\[[DĐ]\])\s*([^\n\t]+)/);
+    // Extract options safely without cutting
+    const optAMatch = chunk.match(/(?:^|\n)\s*(?<!\\)[AА][\.:]\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?<!\\)[BВ][\.:])|\s+(?<!\\)[BВ][\.:]|(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Đáp án|Chọn\s+[A-D])|$)/i);
+    const optBMatch = chunk.match(/(?:^|\n|\s+)\s*(?<!\\)[BВ][\.:]\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?<!\\)[CС][\.:])|\s+(?<!\\)[CС][\.:]|(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Đáp án|Chọn\s+[A-D])|$)/i);
+    const optCMatch = chunk.match(/(?:^|\n|\s+)\s*(?<!\\)[CС][\.:]\s*([\s\S]*?)(?=(?:(?:^|\n)\s*(?<!\\)[DĐ][\.:])|\s+(?<!\\)[DĐ][\.:]|(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Đáp án|Chọn\s+[A-D])|$)/i);
+    const optDMatch = chunk.match(/(?:^|\n|\s+)\s*(?<!\\)[DĐ][\.:]\s*([\s\S]*?)(?=(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Giải thích|Đáp án|Chọn\s+[A-D])|$)/i);
     
     // 2. True/False Sub-options (a) / b) / c) / d))
-    const subAMatch = chunk.match(/(?:^|\n)\s*[aа][\)\.]\s*([^\n\t]+)/);
-    const subBMatch = chunk.match(/(?:^|\n)\s*[bв][\)\.]\s*([^\n\t]+)/);
+    const subAMatch = chunk.match(/(?:^|\n)\s*(?<!\\)[aа][\)\.]\s*([\s\S]*?)(?=(?:^|\n)\s*(?<!\\)[bв][\)\.]|(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Đáp án)|$)/i);
+    const subBMatch = chunk.match(/(?:^|\n)\s*(?<!\\)[bв][\)\.]\s*([\s\S]*?)(?=(?:^|\n)\s*(?<!\\)[cс][\)\.]|(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Đáp án)|$)/i);
+    const subCMatch = chunk.match(/(?:^|\n)\s*(?<!\\)[cс][\)\.]\s*([\s\S]*?)(?=(?:^|\n)\s*(?<!\\)[dđ][\)\.]|(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Đáp án)|$)/i);
+    const subDMatch = chunk.match(/(?:^|\n)\s*(?<!\\)[dđ][\)\.]\s*([\s\S]*?)(?=(?:^|\n)\s*(?:Hướng dẫn giải|Lời giải|Đáp án)|$)/i);
 
     if (matchingPairs.length > 0) {
       type = 'matching';
@@ -282,28 +287,13 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       options[1] = optBMatch[1].trim();
       if (optCMatch) options[2] = optCMatch[1].trim();
       if (optDMatch) options[3] = optDMatch[1].trim();
-      
-      for (let i = 0; i < 4; i++) {
-        // If multiple options were on the same line, clean trailing letters
-        options[i] = options[i].replace(/\s+(?:[B-D][\.:\)]|\([B-D]\)|\[[B-D]\]).*/, '').trim();
-        // Remove trailing full stop if it's not part of a math expression
-        if (options[i].endsWith('.') && !options[i].endsWith('..') && !options[i].includes('$')) {
-          options[i] = options[i].slice(0, -1).trim();
-        }
-      }
     } else if (subAMatch && subBMatch) {
       type = 'true_false';
       points = 1.0;
       subOptions[0] = subAMatch[1].trim();
       subOptions[1] = subBMatch[1].trim();
-      const subCMatch = chunk.match(/(?:^|\n)\s*[cс][\)\.]\s*([^\n\t]+)/);
       if (subCMatch) subOptions[2] = subCMatch[1].trim();
-      const subDMatch = chunk.match(/(?:^|\n)\s*[dđ][\)\.]\s*([^\n\t]+)/);
       if (subDMatch) subOptions[3] = subDMatch[1].trim();
-
-      for (let i = 0; i < 4; i++) {
-        subOptions[i] = subOptions[i].replace(/\s+[b-d][\)\.].*/, '').trim();
-      }
     }
 
     let correctAnswer: number | string | number[] | undefined = undefined;
@@ -663,6 +653,14 @@ export function AssignmentsView({
   const [submitContent, setSubmitContent] = useState('');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const [uploadedPageCount, setUploadedPageCount] = useState<number | undefined>(undefined);
+  const [submittedSuccessModal, setSubmittedSuccessModal] = useState<{
+    assignmentTitle: string;
+    fileName: string;
+    pageCount?: number;
+    submittedAt: string;
+    content?: string;
+  } | null>(null);
   const [previewSub, setPreviewSub] = useState<Submission | null>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [rotationAngle, setRotationAngle] = useState<number>(0);
@@ -1054,7 +1052,9 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     setNewMaxAttempts(assignment.maxAttempts !== undefined ? assignment.maxAttempts : 0);
     setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
     
-    if (assignment.questions && assignment.questions.length > 0) {
+    if (assignment.rawCode) {
+      setRawQuestionCode(assignment.rawCode);
+    } else if (assignment.questions && assignment.questions.length > 0) {
       setRawQuestionCode(questionsToRawCode(assignment.questions));
     } else {
       setRawQuestionCode(SAMPLE_TEMPLATES.mau2);
@@ -1100,6 +1100,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       isMandatory: newIsMandatory,
       maxAttempts: newMaxAttempts,
       flashcards: newType === 'flashcard' ? newFlashcards : undefined,
+      rawCode: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? rawQuestionCode : undefined,
       questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
     };
 
@@ -1167,19 +1168,34 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       autoGrade = earnedPoints;
     }
 
+    const currentFileUrl = uploadedFileUrl || uploadedFileName || (selectedAssignment.type === 'file_upload' ? 'bailam_hocsinh.pdf' : undefined);
+    const recordedFileName = uploadedFileName || (selectedAssignment.type === 'lesson_check' ? 'bai_tap_chup_tay.pdf' : 'bailam_hocsinh.pdf');
+    const recordedContent = submitContent || ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') ? 'Đã hoàn thành bài làm trực tuyến.' : 'Đã nộp bài đầy đủ.');
+
     onSubmitWork({
       assignmentId: selectedAssignment.id,
       studentId: user.id,
       studentName: user.name,
-      content: submitContent || ((selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') ? 'Đã hoàn thành bài làm trực tuyến.' : 'Đã nộp bài đầy đủ.'),
-      fileUrl: uploadedFileUrl || uploadedFileName || (selectedAssignment.type === 'file_upload' ? 'bailam_hocsinh.pdf' : undefined),
+      content: recordedContent,
+      fileUrl: currentFileUrl,
       quizAnswers: (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') ? studentQuizAnswers : undefined,
       grade: autoGrade
     });
 
+    if (selectedAssignment.type === 'lesson_check' || selectedAssignment.type === 'file_upload') {
+      setSubmittedSuccessModal({
+        assignmentTitle: selectedAssignment.title,
+        fileName: recordedFileName,
+        pageCount: uploadedPageCount,
+        submittedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }),
+        content: recordedContent
+      });
+    }
+
     setSubmitContent('');
     setUploadedFileName(null);
     setUploadedFileUrl(null);
+    setUploadedPageCount(undefined);
   };
 
 
@@ -2335,37 +2351,136 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           <div className="space-y-2">
                             <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">Nộp ảnh chép bài</h3>
                             <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
-                              Sử dụng camera để chụp lại vở ghi chép của bạn. Hình ảnh sẽ tự động được hệ thống chuyển đổi thành định dạng PDF để nộp.
+                              Sử dụng camera để chụp lại từng trang vở ghi chép của bạn. Hệ thống hỗ trợ xem trước, xoay ảnh, chụp lại trang mờ và tự động đóng gói thành định dạng PDF chất lượng cao để gửi cho giáo viên.
                             </p>
                           </div>
                           
+                          {/* If file has been captured/attached */}
+                          {uploadedFileUrl ? (
+                            <div className="bg-white border-2 border-emerald-200 rounded-2xl p-5 text-left space-y-4 shadow-sm">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                                    <FileText className="w-6 h-6" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-sm text-slate-900 line-clamp-1">{uploadedFileName || 'bai_tap_chep_tay.pdf'}</h4>
+                                    <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+                                      <Check className="w-3.5 h-3.5" /> Đã sẵn sàng {uploadedPageCount ? `(${uploadedPageCount} trang)` : ''}
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCamera(true)}
+                                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1"
+                                >
+                                  <Camera className="w-3.5 h-3.5" /> Chụp lại / Thêm trang
+                                </button>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1">Lời nhắn gửi cho giáo viên:</label>
+                                <textarea
+                                  rows={2}
+                                  value={submitContent}
+                                  onChange={e => setSubmitContent(e.target.value)}
+                                  className="w-full p-3 bg-slate-50 text-slate-900 text-xs border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                                  placeholder="Nhập ghi chú thêm cho giáo viên nếu có..."
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleStudentSubmit()}
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                <Send className="w-4 h-4" /> Gửi bài về cho Giáo viên
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <button
+                                type="button"
+                                onClick={() => setShowCamera(true)}
+                                className="w-full max-w-md mx-auto py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                              >
+                                <Camera className="w-5 h-5" /> Mở Camera & Chụp ảnh vở ghi
+                              </button>
+
+                              <div className="text-center">
+                                <label className="text-xs text-slate-500 hover:text-indigo-600 cursor-pointer font-medium inline-flex items-center gap-1">
+                                  <Upload className="w-3.5 h-3.5" /> Hoặc tải file PDF/Ảnh có sẵn từ thiết bị
+                                  <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept="image/*,application/pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        setUploadedFileName(file.name);
+                                        const reader = new FileReader();
+                                        reader.onload = (event) => {
+                                          if (typeof event.target?.result === 'string') {
+                                            setUploadedFileUrl(event.target.result);
+                                            setUploadedPageCount(1);
+                                          }
+                                        };
+                                        reader.readAsDataURL(file);
+                                      }
+                                    }}
+                                  />
+                                </label>
+                              </div>
+                            </div>
+                          )}
+
                           {showCamera && (
                             <CameraCapture 
+                              assignmentTitle={selectedAssignment.title}
                               onCancel={() => setShowCamera(false)}
-                              onCapture={(img, pdfDataUrl) => {
+                              onCapture={(img, pdfDataUrl, pageCount) => {
                                 if (pdfDataUrl) {
-                                  // This is the generated PDF string
                                   setUploadedFileUrl(pdfDataUrl);
-                                  setUploadedFileName('bai_tap_chep_tay.pdf');
+                                  setUploadedFileName(`bai_tap_chep_tay_${pageCount || 1}_trang.pdf`);
+                                  setUploadedPageCount(pageCount || 1);
                                 } else {
-                                  // Fallback to image
                                   setUploadedFileUrl(img);
                                   setUploadedFileName('bai_tap_chep_tay.jpg');
+                                  setUploadedPageCount(1);
                                 }
-                                setSubmitContent('Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.');
+                                setSubmitContent(prev => prev || 'Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.');
                                 setShowCamera(false);
-                                // Don't automatically submit, let user preview and then click submit
+                              }}
+                              onSubmitDirectly={(img, pdfDataUrl, pageCount) => {
+                                const finalFileUrl = pdfDataUrl || img;
+                                const finalFileName = pdfDataUrl ? `bai_tap_chep_tay_${pageCount || 1}_trang.pdf` : 'bai_tap_chep_tay.jpg';
+                                const finalContent = submitContent || 'Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.';
+
+                                onSubmitWork({
+                                  assignmentId: selectedAssignment.id,
+                                  studentId: user.id,
+                                  studentName: user.name,
+                                  content: finalContent,
+                                  fileUrl: finalFileUrl
+                                });
+
+                                setSubmittedSuccessModal({
+                                  assignmentTitle: selectedAssignment.title,
+                                  fileName: finalFileName,
+                                  pageCount: pageCount,
+                                  submittedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                  content: finalContent
+                                });
+
+                                setSubmitContent('');
+                                setUploadedFileName(null);
+                                setUploadedFileUrl(null);
+                                setUploadedPageCount(undefined);
+                                setShowCamera(false);
                               }}
                             />
                           )}
-
-                          <button
-                            type="button"
-                            onClick={() => setShowCamera(true)}
-                            className="w-full max-w-md mx-auto py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
-                          >
-                            <Camera className="w-5 h-5" /> Mở Camera & Chụp ảnh
-                          </button>
                         </div>
                       );
                     }
@@ -2388,13 +2503,14 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           <div className="border-2 border-dashed border-slate-300 bg-white hover:bg-slate-50 p-6 rounded-2xl text-center cursor-pointer transition-colors">
                             <Upload className="w-8 h-8 text-indigo-500 mx-auto mb-2" />
                             <p className="text-xs font-bold text-slate-800">
-                              {uploadedFileName ? `Đã chọn: ${uploadedFileName}` : 'Kéo thả file bài làm (PDF, PNG, JPG) hoặc bấm để chọn'}
+                              {uploadedFileName ? `Đã chọn: ${uploadedFileName} ${uploadedPageCount ? `(${uploadedPageCount} trang)` : ''}` : 'Kéo thả file bài làm (PDF, PNG, JPG) hoặc bấm để chọn'}
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-1">Hỗ trợ ảnh chụp tập vở hoặc file PDF</p>
+                            <p className="text-[10px] text-slate-400 mt-1">Hỗ trợ ảnh chụp tập vở nhiều trang (tự động xuất PDF) hoặc file tải lên</p>
                             <input 
                               type="file" 
                               className="hidden" 
                               id="fileUploadInput"
+                              accept="image/*,application/pdf"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
@@ -2403,6 +2519,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                                   reader.onload = (event) => {
                                     if (typeof event.target?.result === 'string') {
                                       setUploadedFileUrl(event.target.result);
+                                      setUploadedPageCount(1);
                                     }
                                   };
                                   reader.readAsDataURL(file);
@@ -2421,21 +2538,51 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                               onClick={() => setShowCamera(true)}
                               className="mt-3 ml-2 px-4 py-1.5 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-lg hover:bg-emerald-100 border border-emerald-200 font-semibold inline-flex items-center gap-1"
                             >
-                              <Camera className="w-4 h-4" /> Chụp hình (PDF)
+                              <Camera className="w-4 h-4" /> Chụp bài vở & Xuất PDF
                             </button>
                           </div>
                           {showCamera && (
                             <CameraCapture 
+                              assignmentTitle={selectedAssignment.title}
                               onCancel={() => setShowCamera(false)}
-                              onCapture={(img, pdfDataUrl) => {
+                              onCapture={(img, pdfDataUrl, pageCount) => {
                                 if (pdfDataUrl) {
                                   setUploadedFileUrl(pdfDataUrl);
-                                  setUploadedFileName('bai_tap_chep_tay.pdf');
+                                  setUploadedFileName(`bai_tap_${pageCount || 1}_trang.pdf`);
+                                  setUploadedPageCount(pageCount || 1);
                                 } else {
                                   setUploadedFileUrl(img);
                                   setUploadedFileName('bai_tap_chep_tay.jpg');
+                                  setUploadedPageCount(1);
                                 }
                                 setSubmitContent(prev => prev ? prev + '\nEm gửi ảnh chép bài (đã chuyển thành PDF) ạ.' : 'Em gửi ảnh chép bài (đã chuyển thành PDF) ạ.');
+                                setShowCamera(false);
+                              }}
+                              onSubmitDirectly={(img, pdfDataUrl, pageCount) => {
+                                const finalFileUrl = pdfDataUrl || img;
+                                const finalFileName = pdfDataUrl ? `bai_tap_${pageCount || 1}_trang.pdf` : 'bai_tap_chep_tay.jpg';
+                                const finalContent = submitContent || 'Em gửi ảnh bài làm (đã chuyển thành PDF) ạ.';
+
+                                onSubmitWork({
+                                  assignmentId: selectedAssignment.id,
+                                  studentId: user.id,
+                                  studentName: user.name,
+                                  content: finalContent,
+                                  fileUrl: finalFileUrl
+                                });
+
+                                setSubmittedSuccessModal({
+                                  assignmentTitle: selectedAssignment.title,
+                                  fileName: finalFileName,
+                                  pageCount: pageCount,
+                                  submittedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }),
+                                  content: finalContent
+                                });
+
+                                setSubmitContent('');
+                                setUploadedFileName(null);
+                                setUploadedFileUrl(null);
+                                setUploadedPageCount(undefined);
                                 setShowCamera(false);
                               }}
                             />
@@ -2456,9 +2603,9 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                         <div className="flex justify-end pt-2">
                           <button 
                             type="submit" 
-                            className="px-6 py-3 bg-indigo-600 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-indigo-700 shadow-sm transition-colors"
+                            className="px-6 py-3 bg-indigo-600 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-indigo-700 shadow-sm transition-colors flex items-center gap-2"
                           >
-                            Hoàn tất & Nộp bài tập
+                            <Send className="w-4 h-4" /> Hoàn tất & Nộp bài tập
                           </button>
                         </div>
                       </form>
@@ -2615,13 +2762,17 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
 
       {showFlashcardQuizTest && (
         <FlashcardQuizGame
-          assignmentTitle={selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard'}
-          flashcards={selectedAssignment ? selectedAssignment.flashcards : newFlashcards}
-          questions={selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions}
+          assignmentTitle={showCreateModal ? (newTitle || 'Xem trước bài kiểm tra Flashcard') : (selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard')}
+          flashcards={showCreateModal ? (newFlashcards.length > 0 ? newFlashcards : (selectedAssignment?.flashcards || [])) : (selectedAssignment ? selectedAssignment.flashcards : newFlashcards)}
+          questions={
+            showCreateModal
+              ? (parsedQuestionsData.parsedQuestions.length > 0 ? parsedQuestionsData.parsedQuestions : (selectedAssignment?.questions || []))
+              : (selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions)
+          }
           studentName={user.name}
           onFinish={(score, correctCount, answersMap) => {
             setShowFlashcardQuizTest(false);
-            if (selectedAssignment) {
+            if (selectedAssignment && !showCreateModal) {
               onSubmitWork({
                 assignmentId: selectedAssignment.id,
                 studentId: user.id,
@@ -2637,496 +2788,556 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl w-full max-w-5xl shadow-2xl overflow-y-auto md:overflow-hidden h-[95vh] md:h-[90vh] flex flex-col relative transition-all">
-            <button 
-              onClick={() => setShowCreateModal(false)} 
-              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[60] p-2 bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-500 rounded-full transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 md:p-6">
+          <div className="bg-white border border-slate-200/80 rounded-2xl sm:rounded-3xl w-full max-w-5xl shadow-2xl h-[92vh] max-h-[850px] flex flex-col overflow-hidden transition-all">
+            
+            {/* PINNED MODAL HEADER */}
+            <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center justify-between sm:justify-start gap-3 flex-1 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center font-black text-xs shrink-0">
+                    {createStep === 1 ? '1' : '2'}
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-extrabold text-slate-800 truncate">
+                      {createStep === 1 
+                        ? (viewMode === 'games' ? 'Cấu hình trò chơi học tập' : viewMode === 'flashcards' ? 'Cấu hình bộ thẻ ghi nhớ' : '1. Chọn hình thức và cấu hình đề bài')
+                        : '2. Thiết lập thông tin và giao bài'}
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-slate-500 truncate">
+                      {createStep === 1
+                        ? (viewMode === 'games' ? 'Chọn chế độ chơi và soạn câu hỏi tương tác' : viewMode === 'flashcards' ? 'Thiết lập danh sách thẻ và câu hỏi ôn tập' : 'Lựa chọn hình thức bài tập phù hợp với nội dung học')
+                        : 'Hoàn tất tiêu đề, hạn nộp và số lần làm bài'}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Main Editor Area */}
-            <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col bg-slate-50/50">
-              
+                {/* Mobile Close Button */}
+                <button 
+                  type="button"
+                  onClick={() => setShowCreateModal(false)} 
+                  className="sm:hidden p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors shrink-0"
+                  title="Đóng"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Right controls: Type switcher (if assignments & step 1) + Desktop Close Button */}
+              <div className="flex items-center gap-2 justify-between sm:justify-end">
+                {createStep === 1 && viewMode === 'assignments' && (
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 overflow-x-auto custom-scrollbar w-full sm:w-auto">
+                    {([
+                      { key: 'file_upload', label: 'Offline', icon: '📁' },
+                      { key: 'online_test', label: 'Online', icon: '📝' },
+                      { key: 'simulation', label: 'Mô phỏng', icon: '🧪' },
+                      { key: 'lesson_check', label: 'Chép bài', icon: '📷' }
+                    ] as const).map(t => (
+                      <button 
+                        key={t.key}
+                        type="button"
+                        onClick={() => setNewType(t.key)}
+                        className={`py-1.5 px-2.5 sm:px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 shrink-0 ${
+                          newType === t.key 
+                            ? 'bg-white text-blue-700 shadow-sm border border-slate-200/80' 
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                        }`}
+                      >
+                        <span className="text-xs">{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Desktop Close Button */}
+                <button 
+                  type="button"
+                  onClick={() => setShowCreateModal(false)} 
+                  className="hidden sm:flex p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors shrink-0 ml-1"
+                  title="Đóng"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Editor Content Area (Smoothly Scrollable, No Top Clipping) */}
+            <div className="flex-1 overflow-y-auto bg-slate-50/70 p-3 sm:p-5 md:p-6 custom-scrollbar">
               {createStep === 1 ? (
-                <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col p-3 sm:p-5">
-                  {viewMode === 'assignments' && (
-                    <div className="mb-3 sm:mb-4 bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-sm shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-xs sm:text-sm font-extrabold text-slate-800">
-                          1. Chọn hình thức và cấu hình đề bài
+                <div className="w-full max-w-5xl mx-auto flex flex-col">
+                  {/* Game Selection */}
+                  {newType === 'game' && (
+                    <GameWizard
+                      gameSubStep={gameSubStep}
+                      setGameSubStep={setGameSubStep}
+                      newGameType={newGameType}
+                      setNewGameType={setNewGameType}
+                      selectedGameCategory={selectedGameCategory}
+                      setSelectedGameCategory={setSelectedGameCategory}
+                      gameSearchQuery={gameSearchQuery}
+                      setGameSearchQuery={setGameSearchQuery}
+                      newGameFormats={newGameFormats}
+                      setNewGameFormats={setNewGameFormats}
+                      rawQuestionCode={rawQuestionCode}
+                      setRawQuestionCode={setRawQuestionCode}
+                      setShowGamePreview={setShowGamePreview}
+                    />
+                  )}
+
+                  {/* Flashcard Configuration */}
+                  {newType === 'flashcard' && (
+                    <FlashcardWizard
+                      flashcardSubStep={flashcardSubStep}
+                      setFlashcardSubStep={setFlashcardSubStep}
+                      newFlashcards={newFlashcards}
+                      setNewFlashcards={setNewFlashcards}
+                      rawQuestionCode={rawQuestionCode}
+                      setRawQuestionCode={setRawQuestionCode}
+                      setShowFlashcardPreview={setShowFlashcardPreview}
+                      setShowFlashcardQuizTest={setShowFlashcardQuizTest}
+                      handleDownloadSampleFlashcards={handleDownloadSampleFlashcards}
+                      handleImportFlashcards={handleImportFlashcards}
+                    />
+                  )}
+
+                  {/* 1. OFFLINE WORKSPACE (File Upload Type) */}
+                  {newType === 'file_upload' && (
+                    <div className="w-full max-w-2xl mx-auto bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm space-y-4 sm:space-y-6">
+                      <div className="text-center pb-3 border-b border-slate-100">
+                        <h4 className="text-base sm:text-lg font-extrabold text-slate-800 flex items-center justify-center gap-2">
+                          <span>📁</span> Tạo đề Offline (Nộp bài tự luận)
                         </h4>
-                        <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-                          Bấm để chọn 1 trong 3 hình thức bài tập dưới đây.
-                        </p>
+                        <p className="text-xs text-slate-500 mt-1">Học sinh tải đề hoặc xem online, sau đó làm bài tự luận và chụp ảnh/gửi tệp để nộp.</p>
                       </div>
-                      <div className="flex flex-wrap sm:flex-nowrap gap-1 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-xl border border-slate-200 overflow-x-auto custom-scrollbar">
-                        {(['file_upload', 'online_test', 'simulation', 'lesson_check'] as const).map(t => (
-                          <button 
-                            key={t}
-                            type="button"
-                            onClick={() => setNewType(t)}
-                            className={`py-1.5 px-3 sm:px-4 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                              newType === t 
-                                ? 'bg-white text-blue-700 shadow border border-slate-200' 
-                                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
-                            }`}
-                          >
-                            {t === 'file_upload' ? 'Offline' : t === 'online_test' ? 'Online' : t === 'simulation' ? 'Mô phỏng' : 'Chép bài'}
-                          </button>
-                        ))}
+                      
+                      <div className="space-y-4 sm:space-y-6">
+                        <div>
+                          <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
+                            1. Dán đường link đề bài / Tài liệu (Google Drive, PDF, Ảnh):
+                          </label>
+                          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                            <input 
+                              type="url"
+                              value={newPdfUrl} 
+                              onChange={e => setNewPdfUrl(e.target.value)}
+                              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-600 font-mono"
+                              placeholder="https://example.com/de-bai-tap.pdf"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => setNewPdfUrl('https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?auto=format&fit=crop&q=80&w=1000')}
+                              className="px-4 sm:px-5 py-2.5 sm:py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs sm:text-sm font-bold shrink-0 transition-colors"
+                            >
+                              Dùng đề mẫu
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="text-center font-bold text-slate-400 text-xs sm:text-sm">HOẶC</div>
+
+                        <div>
+                          <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
+                            2. Tải tệp đề bài lên từ máy tính (PDF, Ảnh):
+                          </label>
+                          <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/20 p-5 sm:p-8 rounded-2xl text-center cursor-pointer transition-all relative">
+                            <input 
+                              type="file" 
+                              accept=".pdf,image/*"
+                              id="offlineTeacherFileInput"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (event) => {
+                                    if (typeof event.target?.result === 'string') {
+                                      setNewPdfUrl(event.target.result);
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                            <Upload className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 mx-auto mb-2 sm:mb-3" />
+                            <p className="text-xs sm:text-sm font-bold text-slate-800">
+                              {newPdfUrl?.startsWith('data:') ? '✅ Đã tải file đề bài thành công!' : 'Bấm để chọn file đề bài từ thiết bị (.pdf, .png, .jpg)'}
+                            </p>
+                            <p className="text-[11px] sm:text-xs text-slate-500 mt-1.5">Học sinh sẽ nhìn thấy tệp đính kèm này để xem đề bài và tải về làm bài tập.</p>
+                            <button 
+                              type="button" 
+                              onClick={() => document.getElementById('offlineTeacherFileInput')?.click()}
+                              className="mt-3 sm:mt-4 px-5 sm:px-6 py-2 sm:py-2.5 bg-blue-600 text-white font-bold text-xs sm:text-sm rounded-xl hover:bg-blue-700 shadow-sm transition-colors"
+                            >
+                              Tải tệp từ máy tính
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  <div className={`flex-1 flex flex-col lg:flex-row gap-4 custom-scrollbar ${newType === 'game' || newType === 'flashcard' ? 'md:overflow-hidden' : 'overflow-y-auto lg:overflow-hidden'}`}>
-                    {/* Game Selection */}
-                    {newType === 'game' && (
-                      <GameWizard
-                        gameSubStep={gameSubStep}
-                        setGameSubStep={setGameSubStep}
-                        newGameType={newGameType}
-                        setNewGameType={setNewGameType}
-                        selectedGameCategory={selectedGameCategory}
-                        setSelectedGameCategory={setSelectedGameCategory}
-                        gameSearchQuery={gameSearchQuery}
-                        setGameSearchQuery={setGameSearchQuery}
-                        newGameFormats={newGameFormats}
-                        setNewGameFormats={setNewGameFormats}
-                        rawQuestionCode={rawQuestionCode}
-                        setRawQuestionCode={setRawQuestionCode}
-                        setShowGamePreview={setShowGamePreview}
-                      />
-                    )}
-
-                    {/* Flashcard Configuration */}
-                    {newType === 'flashcard' && (
-                      <FlashcardWizard
-                        flashcardSubStep={flashcardSubStep}
-                        setFlashcardSubStep={setFlashcardSubStep}
-                        newFlashcards={newFlashcards}
-                        setNewFlashcards={setNewFlashcards}
-                        rawQuestionCode={rawQuestionCode}
-                        setRawQuestionCode={setRawQuestionCode}
-                        setShowFlashcardPreview={setShowFlashcardPreview}
-                        setShowFlashcardQuizTest={setShowFlashcardQuizTest}
-                        handleDownloadSampleFlashcards={handleDownloadSampleFlashcards}
-                        handleImportFlashcards={handleImportFlashcards}
-                      />
-                    )}
-
-                    {/* 1. OFFLINE WORKSPACE (File Upload Type) */}
-                    {newType === 'file_upload' && (
-                      <div className="w-full max-w-2xl mx-auto bg-white p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm space-y-4 sm:space-y-6 flex flex-col justify-center">
-                        <h4 className="text-base sm:text-lg font-extrabold text-slate-800 flex items-center justify-center gap-2 border-b border-slate-100 pb-3 sm:pb-4">
-                          <span>📁</span> Tạo đề Offline (Nộp bài tự luận)
-                        </h4>
-                        
-                        <div className="space-y-4 sm:space-y-6">
-                          <div>
-                            <label className="block text-xs sm:text-sm font-bold text-slate-700 mb-2">
-                              1. Dán đường link đề bài / Tài liệu (Google Drive, PDF, Ảnh):
-                            </label>
-                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                              <input 
-                                type="url"
-                                value={newPdfUrl} 
-                                onChange={e => setNewPdfUrl(e.target.value)}
-                                className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm outline-none focus:ring-2 focus:ring-blue-600 font-mono"
-                                placeholder="https://example.com/de-bai-tap.pdf"
-                              />
-                              <button 
-                                type="button"
-                                onClick={() => setNewPdfUrl('https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?auto=format&fit=crop&q=80&w=1000')}
-                                className="px-4 sm:px-5 py-2.5 sm:py-3 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-xl text-xs sm:text-sm font-bold shrink-0"
-                              >
-                                Dùng đề mẫu
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="text-center font-bold text-slate-400">HOẶC</div>
-
-                          <div>
-                            <label className="block text-sm font-bold text-slate-700 mb-2">
-                              2. Tải tệp đề bài lên từ máy tính (PDF, Ảnh):
-                            </label>
-                            <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 bg-slate-50 hover:bg-blue-50/20 p-8 rounded-2xl text-center cursor-pointer transition-all relative">
-                              <input 
-                                type="file" 
-                                accept=".pdf,image/*"
-                                id="offlineTeacherFileInput"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    const reader = new FileReader();
-                                    reader.onload = (event) => {
-                                      if (typeof event.target?.result === 'string') {
-                                        setNewPdfUrl(event.target.result);
-                                      }
-                                    };
-                                    reader.readAsDataURL(file);
-                                  }
-                                }}
-                                className="hidden"
-                              />
-                              <Upload className="w-12 h-12 text-blue-600 mx-auto mb-3" />
-                              <p className="text-sm font-bold text-slate-800">
-                                {newPdfUrl?.startsWith('data:') ? '✅ Đã tải file đề bài thành công!' : 'Bấm để chọn file đề bài từ thiết bị (.pdf, .png, .jpg)'}
-                              </p>
-                              <p className="text-xs text-slate-500 mt-2">Học sinh sẽ nhìn thấy tệp đính kèm này để xem đề bài và tải về làm bài tập.</p>
-                              <button 
-                                type="button" 
-                                onClick={() => document.getElementById('offlineTeacherFileInput')?.click()}
-                                className="mt-4 px-6 py-2.5 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 shadow-sm"
-                              >
-                                Tải tệp từ máy tính
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                  {/* Lesson Check Workspace */}
+                  {newType === 'lesson_check' && (
+                    <div className="w-full max-w-2xl mx-auto bg-white p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm space-y-4 sm:space-y-6 text-center">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 text-blue-600 rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto mb-2 border border-blue-100">
+                        <Camera className="w-8 h-8 sm:w-10 sm:h-10" />
                       </div>
-                    )}
+                      <h4 className="text-lg sm:text-xl font-black text-slate-800">
+                        Kiểm tra Chép bài / Ghi bài trên lớp
+                      </h4>
+                      <p className="text-xs sm:text-sm text-slate-500 font-medium leading-relaxed max-w-lg mx-auto">
+                        Học sinh sẽ được yêu cầu chụp ảnh vở ghi chép trực tiếp bằng camera trên thiết bị (điện thoại, máy tính bảng, laptop). Hệ thống tự động xử lý hình ảnh thành file để giáo viên dễ dàng kiểm tra mức độ chuyên cần.
+                      </p>
+                    </div>
+                  )}
 
-                    {/* Lesson Check Workspace */}
-                    {newType === 'lesson_check' && (
-                      <div className="w-full max-w-2xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col justify-center text-center">
-                        <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Camera className="w-10 h-10" />
-                        </div>
-                        <h4 className="text-xl font-black text-slate-800">
-                          Kiểm tra Chép bài / Bài học
-                        </h4>
-                        <p className="text-slate-500 font-medium">
-                          Học sinh sẽ được yêu cầu chụp ảnh vở ghi chép bằng camera trên thiết bị (điện thoại/máy tính bảng) để nộp lại. Hệ thống sẽ tự động ghép ảnh thành file PDF để giáo viên dễ dàng chấm điểm.
-                        </p>
-                      </div>
-                    )}
+                  {/* 2. ONLINE TEST WORKSPACE */}
+                  {newType === 'online_test' && (() => {
+                    const parsedData = parsedQuestionsData;
 
-                    {/* 2. ONLINE TEST WORKSPACE */}
-                    {newType === 'online_test' && (() => {
-                      const parsedData = parsedQuestionsData;
-                      const lineCountArray = Array.from({ length: Math.max(rawQuestionCode.split('\n').length, 12) }, (_, i) => i + 1);
-
-                      return (
-                        <div className="flex-1 flex flex-col xl:flex-row gap-4 h-full min-h-0 overflow-y-auto xl:overflow-hidden">
-                          {/* Left: Cards Preview */}
-                          <div className="w-full xl:w-auto xl:flex-[5] bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[360px] xl:min-h-0">
-                            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-                              {parsedData.parsedQuestions.map((pq, idx) => (
-                                <div key={pq.id || idx} className="p-4 bg-white border border-slate-200 rounded-2xl space-y-3 shadow-sm">
-                                  
-                                  {/* Card Toolbar */}
-                                  <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-100 text-[11px]">
-                                    <span className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 font-extrabold rounded-lg">
-                                      {pq.numStr}
-                                    </span>
-                                    <span className="px-2.5 py-1 bg-slate-50 text-slate-700 font-bold border border-slate-200 rounded-lg">
-                                      {pq.points} điểm
-                                    </span>
-                                    <span className="px-2.5 py-1 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold">
-                                      {pq.type === 'multiple_choice' ? 'Trắc nghiệm nhiều phương án' : pq.type === 'true_false' ? 'Trắc nghiệm đúng sai' : 'Trả lời ngắn'}
-                                    </span>
-                                    
-                                    
-                                  </div>
-
-                                  <div className="p-3 bg-slate-50/70 border border-slate-200 rounded-xl text-[13px] font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
-                                    <MarkdownMath content={pq.question} />
-                                  </div>
-
-                                  {/* Options rendering based on type */}
-                                  {pq.type === 'multiple_choice' && (
-                                    <div className="grid grid-cols-2 gap-2">
-                                      {['A', 'B', 'C', 'D'].map((lbl, optIdx) => {
-                                        const isCorrect = pq.correctAnswer === optIdx;
-                                        return (
-                                          <div 
-                                            key={optIdx} 
-                                            className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
-                                              isCorrect ? 'bg-blue-50/70 border-blue-400 text-blue-900 font-bold ring-1 ring-blue-300' : 'bg-white border-slate-200 text-slate-700'
-                                            }`}
-                                          >
-                                            <span className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[11px] ${
-                                              isCorrect ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
-                                            }`}>
-                                              {lbl}
-                                            </span>
-                                            <div className="overflow-hidden"><MarkdownMath content={pq.options[optIdx] || ''} /></div>
-                                            {isCorrect && <Check className="w-4 h-4 text-blue-600 ml-auto shrink-0" />}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-
-                                  {pq.type === 'true_false' && pq.subOptions && (
-                                    <div className="space-y-2">
-                                      {['a', 'b', 'c', 'd'].map((lbl, optIdx) => {
-                                        const isCorrect = Array.isArray(pq.correctAnswer) ? pq.correctAnswer[optIdx] === 1 : undefined;
-                                        const isFalse = Array.isArray(pq.correctAnswer) ? pq.correctAnswer[optIdx] === 0 : undefined;
-                                        return (
-                                        <div key={optIdx} className="p-2 rounded-xl border border-slate-200 text-xs font-semibold flex items-center gap-3 bg-white">
-                                          <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[11px] bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
-                                            {lbl})
-                                          </span>
-                                          <div className="flex-1 overflow-hidden"><MarkdownMath content={pq.subOptions![optIdx] || ''} /></div>
-                                          <div className="flex gap-1 shrink-0">
-                                            <span className={`px-2 py-1 border rounded text-[10px] ${isCorrect ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>Đúng</span>
-                                            <span className={`px-2 py-1 border rounded text-[10px] ${isFalse ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>Sai</span>
-                                          </div>
-                                        </div>
-                                      )})}
-                                    </div>
-                                  )}
-
-                                  {pq.type === 'short_answer' && (
-                                    <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400 font-medium text-center">
-                                      {pq.correctAnswer ? (
-                                        <span className="text-slate-800 font-bold not-italic">Đáp án: {pq.correctAnswer}</span>
-                                      ) : (
-                                        <span className="italic">Khu vực học sinh nhập câu trả lời ngắn...</span>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {(pq.solutionText || pq.method || pq.correctAnswer !== undefined) && (
-                                    <div className="pt-3 border-t border-dashed border-slate-200 text-xs space-y-1.5 bg-amber-50/40 p-3 rounded-xl border border-amber-200/60">
-                                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider">Hướng dẫn giải</p>
-                                      {pq.method && <div className="text-slate-700 mt-1.5"><strong>Phương pháp:</strong> <MarkdownMath content={pq.method} /></div>}
-                                      {pq.solutionText && <div className="text-slate-700 mt-1.5 leading-relaxed"><MarkdownMath content={pq.solutionText} /></div>}
-                                      {pq.type === 'multiple_choice' && typeof pq.correctAnswer === 'number' && (
-                                        <div className="text-emerald-800 font-bold mt-1 text-xs">
-                                          Đáp án đúng là: {['A', 'B', 'C', 'D'][pq.correctAnswer]}.
-                                        </div>
-                                      )}
-                                      {pq.type === 'true_false' && Array.isArray(pq.correctAnswer) && (
-                                        <div className="text-emerald-800 font-bold mt-1 text-xs">
-                                          Đáp án: {pq.correctAnswer.map((v, i) => `${['a', 'b', 'c', 'd'][i]}) ${v === 1 ? 'Đúng' : 'Sai'}`).join(', ')}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
+                    return (
+                      <div className="flex-1 flex flex-col xl:flex-row gap-4 h-full min-h-0">
+                        {/* Left: Cards Preview */}
+                        <div className="w-full xl:w-auto xl:flex-[5] bg-white p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[340px] xl:min-h-0">
+                          <div className="flex-1 overflow-y-auto space-y-3 sm:space-y-4 pr-1 custom-scrollbar">
+                            {parsedData.parsedQuestions.map((pq, idx) => (
+                              <div key={pq.id || idx} className="p-3 sm:p-4 bg-white border border-slate-200 rounded-2xl space-y-2.5 sm:space-y-3 shadow-sm">
+                                
+                                {/* Card Toolbar */}
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pb-2 border-b border-slate-100 text-[10px] sm:text-[11px]">
+                                  <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 bg-blue-50 text-blue-700 border border-blue-200 font-extrabold rounded-lg">
+                                    {pq.numStr}
+                                  </span>
+                                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-slate-50 text-slate-700 font-bold border border-slate-200 rounded-lg">
+                                    {pq.points} điểm
+                                  </span>
+                                  <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 bg-slate-50 text-slate-700 border border-slate-200 rounded-lg font-bold">
+                                    {pq.type === 'multiple_choice' ? 'Trắc nghiệm nhiều phương án' : pq.type === 'true_false' ? 'Trắc nghiệm đúng sai' : 'Trả lời ngắn'}
+                                  </span>
                                 </div>
-                              ))}
+
+                                <div className="p-2.5 sm:p-3 bg-slate-50/70 border border-slate-200 rounded-xl text-xs sm:text-[13px] font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
+                                  <MarkdownMath content={pq.question} />
+                                </div>
+
+                                {/* Options rendering based on type */}
+                                {pq.type === 'multiple_choice' && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {['A', 'B', 'C', 'D'].map((lbl, optIdx) => {
+                                      const isCorrect = pq.correctAnswer === optIdx;
+                                      return (
+                                        <div 
+                                          key={optIdx} 
+                                          className={`p-2 sm:p-2.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+                                            isCorrect ? 'bg-blue-50/70 border-blue-400 text-blue-900 font-bold ring-1 ring-blue-300' : 'bg-white border-slate-200 text-slate-700'
+                                          }`}
+                                        >
+                                          <span className={`w-5 h-5 rounded-md flex items-center justify-center font-bold text-[11px] shrink-0 ${
+                                            isCorrect ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                          }`}>
+                                            {lbl}
+                                          </span>
+                                          <div className="overflow-hidden flex-1"><MarkdownMath content={pq.options[optIdx] || ''} /></div>
+                                          {isCorrect && <Check className="w-4 h-4 text-blue-600 ml-auto shrink-0" />}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {pq.type === 'true_false' && pq.subOptions && (
+                                  <div className="space-y-1.5 sm:space-y-2">
+                                    {['a', 'b', 'c', 'd'].map((lbl, optIdx) => {
+                                      const isCorrect = Array.isArray(pq.correctAnswer) ? pq.correctAnswer[optIdx] === 1 : undefined;
+                                      const isFalse = Array.isArray(pq.correctAnswer) ? pq.correctAnswer[optIdx] === 0 : undefined;
+                                      return (
+                                      <div key={optIdx} className="p-2 rounded-xl border border-slate-200 text-xs font-semibold flex items-center gap-2 sm:gap-3 bg-white">
+                                        <span className="w-5 h-5 rounded flex items-center justify-center font-bold text-[11px] bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                                          {lbl})
+                                        </span>
+                                        <div className="flex-1 overflow-hidden"><MarkdownMath content={pq.subOptions![optIdx] || ''} /></div>
+                                        <div className="flex gap-1 shrink-0">
+                                          <span className={`px-2 py-0.5 sm:py-1 border rounded text-[10px] ${isCorrect ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>Đúng</span>
+                                          <span className={`px-2 py-0.5 sm:py-1 border rounded text-[10px] ${isFalse ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>Sai</span>
+                                        </div>
+                                      </div>
+                                    )})}
+                                  </div>
+                                )}
+
+                                {pq.type === 'short_answer' && (
+                                  <div className="p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400 font-medium text-center">
+                                    {pq.correctAnswer ? (
+                                      <span className="text-slate-800 font-bold not-italic">Đáp án: {pq.correctAnswer}</span>
+                                    ) : (
+                                      <span className="italic">Khu vực học sinh nhập câu trả lời ngắn...</span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {(pq.solutionText || pq.method || pq.correctAnswer !== undefined) && (
+                                  <div className="pt-2.5 sm:pt-3 border-t border-dashed border-slate-200 text-xs space-y-1.5 bg-amber-50/40 p-2.5 sm:p-3 rounded-xl border border-amber-200/60">
+                                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-wider">Hướng dẫn giải</p>
+                                    {pq.method && <div className="text-slate-700 mt-1"><strong>Phương pháp:</strong> <MarkdownMath content={pq.method} /></div>}
+                                    {pq.solutionText && <div className="text-slate-700 mt-1 leading-relaxed"><MarkdownMath content={pq.solutionText} /></div>}
+                                    {pq.type === 'multiple_choice' && typeof pq.correctAnswer === 'number' && (
+                                      <div className="text-emerald-800 font-bold mt-1 text-xs">
+                                        Đáp án đúng là: {['A', 'B', 'C', 'D'][pq.correctAnswer]}.
+                                      </div>
+                                    )}
+                                    {pq.type === 'true_false' && Array.isArray(pq.correctAnswer) && (
+                                      <div className="text-emerald-800 font-bold mt-1 text-xs">
+                                        Đáp án: {pq.correctAnswer.map((v, i) => `${['a', 'b', 'c', 'd'][i]}) ${v === 1 ? 'Đúng' : 'Sai'}`).join(', ')}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Right: Code Input */}
+                        <div className="w-full xl:w-auto xl:flex-[4] bg-white p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[340px] xl:min-h-0">
+                          <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-slate-100 mb-2.5 sm:mb-3">
+                            <span className="text-xs font-bold text-slate-700">Mã nguồn đề thi</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] sm:text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">{rawQuestionCode.split('\n').length} dòng</span>
+                              <button
+                                type="button"
+                                onClick={() => setRawQuestionCode('')}
+                                title="Xóa toàn bộ mã nguồn"
+                                className="p-1 px-2 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-bold shadow-sm"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Xóa trắng</span>
+                              </button>
                             </div>
                           </div>
 
-                          {/* Right: Code Input */}
-                          <div className="w-full xl:w-auto xl:flex-[4] bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[360px] xl:min-h-0">
-                            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                              <span className="text-xs font-bold text-slate-700">Mã nguồn đề thi</span>
-                              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">{rawQuestionCode.split('\n').length} dòng</span>
-                            </div>
-
-                            <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner">
-                              <textarea 
-                                value={rawQuestionCode}
-                                onChange={e => setRawQuestionCode(e.target.value)}
-                                className="flex-1 w-full p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
-                                spellCheck={false}
-                                placeholder="Nhập nội dung đề thi..."
-                              />
-                            </div>
-                            
-                            <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                              <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
-                              <div className="flex flex-wrap gap-2">
-                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 1 (Trắc nghiệm)</button>
-                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 2 (Đúng / Sai)</button>
-                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau3)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 3 (Sắp xếp từ)</button>
-                                <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau_matching)} className="text-[11px] text-indigo-600 font-bold hover:underline px-2.5 py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors">🚃 Mẫu 4 (Đoàn tàu / Ghép vế)</button>
-                              </div>
+                          <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[160px]">
+                            <textarea 
+                              value={rawQuestionCode}
+                              onChange={e => setRawQuestionCode(e.target.value)}
+                              className="flex-1 w-full p-3 sm:p-4 text-xs font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
+                              spellCheck={false}
+                              placeholder="Nhập nội dung đề thi..."
+                            />
+                          </div>
+                          
+                          <div className="mt-2.5 sm:mt-3 p-2.5 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 sm:space-y-2">
+                            <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 1 (Trắc nghiệm)</button>
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 2 (Đúng / Sai)</button>
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau3)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 3 (Sắp xếp từ)</button>
+                              <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau_matching)} className="text-[11px] text-indigo-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors">🚃 Mẫu 4 (Ghép vế)</button>
                             </div>
                           </div>
                         </div>
-                      );
-                    })()}
+                      </div>
+                    );
+                  })()}
 
-                    {/* 3. SIMULATION WORKSPACE */}
-                    {newType === 'simulation' && (
-                      <div className="w-full max-w-3xl mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center">
-                        <h4 className="text-lg font-extrabold text-slate-800 flex items-center justify-center gap-2 border-b border-slate-100 pb-4 mb-6">
+                  {/* 3. SIMULATION WORKSPACE */}
+                  {newType === 'simulation' && (
+                    <div className="w-full max-w-3xl mx-auto bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm space-y-4 sm:space-y-5">
+                      <div className="text-center pb-3 border-b border-slate-100">
+                        <h4 className="text-base sm:text-lg font-extrabold text-slate-800 flex items-center justify-center gap-2">
                           <span>🧪</span> Lựa chọn từ Kho Mô phỏng
                         </h4>
-
-                        <p className="text-sm text-slate-600 font-semibold mb-4 text-center">Bấm chọn một mô phỏng tương tác dưới đây để tích hợp trực tiếp vào bài tập:</p>
-                        
-                        <div className="grid grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto p-4 border border-slate-200 rounded-2xl bg-slate-50">
-                          {(simulations || []).map((sim) => {
-                            const isSelected = newSimUrl === sim.url || (sim.htmlContent && selectedSimId === sim.id);
-                            return (
-                              <div 
-                                key={sim.id}
-                                onClick={() => {
-                                  setNewSimUrl(sim.url || '');
-                                  setSelectedSimId(sim.id);
-                                  if (!newTitle) setNewTitle(`Bài thực hành: ${sim.title}`);
-                                }}
-                                className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-100 shadow-sm' 
-                                    : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50'
-                                }`}
-                              >
-                                <div className="flex justify-between items-start gap-2 mb-2">
-                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 uppercase tracking-wider">
-                                    {sim.category || 'Toán học'}
-                                  </span>
-                                  {isSelected && <Check className="w-5 h-5 text-blue-600" />}
-                                </div>
-                                <h4 className="font-extrabold text-sm text-slate-900 mt-2">{sim.title}</h4>
-                                <p className="text-xs text-slate-500 line-clamp-2 mt-1.5 leading-relaxed">{sim.description}</p>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Bấm chọn một mô phỏng tương tác dưới đây để tích hợp trực tiếp vào bài tập:</p>
                       </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto p-5 bg-slate-50 flex flex-col items-center justify-start">
-                  <div className="w-full max-w-xl bg-white p-8 rounded-3xl border border-slate-200 shadow-xl space-y-6 my-auto">
-                    <h4 className="text-xl font-extrabold text-slate-800 text-center">2. Thông tin bài tập</h4>
-                    <p className="text-xs text-slate-500 text-center font-medium">Hoàn tất các thông tin chung trước khi giao bài cho học sinh.</p>
-                    
-                    <div className="space-y-5 mt-6">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Tên bài tập / Đề thi:</label>
-                        <input 
-                          required 
-                          type="text"
-                          value={newTitle} 
-                          onChange={e => setNewTitle(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
-                          placeholder="Nhập tên bài tập..." 
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Thuộc buổi học / Khóa học:</label>
-                        <input 
-                          required 
-                          type="text"
-                          value={newSessionTitle} 
-                          onChange={e => setNewSessionTitle(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
-                          placeholder="VD: Đại số 10 - Tiết 23..." 
-                        />
-                      </div>
-
-                      <div>
-                        <DateTimePicker24h
-                          label="Thời gian giao đề (Hạn nộp 24H):"
-                          value={newDueDate}
-                          onChange={setNewDueDate}
-                          required
-                        />
-                      </div>
-
-                      {/* Number of attempts options (1, 2, 3, ... vĩnh viễn) */}
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
-                          Số lần làm bài cho phép:
-                        </label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {[
-                            { value: 0, label: 'Vĩnh viễn', desc: 'Không giới hạn số lần' },
-                            { value: 1, label: '1 lần', desc: 'Kiểm tra nghiêm túc' },
-                            { value: 2, label: '2 lần', desc: 'Cho phép làm lại 1 lần' },
-                            { value: 3, label: '3 lần', desc: 'Cho phép làm 3 lần' },
-                            { value: 5, label: '5 lần', desc: 'Tối đa 5 lượt làm' },
-                            { value: 10, label: '10 lần', desc: 'Tối đa 10 lượt làm' },
-                          ].map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setNewMaxAttempts(opt.value)}
-                              className={`p-3 rounded-2xl border text-left transition-all ${
-                                newMaxAttempts === opt.value
-                                  ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200 text-indigo-950 font-bold shadow-sm'
-                                  : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 text-slate-700 font-medium hover:bg-slate-100'
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-h-[45vh] overflow-y-auto p-3 sm:p-4 border border-slate-200 rounded-2xl bg-slate-50 custom-scrollbar">
+                        {(simulations || []).map((sim) => {
+                          const isSelected = newSimUrl === sim.url || (sim.htmlContent && selectedSimId === sim.id);
+                          return (
+                            <div 
+                              key={sim.id}
+                              onClick={() => {
+                                setNewSimUrl(sim.url || '');
+                                setSelectedSimId(sim.id);
+                                if (!newTitle) setNewTitle(`Bài thực hành: ${sim.title}`);
+                              }}
+                              className={`p-3.5 sm:p-4 rounded-2xl border cursor-pointer transition-all ${
+                                isSelected 
+                                  ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-100 shadow-sm' 
+                                  : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-slate-50'
                               }`}
                             >
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-extrabold">{opt.label}</span>
-                                {newMaxAttempts === opt.value && <Check className="w-4 h-4 text-indigo-600" />}
+                              <div className="flex justify-between items-start gap-2 mb-1.5">
+                                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 uppercase tracking-wider">
+                                  {sim.category || 'Toán học'}
+                                </span>
+                                {isSelected && <Check className="w-4 h-4 text-blue-600" />}
                               </div>
-                              <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
-                            </button>
-                          ))}
-                        </div>
-                        <div className="mt-2.5 bg-blue-50/70 border border-blue-200/70 rounded-xl p-2.5 text-[11px] text-blue-800 space-y-1">
-                          <p className="font-semibold flex items-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                            <strong>Cơ chế thời hạn & Số lần làm:</strong>
-                          </p>
-                          <p className="text-blue-700 leading-relaxed">
-                            Trong thời gian giáo viên quy định, học sinh <strong>bắt buộc phải làm</strong>. Sau khi lố thời gian nộp, học sinh <strong>vẫn được làm tiếp</strong> bao nhiêu lần cũng được để chủ động luyện tập và ôn lại kiến thức.
-                          </p>
-                        </div>
+                              <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 mt-1">{sim.title}</h4>
+                              <p className="text-[11px] text-slate-500 line-clamp-2 mt-1 leading-relaxed">{sim.description}</p>
+                            </div>
+                          );
+                        })}
                       </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* STEP 2: METADATA & SCHEDULE CONFIGURATION */
+                <div className="w-full max-w-xl mx-auto bg-white p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm space-y-4 sm:space-y-6">
+                  <div className="text-center pb-3 border-b border-slate-100">
+                    <h4 className="text-lg sm:text-xl font-extrabold text-slate-800">2. Thông tin bài tập</h4>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">Hoàn tất các thông tin chung trước khi giao bài cho học sinh.</p>
+                  </div>
+                  
+                  <div className="space-y-4 sm:space-y-5">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Tên bài tập / Đề thi:</label>
+                      <input 
+                        required 
+                        type="text"
+                        value={newTitle} 
+                        onChange={e => setNewTitle(e.target.value)}
+                        className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
+                        placeholder="Nhập tên bài tập..." 
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Mô tả & Hướng dẫn:</label>
-                        <textarea 
-                          required rows={3}
-                          value={newDescription} onChange={e => setNewDescription(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 resize-none transition-shadow leading-relaxed"
-                          placeholder="VD: Các em làm bài đầy đủ trước khi lên lớp học..."
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Thuộc buổi học / Khóa học:</label>
+                      <input 
+                        required 
+                        type="text"
+                        value={newSessionTitle} 
+                        onChange={e => setNewSessionTitle(e.target.value)}
+                        className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
+                        placeholder="VD: Đại số 10 - Tiết 23..." 
+                      />
+                    </div>
 
-                      <div className="flex items-center gap-3 pt-1">
-                        <input
-                          type="checkbox"
-                          id="isMandatory"
-                          checked={newIsMandatory}
-                          onChange={e => setNewIsMandatory(e.target.checked)}
-                          className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-600 cursor-pointer"
-                        />
-                        <label htmlFor="isMandatory" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
-                          Bài tập bắt buộc hoàn thành
-                        </label>
+                    <div>
+                      <DateTimePicker24h
+                        label="Thời gian giao đề (Hạn nộp 24H):"
+                        value={newDueDate}
+                        onChange={setNewDueDate}
+                        required
+                      />
+                    </div>
+
+                    {/* Number of attempts options (1, 2, 3, ... vĩnh viễn) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                        Số lần làm bài cho phép:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {[
+                          { value: 0, label: 'Vĩnh viễn', desc: 'Không giới hạn số lần' },
+                          { value: 1, label: '1 lần', desc: 'Kiểm tra nghiêm túc' },
+                          { value: 2, label: '2 lần', desc: 'Cho phép làm lại 1 lần' },
+                          { value: 3, label: '3 lần', desc: 'Cho phép làm 3 lần' },
+                          { value: 5, label: '5 lần', desc: 'Tối đa 5 lượt làm' },
+                          { value: 10, label: '10 lần', desc: 'Tối đa 10 lượt làm' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => setNewMaxAttempts(opt.value)}
+                            className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-left transition-all ${
+                              newMaxAttempts === opt.value
+                                ? 'bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200 text-indigo-950 font-bold shadow-sm'
+                                : 'bg-slate-50/70 border-slate-200 hover:border-slate-300 text-slate-700 font-medium hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-extrabold">{opt.label}</span>
+                              {newMaxAttempts === opt.value && <Check className="w-4 h-4 text-indigo-600" />}
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">{opt.desc}</p>
+                          </button>
+                        ))}
                       </div>
+                      <div className="mt-2.5 bg-blue-50/70 border border-blue-200/70 rounded-xl p-2.5 text-[11px] text-blue-800 space-y-1">
+                        <p className="font-semibold flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <strong>Cơ chế thời hạn & Số lần làm:</strong>
+                        </p>
+                        <p className="text-blue-700 leading-relaxed">
+                          Trong thời gian giáo viên quy định, học sinh <strong>bắt buộc phải làm</strong>. Sau khi lố thời gian nộp, học sinh <strong>vẫn được làm tiếp</strong> bao nhiêu lần cũng được để chủ động luyện tập và ôn lại kiến thức.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Mô tả & Hướng dẫn:</label>
+                      <textarea 
+                        required rows={3}
+                        value={newDescription} onChange={e => setNewDescription(e.target.value)}
+                        className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 resize-none transition-shadow leading-relaxed"
+                        placeholder="VD: Các em làm bài đầy đủ trước khi lên lớp học..."
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-1">
+                      <input
+                        type="checkbox"
+                        id="isMandatory"
+                        checked={newIsMandatory}
+                        onChange={e => setNewIsMandatory(e.target.checked)}
+                        className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-600 cursor-pointer"
+                      />
+                      <label htmlFor="isMandatory" className="text-xs sm:text-sm font-bold text-slate-700 cursor-pointer select-none">
+                        Bài tập bắt buộc hoàn thành
+                      </label>
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Modal Bottom Bar for Flow */}
-            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
-              {createStep === 2 ? (
-                <button 
-                  type="button"
-                  onClick={() => setCreateStep(1)}
-                  className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
-                >
-                  Quay lại
-                </button>
-              ) : <div></div>}
-              
-              {createStep === 1 ? (
-                <button 
-                  type="button"
-                  onClick={() => setCreateStep(2)}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-blue-100 uppercase tracking-wider ml-auto"
-                >
-                  Tiếp tục
-                </button>
-              ) : (
-                <button 
-                  type="button"
-                  onClick={handleSaveAssignment}
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-100 uppercase tracking-wider ml-auto"
-                >
-                  {editingAssignment ? 'Lưu thay đổi' : 'Tạo & Giao bài ngay'}
-                </button>
-              )}
+            {/* PINNED MODAL FOOTER */}
+            <div className="px-4 sm:px-6 py-3 sm:py-3.5 border-t border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0">
+              <div>
+                {createStep === 2 ? (
+                  <button 
+                    type="button"
+                    onClick={() => setCreateStep(1)}
+                    className="px-4 sm:px-5 py-2 sm:py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center gap-1"
+                  >
+                    <span>← Quay lại</span>
+                  </button>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-3.5 sm:px-4 py-2 sm:py-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-bold text-xs sm:text-sm rounded-xl transition-all"
+                  >
+                    Hủy bỏ
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {createStep === 1 ? (
+                  <button 
+                    type="button"
+                    onClick={() => setCreateStep(2)}
+                    className="px-6 sm:px-8 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-200 transition-all flex items-center gap-1.5 uppercase tracking-wider"
+                  >
+                    <span>Tiếp tục</span>
+                    <span>→</span>
+                  </button>
+                ) : (
+                  <button 
+                    type="button"
+                    onClick={handleSaveAssignment}
+                    className="px-6 sm:px-8 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 uppercase tracking-wider"
+                  >
+                    <span>{editingAssignment ? 'Lưu thay đổi' : 'Tạo & Giao bài ngay'}</span>
+                    <span>✓</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -3511,6 +3722,66 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         cancelText="Đóng"
         variant="danger"
       />
+
+      {/* Submission Success Confirmation Modal */}
+      {submittedSuccessModal && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div 
+            className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+            onClick={() => setSubmittedSuccessModal(null)}
+          />
+          <div className="relative bg-white w-full max-w-md rounded-3xl p-6 sm:p-7 text-center shadow-2xl border border-emerald-100 overflow-hidden flex flex-col items-center animate-in zoom-in-95 duration-200">
+            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500" />
+            
+            <div className="w-16 h-16 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-600 mb-4 shadow-md">
+              <CheckCircle2 className="w-10 h-10" />
+            </div>
+
+            <h3 className="text-xl font-extrabold text-slate-900 mb-1">
+              Đã gửi bài về cho Giáo viên! 🎉
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Hệ thống đã chuyển bài làm của bạn đến giáo viên bộ môn thành công.
+            </p>
+
+            {/* Details Box */}
+            <div className="w-full bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-left space-y-2.5 mb-5 text-xs">
+              <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                <span className="text-slate-500 font-medium">Bài tập:</span>
+                <span className="font-bold text-slate-800 text-right line-clamp-1 max-w-[200px]">
+                  {submittedSuccessModal.assignmentTitle}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                <span className="text-slate-500 font-medium">Thời gian nộp:</span>
+                <span className="font-bold text-slate-700">{submittedSuccessModal.submittedAt}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
+                <span className="text-slate-500 font-medium">Tệp bài làm:</span>
+                <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60 flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5" />
+                  {submittedSuccessModal.fileName}
+                  {submittedSuccessModal.pageCount && ` (${submittedSuccessModal.pageCount} trang)`}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Trạng thái:</span>
+                <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200/60">
+                  Chờ giáo viên chấm điểm
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSubmittedSuccessModal(null)}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4" /> Đã hiểu & Hoàn tất
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Unsubmitted Students Modal */}
       {unsubmittedModalAssignment && (

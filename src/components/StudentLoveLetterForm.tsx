@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Send, Heart, Eye, CheckCircle2, User, Sparkles, Clock, Trash2, BookOpen, Type } from 'lucide-react';
 import { LoveLetter, User as UserType, ClassSession } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { LoveLetterModal } from './LoveLetterModal';
 
 export const HANDWRITING_FONTS = [
@@ -54,14 +54,18 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
     
     const q = query(
       collection(db, 'love_letters'),
-      where('senderId', '==', currentUser.id),
-      orderBy('createdAt', 'desc')
+      where('senderId', '==', currentUser.id)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
       const list: LoveLetter[] = [];
       snapshot.forEach((docSnap) => {
         list.push({ id: docSnap.id, ...docSnap.data() } as LoveLetter);
+      });
+      list.sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        return timeB - timeA;
       });
       setSentLetters(list);
     }, (error) => {

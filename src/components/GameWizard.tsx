@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus } from 'lucide-react';
+import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2 } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 
 const FORMAT_TEMPLATES: Record<string, string> = {
@@ -42,13 +42,24 @@ const GenericFormatForm = ({ formatId, blockText, onChange, onApplyTemplate }: a
         <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
           Khung nhập: {FORMAT_NAMES[formatId] || formatId}
         </span>
-        <button
-          type="button"
-          onClick={() => onApplyTemplate(formatId)}
-          className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors shadow-sm"
-        >
-          Dùng mẫu chuẩn
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            title="Xóa trắng nội dung khung này"
+            className="p-1 px-2 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1 text-[10px] font-bold shadow-sm"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Xóa trắng</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onApplyTemplate(formatId)}
+            className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1.5 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors shadow-sm"
+          >
+            Dùng mẫu chuẩn
+          </button>
+        </div>
       </div>
       <div className="flex flex-1 min-h-[140px]">
         <textarea
@@ -484,17 +495,20 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                 <div className="flex items-center gap-2">
                   <button 
                     type="button"
-                    onClick={() => setGameSubStep(supportMap[newGameType]?.length > 1 ? 2 : 1)}
-                    className="px-3 py-1.5 text-slate-600 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-200"
+                    onClick={() => setRawQuestionCode('')}
+                    title="Xóa trắng mã nguồn câu hỏi"
+                    className="p-1.5 px-2.5 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
                   >
-                    ⬅️ Quay lại
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa trắng</span>
                   </button>
                   <button 
                     type="button"
                     onClick={() => setShowGamePreview(true)} 
-                    className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs border border-emerald-500 flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    title="Xem trước trò chơi học tập"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs border border-indigo-500 flex items-center justify-center gap-1.5 transition-all shadow-sm"
                   >
-                    <Play className="w-3.5 h-3.5" /> Xem trước đề chơi
+                    <Play className="w-3.5 h-3.5" /> Preview
                   </button>
                 </div>
               </div>
