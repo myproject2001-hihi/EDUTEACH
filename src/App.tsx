@@ -45,14 +45,15 @@ export default function App() {
   const [robotOpen, setRobotOpen] = useState(false);
 
   useEffect(() => {
-    if (currentUser) {
+    // Chỉ hoạt động khi có currentUser và đã hoàn tất đăng ký (có createdAt)
+    if (currentUser && currentUser.createdAt) {
       const seen = localStorage.getItem('robot_seen_' + currentUser.id);
       if (!seen) {
         localStorage.setItem('robot_seen_' + currentUser.id, 'true');
         setRobotOpen(true);
       }
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.createdAt]);
   const [initializingAuth, setInitializingAuth] = useState(true);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
   const [isLoadingSubmissions, setIsLoadingSubmissions] = useState(true);

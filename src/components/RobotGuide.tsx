@@ -428,7 +428,7 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: cont
 
                     <button
                       onClick={handleNext}
-                      className="py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] rounded-xl transition-all shadow-md shadow-indigo-100 hover:shadow-indigo-200 flex items-center gap-1"
+                      className="py-1.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] rounded-xl transition-all shadow-md shadow-indigo-100 hover:shadow-indigo-200 flex items-center justify-center gap-1 min-w-[70px]"
                     >
                       <span>{currentStep === steps.length - 1 ? 'Hoàn thành 🎉' : 'Tiếp tục'}</span>
                       <ChevronRight className="w-3.5 h-3.5" />

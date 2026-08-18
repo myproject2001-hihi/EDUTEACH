@@ -1194,7 +1194,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               )}
 
               {/* Call Robot Guide button */}
-              {!isEditing && onOpenRobot && (
+              {!isEditing && onOpenRobot && user?.createdAt && (
                 <div className="pt-2">
                   <button
                     type="button"
