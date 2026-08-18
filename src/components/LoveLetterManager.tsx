@@ -129,7 +129,6 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
   };
 
   const handleDeleteLetter = async (letterId: string, letterTitle: string) => {
-    if (!confirm(`Bạn có chắc muốn xóa bức thư "${letterTitle}"?`)) return;
     try {
       await deleteDoc(doc(db, 'love_letters', letterId));
       showNotify('success', `Đã xóa bức thư "${letterTitle}".`);

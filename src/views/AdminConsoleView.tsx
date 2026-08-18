@@ -318,7 +318,6 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   };
 
   const handleDeleteNotification = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
     try {
       await deleteDoc(doc(db, 'system_notifications', id));
       showNotify('success', 'Đã xóa thông báo thành công.');

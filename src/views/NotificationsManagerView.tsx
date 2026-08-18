@@ -108,7 +108,6 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa thông báo này?')) return;
     try {
       await deleteDoc(doc(db, 'system_notifications', id));
       setMessage({ type: 'success', text: 'Đã xóa thông báo thành công.' });

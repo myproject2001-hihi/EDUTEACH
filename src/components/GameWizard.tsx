@@ -497,7 +497,7 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                     type="button"
                     onClick={() => setRawQuestionCode('')}
                     title="Xóa trắng mã nguồn câu hỏi"
-                    className="p-1.5 px-2.5 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+                    className="p-1.5 px-3 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Xóa trắng</span>
@@ -506,7 +506,7 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                     type="button"
                     onClick={() => setShowGamePreview(true)} 
                     title="Xem trước trò chơi học tập"
-                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-xl text-xs border border-indigo-500 flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                    className="px-4 sm:px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm border border-indigo-500 flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-100 shrink-0"
                   >
                     <Play className="w-3.5 h-3.5" /> Preview
                   </button>

@@ -182,7 +182,6 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
   };
 
   const handleDeleteLetter = async (letterId: string, letterTitle: string) => {
-    if (!confirm(`Bạn có chắc muốn thu hồi bức thư "${letterTitle}"?`)) return;
     try {
       await deleteDoc(doc(db, 'love_letters', letterId));
       triggerNotify('success', `Đã thu hồi bức thư "${letterTitle}".`);

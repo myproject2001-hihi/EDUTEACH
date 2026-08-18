@@ -201,15 +201,11 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
 
   // Handle simulation deletion
   const handleDeleteSim = async (simId: string, title: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa bài mô phỏng "${title}"?`)) {
-      return;
-    }
     try {
       await deleteDoc(doc(db, 'simulations', simId));
       setSimList(prev => prev.filter(s => s.id !== simId));
     } catch (err) {
       console.error("Lỗi khi xóa mô phỏng:", err);
-      alert("Lỗi khi xóa mô phỏng!");
     }
   };
 
