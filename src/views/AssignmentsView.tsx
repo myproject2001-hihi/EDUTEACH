@@ -19,6 +19,7 @@ import { GameWizard } from '../components/GameWizard';
 import { FlashcardWizard } from '../components/FlashcardWizard';
 import { AssignmentListSkeleton, AssignmentDetailSkeleton, SubmissionsListSkeleton } from '../components/Skeletons';
 import { DateTimePicker24h } from '../components/DateTimePicker24h';
+import { StudentSubmissionDetailModal } from '../components/StudentSubmissionDetailModal';
 import { shouldShowNewBadge } from '../utils/resourceVisits';
 
 interface AssignmentsProps {
@@ -662,6 +663,9 @@ export function AssignmentsView({
     content?: string;
   } | null>(null);
   const [previewSub, setPreviewSub] = useState<Submission | null>(null);
+  const [inspectingSubmission, setInspectingSubmission] = useState<Submission | null>(null);
+  const [submissionFilterStatus, setSubmissionFilterStatus] = useState<'all' | 'pending' | 'graded'>('all');
+  const [submissionSearchQuery, setSubmissionSearchQuery] = useState<string>('');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [rotationAngle, setRotationAngle] = useState<number>(0);
 
@@ -2615,121 +2619,280 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               )}
 
               {/* TEACHER VIEW: Submission Matrix & Grading */}
-              {isTeacher && (
-                <div className="pt-6 border-t border-slate-100 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-slate-900 text-lg">Danh sách học sinh nộp bài</h3>
-                    <span className="text-xs font-semibold text-slate-500">
-                      Sĩ số: 3 học sinh
-                    </span>
-                  </div>
+              {isTeacher && (() => {
+                const currentAssignmentSubs = submissions.filter(s => s.assignmentId === selectedAssignment.id);
+                const gradedSubsCount = currentAssignmentSubs.filter(s => s.grade !== undefined).length;
+                const pendingSubsCount = currentAssignmentSubs.filter(s => s.grade === undefined).length;
 
-                  <div className="space-y-3">
-                    {isLoadingSubmissions ? (
-                      <SubmissionsListSkeleton count={3} />
-                    ) : submissions.filter(s => s.assignmentId === selectedAssignment.id).length === 0 ? (
-                      <div className="p-6 bg-slate-50 rounded-2xl text-center text-slate-500 text-xs italic">
-                        Chưa có học sinh nào nộp bài tập này.
-                      </div>
-                    ) : (
-                      submissions.filter(s => s.assignmentId === selectedAssignment.id).map(sub => (
-                        <div key={sub.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-bold text-slate-900 text-sm">{sub.studentName || 'Học sinh'}</p>
-                              <p className="text-[11px] text-slate-500">Nộp lúc: {format(new Date(sub.submittedAt), 'HH:mm dd/MM/yyyy')}</p>
-                            </div>
+                const displayedSubs = currentAssignmentSubs.filter(sub => {
+                  if (submissionSearchQuery.trim()) {
+                    const q = submissionSearchQuery.trim().toLowerCase();
+                    const name = (sub.studentName || '').toLowerCase();
+                    const content = (sub.content || '').toLowerCase();
+                    if (!name.includes(q) && !content.includes(q)) return false;
+                  }
+                  if (submissionFilterStatus === 'pending') return sub.grade === undefined;
+                  if (submissionFilterStatus === 'graded') return sub.grade !== undefined;
+                  return true;
+                });
 
-                            {sub.grade !== undefined ? (
-                              <span className="bg-emerald-100 text-emerald-800 font-bold text-xs px-3 py-1 rounded-xl border border-emerald-200">
-                                {sub.grade} / 10 điểm
-                              </span>
-                            ) : (
-                              <span className="bg-amber-100 text-amber-800 font-bold text-xs px-3 py-1 rounded-xl border border-amber-200">
-                                Cần chấm điểm
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs text-slate-700">
-                            <p className="whitespace-pre-wrap">{sub.content}</p>
-                            {sub.fileUrl && (
-                              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-150">
-                                <div className="text-indigo-600 font-bold flex items-center gap-1.5 truncate max-w-[65%]">
-                                  <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-                                  <span className="truncate">Tệp đính kèm: {sub.fileUrl.startsWith('data:') ? 'Tệp bài làm tải lên.html' : sub.fileUrl}</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setPreviewSub(sub);
-                                    setZoomLevel(1);
-                                    setRotationAngle(0);
-                                  }}
-                                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-[11px] rounded-lg transition-all flex items-center gap-1 shadow-sm"
-                                >
-                                  <Eye className="w-3.5 h-3.5" /> Xem bài làm
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Grading Form */}
-                          {gradingSubId === sub.id ? (
-                            <div className="bg-white p-4 rounded-xl border border-indigo-200 space-y-3">
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-slate-700 mb-1">Điểm số (0 - 10)</label>
-                                  <input 
-                                    type="number" min="0" max="10" step="0.5"
-                                    value={gradeValue} onChange={e => setGradeValue(Number(e.target.value))}
-                                    className="w-full p-2 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                  />
-                                </div>
-                                <div className="sm:col-span-2">
-                                  <label className="block text-xs font-bold text-slate-700 mb-1">Nhận xét của cô</label>
-                                  <input 
-                                    type="text"
-                                    value={feedbackValue} onChange={e => setFeedbackValue(e.target.value)}
-                                    className="w-full p-2 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                                    placeholder="Nhập nhận xét..."
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex justify-end gap-2">
-                                <button onClick={() => setGradingSubId(null)} className="px-3 py-1.5 text-xs text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Hủy</button>
-                                <button 
-                                  onClick={() => {
-                                    onGrade(sub.id, gradeValue, feedbackValue);
-                                    setGradingSubId(null);
-                                  }} 
-                                  className="px-4 py-1.5 text-xs bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700"
-                                >
-                                  Lưu kết quả
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex justify-end">
-                              <button 
-                                onClick={() => {
-                                  setGradingSubId(sub.id);
-                                  setGradeValue(sub.grade || 10);
-                                  setFeedbackValue(sub.feedback || '');
-                                }}
-                                className="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100"
-                              >
-                                {sub.grade !== undefined ? 'Sửa điểm' : 'Chấm điểm ngay'}
-                              </button>
-                            </div>
-                          )}
-
+                return (
+                  <div className="pt-6 border-t border-slate-100 space-y-4">
+                    {/* Header with Title & Stats */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">Danh sách học sinh nộp bài</h3>
+                          <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-black rounded-full border border-indigo-200">
+                            {currentAssignmentSubs.length} đã nộp
+                          </span>
                         </div>
-                      ))
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Nhấn vào từng bài nộp để xem chi tiết câu trả lời, hình ảnh, tài liệu và nhận xét.
+                        </p>
+                      </div>
+
+                      {/* Filter Status Tabs */}
+                      <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setSubmissionFilterStatus('all')}
+                          className={`px-3 py-1.5 rounded-lg transition-all ${
+                            submissionFilterStatus === 'all'
+                              ? 'bg-white text-slate-900 shadow-sm'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          Tất cả ({currentAssignmentSubs.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubmissionFilterStatus('pending')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                            submissionFilterStatus === 'pending'
+                              ? 'bg-amber-500 text-white shadow-sm'
+                              : 'text-slate-500 hover:text-amber-700'
+                          }`}
+                        >
+                          <span>Chờ chấm</span>
+                          {pendingSubsCount > 0 && (
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                              submissionFilterStatus === 'pending' ? 'bg-white/30 text-white' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {pendingSubsCount}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubmissionFilterStatus('graded')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                            submissionFilterStatus === 'graded'
+                              ? 'bg-emerald-600 text-white shadow-sm'
+                              : 'text-slate-500 hover:text-emerald-700'
+                          }`}
+                        >
+                          <span>Đã chấm</span>
+                          <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                            submissionFilterStatus === 'graded' ? 'bg-white/30 text-white' : 'bg-emerald-100 text-emerald-800'
+                          }`}>
+                            {gradedSubsCount}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Search bar when there are submissions */}
+                    {currentAssignmentSubs.length > 2 && (
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Tìm kiếm học sinh theo họ tên hoặc nội dung..."
+                          value={submissionSearchQuery}
+                          onChange={e => setSubmissionSearchQuery(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                        {submissionSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setSubmissionSearchQuery('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     )}
+
+                    {/* Submissions Cards List */}
+                    <div className="space-y-3">
+                      {isLoadingSubmissions ? (
+                        <SubmissionsListSkeleton count={3} />
+                      ) : currentAssignmentSubs.length === 0 ? (
+                        <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-center space-y-2">
+                          <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+                          <p className="font-bold text-slate-700 text-sm">Chưa có học sinh nào nộp bài</p>
+                          <p className="text-slate-500 text-xs">Khi học sinh làm bài và nộp, bài làm sẽ hiển thị chi tiết tại đây.</p>
+                        </div>
+                      ) : displayedSubs.length === 0 ? (
+                        <div className="p-6 bg-slate-50 rounded-2xl text-center text-slate-500 text-xs">
+                          Không tìm thấy bài nộp nào phù hợp với bộ lọc hiện tại.
+                        </div>
+                      ) : (
+                        displayedSubs.map(sub => {
+                          const studentUser = usersList.find(u => u.id === sub.studentId || (u.name && sub.studentName && u.name.trim().toLowerCase() === sub.studentName.trim().toLowerCase()));
+
+                          return (
+                            <div 
+                              key={sub.id} 
+                              className="group p-4 sm:p-5 bg-white hover:bg-indigo-50/20 rounded-2xl border border-slate-200 hover:border-indigo-300 shadow-sm hover:shadow-md transition-all space-y-3"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                                <div 
+                                  onClick={() => setInspectingSubmission(sub)}
+                                  className="flex items-center gap-3 cursor-pointer select-none"
+                                >
+                                  <UserAvatar 
+                                    name={sub.studentName || 'Học sinh'} 
+                                    avatar={studentUser?.avatar} 
+                                    size="md" 
+                                  />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-extrabold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">
+                                        {sub.studentName || 'Học sinh'}
+                                      </p>
+                                      {studentUser?.className && (
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md">
+                                          Lớp: {studentUser.className}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                      <Clock className="w-3 h-3 text-slate-400" />
+                                      <span>Nộp lúc: {format(new Date(sub.submittedAt), 'HH:mm dd/MM/yyyy')}</span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  {sub.grade !== undefined ? (
+                                    <span className="bg-emerald-50 text-emerald-800 font-black text-xs px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1 shadow-xs">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      <span>{sub.grade} / 10 điểm</span>
+                                    </span>
+                                  ) : (
+                                    <span className="bg-amber-50 text-amber-800 font-extrabold text-xs px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1">
+                                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>Cần chấm điểm</span>
+                                    </span>
+                                  )}
+
+                                  {sub.isPenalty && (
+                                    <span className="bg-rose-50 text-rose-700 font-bold text-[10px] px-2 py-1 rounded-lg border border-rose-200">
+                                      Nộp muộn
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Student Snippet / Note */}
+                              <div 
+                                onClick={() => setInspectingSubmission(sub)}
+                                className="bg-slate-50 hover:bg-slate-100/80 p-3 rounded-xl border border-slate-150 text-xs text-slate-700 cursor-pointer transition-colors"
+                              >
+                                <p className="whitespace-pre-wrap line-clamp-2 font-medium">{sub.content || '(Không có lời nhắn)'}</p>
+                                {sub.feedback && (
+                                  <p className="text-[11px] text-indigo-700 font-semibold mt-1.5 pt-1.5 border-t border-slate-200/60 italic flex items-center gap-1">
+                                    <span>💬 Nhận xét: "{sub.feedback}"</span>
+                                  </p>
+                                )}
+                                {sub.fileUrl && (
+                                  <div className="mt-2 text-indigo-600 font-bold text-[11px] flex items-center gap-1">
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>Có tệp đính kèm bài làm</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                <div className="text-[11px] text-slate-400 font-medium">
+                                  {selectedAssignment.type === 'online_test' && sub.quizAnswers && (
+                                    <span>Đã làm {Object.keys(sub.quizAnswers).length} câu hỏi</span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setInspectingSubmission(sub)}
+                                    className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center gap-1.5"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                    <span>Xem chi tiết bài làm</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setGradingSubId(gradingSubId === sub.id ? null : sub.id);
+                                      setGradeValue(sub.grade !== undefined ? sub.grade : 10);
+                                      setFeedbackValue(sub.feedback || '');
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-200"
+                                  >
+                                    {gradingSubId === sub.id ? 'Thu gọn' : (sub.grade !== undefined ? 'Sửa nhanh' : 'Chấm nhanh')}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Quick Inline Grading Form (Optional) */}
+                              {gradingSubId === sub.id && (
+                                <div className="bg-indigo-50/40 p-4 rounded-xl border border-indigo-200 space-y-3 mt-2 animate-in fade-in">
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-xs font-extrabold text-slate-700 mb-1">Điểm số (0 - 10)</label>
+                                      <input 
+                                        type="number" min="0" max="10" step="0.5"
+                                        value={gradeValue} onChange={e => setGradeValue(Number(e.target.value))}
+                                        className="w-full p-2 text-xs font-bold bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-xs font-extrabold text-slate-700 mb-1">Nhận xét của giáo viên</label>
+                                      <input 
+                                        type="text"
+                                        value={feedbackValue} onChange={e => setFeedbackValue(e.target.value)}
+                                        className="w-full p-2 text-xs bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="Nhập nhận xét..."
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <button onClick={() => setGradingSubId(null)} className="px-3 py-1.5 text-xs text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Hủy</button>
+                                    <button 
+                                      onClick={() => {
+                                        onGrade(sub.id, gradeValue, feedbackValue);
+                                        setGradingSubId(null);
+                                      }} 
+                                      className="px-4 py-1.5 text-xs bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700"
+                                    >
+                                      Lưu kết quả
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
             </div>
           ) : isLoadingAssignments ? (
@@ -2770,14 +2933,15 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               : (selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions)
           }
           studentName={user.name}
-          onFinish={(score, correctCount, answersMap) => {
+          onFinish={(score, correctCount, answersMap, totalQuestions) => {
             setShowFlashcardQuizTest(false);
             if (selectedAssignment && !showCreateModal) {
+              const totalQ = totalQuestions || (selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1);
               onSubmitWork({
                 assignmentId: selectedAssignment.id,
                 studentId: user.id,
                 studentName: user.name,
-                content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${(selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1)} câu). Điểm: ${score}/10.`,
+                content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${totalQ} câu). Điểm: ${score}/10.`,
                 quizAnswers: answersMap,
                 grade: score
               });
@@ -4025,6 +4189,26 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         confirmText="Xóa bài tập"
         cancelText="Hủy"
         variant="danger"
+      />
+
+      {/* STUDENT SUBMISSION DETAIL MODAL */}
+      <StudentSubmissionDetailModal
+        isOpen={!!inspectingSubmission}
+        onClose={() => setInspectingSubmission(null)}
+        submission={inspectingSubmission}
+        assignment={selectedAssignment}
+        allSubmissions={selectedAssignment ? submissions.filter(s => s.assignmentId === selectedAssignment.id) : []}
+        onSelectSubmission={(sub) => setInspectingSubmission(sub)}
+        onGrade={(subId, grade, feedback) => {
+          onGrade(subId, grade, feedback);
+          // If the currently inspected submission was updated, update local state
+          if (inspectingSubmission && inspectingSubmission.id === subId) {
+            setInspectingSubmission(prev => prev ? { ...prev, grade, feedback } : null);
+          }
+        }}
+        isTeacher={isTeacher}
+        currentUser={user}
+        usersList={usersList}
       />
 
     </div>

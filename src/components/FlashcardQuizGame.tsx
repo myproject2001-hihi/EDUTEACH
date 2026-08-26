@@ -23,7 +23,7 @@ interface Props {
   flashcards?: Flashcard[];
   questions?: any[];
   studentName: string;
-  onFinish: (score: number, correctCount: number, answersMap: Record<string, number>) => void;
+  onFinish: (score: number, correctCount: number, answersMap: Record<string, number>, totalQuestions: number) => void;
   onExit: () => void;
 }
 
@@ -244,7 +244,7 @@ export function FlashcardQuizGame({
             </button>
             <button
               type="button"
-              onClick={() => onFinish(finalScore, correctCount, answersMap)}
+              onClick={() => onFinish(finalScore, correctCount, answersMap, totalQuestions)}
               className="flex-1 py-3.5 px-6 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-200 transition-all uppercase tracking-wider flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <CheckCircle2 className="w-4 h-4 shrink-0" /> <span>Nộp bài & Lưu điểm</span>
