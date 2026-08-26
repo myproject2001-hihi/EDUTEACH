@@ -896,47 +896,20 @@ export function AssignmentsView({
     setIsExamStarted(false);
     exitFullscreen();
     let earnedPoints = 0;
-    let correctCount = 0;
-    const questionsList = selectedAssignment?.questions || [];
-    const totalQ = questionsList.length || 1;
-
-    questionsList.forEach(q => {
-      if (studentQuizAnswers[q.id] === q.correctAnswer) {
-        earnedPoints += q.points;
-        correctCount += 1;
-      }
-    });
-
-    const finalGrade = Math.min(10, Math.round(earnedPoints * 10) / 10);
-
+    if (selectedAssignment?.questions) {
+      selectedAssignment.questions.forEach(q => {
+        if (studentQuizAnswers[q.id] === q.correctAnswer) {
+          earnedPoints += q.points;
+        }
+      });
+    }
     onSubmitWork({
       assignmentId: selectedAssignment!.id,
       studentId: user.id,
       studentName: user.name,
-      content: `Nộp bài tự động (Hết giờ làm bài). Đúng ${correctCount}/${totalQ} câu. Giám sát: Phát hiện chuyển tab hoặc rời màn hình ${tabSwitchCount} lần.`,
+      content: `Nộp bài tự động (Hết giờ làm bài). Giám sát: Phát hiện chuyển tab hoặc rời màn hình ${tabSwitchCount} lần.`,
       quizAnswers: studentQuizAnswers,
-      quizDetails: {
-        totalQuestions: totalQ,
-        correctCount: correctCount,
-        score: finalGrade,
-        questions: questionsList.map(q => {
-          const normCorrect = typeof q.correctAnswer === 'number'
-            ? q.correctAnswer
-            : typeof q.correctAnswer === 'string' && !isNaN(parseInt(q.correctAnswer, 10))
-            ? parseInt(q.correctAnswer, 10)
-            : 0;
-          return {
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswer: normCorrect,
-            studentAnswer: studentQuizAnswers[q.id],
-            isCorrect: studentQuizAnswers[q.id] === q.correctAnswer,
-            solutionText: q.solutionText || q.method
-          };
-        })
-      },
-      grade: finalGrade
+      grade: earnedPoints
     });
     setTabSwitchCount(0);
     setIsNotFullscreen(false);
@@ -946,47 +919,20 @@ export function AssignmentsView({
     setIsExamStarted(false);
     exitFullscreen();
     let earnedPoints = 0;
-    let correctCount = 0;
-    const questionsList = selectedAssignment?.questions || [];
-    const totalQ = questionsList.length || 1;
-
-    questionsList.forEach(q => {
-      if (studentQuizAnswers[q.id] === q.correctAnswer) {
-        earnedPoints += q.points;
-        correctCount += 1;
-      }
-    });
-
-    const finalGrade = Math.min(10, Math.round(earnedPoints * 10) / 10);
-
+    if (selectedAssignment?.questions) {
+      selectedAssignment.questions.forEach(q => {
+        if (studentQuizAnswers[q.id] === q.correctAnswer) {
+          earnedPoints += q.points;
+        }
+      });
+    }
     onSubmitWork({
       assignmentId: selectedAssignment!.id,
       studentId: user.id,
       studentName: user.name,
-      content: `Đã hoàn thành làm bài trắc nghiệm trực tuyến. Đúng ${correctCount}/${totalQ} câu. Giám sát: Ghi nhận ${tabSwitchCount} lần chuyển tab hoặc rời toàn màn hình.`,
+      content: `Đã hoàn thành làm bài trắc nghiệm trực tuyến. Giám sát: Ghi nhận ${tabSwitchCount} lần chuyển tab hoặc rời toàn màn hình.`,
       quizAnswers: studentQuizAnswers,
-      quizDetails: {
-        totalQuestions: totalQ,
-        correctCount: correctCount,
-        score: finalGrade,
-        questions: questionsList.map(q => {
-          const normCorrect = typeof q.correctAnswer === 'number'
-            ? q.correctAnswer
-            : typeof q.correctAnswer === 'string' && !isNaN(parseInt(q.correctAnswer, 10))
-            ? parseInt(q.correctAnswer, 10)
-            : 0;
-          return {
-            id: q.id,
-            question: q.question,
-            options: q.options,
-            correctAnswer: normCorrect,
-            studentAnswer: studentQuizAnswers[q.id],
-            isCorrect: studentQuizAnswers[q.id] === q.correctAnswer,
-            solutionText: q.solutionText || q.method
-          };
-        })
-      },
-      grade: finalGrade
+      grade: earnedPoints
     });
     setTabSwitchCount(0);
     setIsNotFullscreen(false);
