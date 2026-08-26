@@ -54,6 +54,23 @@ export interface Assignment {
   teacherName?: string;
 }
 
+export interface SubmissionQuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  studentAnswer?: number;
+  isCorrect?: boolean;
+  solutionText?: string;
+}
+
+export interface SubmissionQuizDetails {
+  totalQuestions: number;
+  correctCount: number;
+  score: number;
+  questions?: SubmissionQuizQuestion[];
+}
+
 export interface Submission {
   id: string;
   assignmentId: string;
@@ -67,6 +84,7 @@ export interface Submission {
   fileUrl?: string;
   imageUrls?: string[];
   quizAnswers?: Record<string, number>; // questionId -> optionIndex
+  quizDetails?: SubmissionQuizDetails;
   isPenalty?: boolean; // Nộp muộn / chưa nộp bị trừ điểm
   teacherId?: string;
 }

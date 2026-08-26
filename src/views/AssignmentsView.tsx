@@ -2933,7 +2933,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
               : (selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions)
           }
           studentName={user.name}
-          onFinish={(score, correctCount, answersMap, totalQuestions) => {
+          onFinish={(score, correctCount, answersMap, totalQuestions, quizItems) => {
             setShowFlashcardQuizTest(false);
             if (selectedAssignment && !showCreateModal) {
               const totalQ = totalQuestions || (selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1);
@@ -2943,6 +2943,20 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 studentName: user.name,
                 content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${totalQ} câu). Điểm: ${score}/10.`,
                 quizAnswers: answersMap,
+                quizDetails: {
+                  totalQuestions: totalQ,
+                  correctCount: correctCount,
+                  score: score,
+                  questions: (quizItems || []).map(item => ({
+                    id: item.id,
+                    question: item.question,
+                    options: item.options,
+                    correctAnswer: item.correctAnswer,
+                    studentAnswer: answersMap[item.id],
+                    isCorrect: answersMap[item.id] === item.correctAnswer,
+                    solutionText: item.solutionText
+                  }))
+                },
                 grade: score
               });
             }
