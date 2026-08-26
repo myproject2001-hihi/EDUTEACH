@@ -23,6 +23,8 @@ import { saveSimulationToFirestore } from './lib/simulationStorage';
 import { LoveLetterModal } from './components/LoveLetterModal';
 import { RobotGuide } from './components/RobotGuide';
 import { checkAndIncrementNewResourceVisits } from './utils/resourceVisits';
+import { ActivityLogsView } from './views/ActivityLogsView';
+import { logActivity } from './lib/activityLogger';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -371,6 +373,20 @@ export default function App() {
     try {
       await setDoc(doc(db, 'assignments', id), assignment);
 
+      // Log system activity
+      if (currentUser) {
+        logActivity({
+          user: currentUser,
+          category: 'assignment',
+          actionType: 'assignment_create',
+          title: `Tạo bài tập mới: "${assignment.title}"`,
+          description: `Dạng bài: ${assignment.type === 'game' ? 'Trò chơi' : assignment.type === 'flashcard' ? 'Flashcard' : assignment.type === 'online_test' ? 'Trắc nghiệm' : 'Tự luận'}, Số câu: ${assignment.questions?.length || 0}`,
+          targetId: id,
+          targetName: assignment.title,
+          meta: { type: assignment.type, questionsCount: assignment.questions?.length || 0 }
+        });
+      }
+
       // Automatically publish system notification for new assignment
       const notifId = `auto_assign_pub_${Date.now()}`;
       const newNotif: SystemNotification = {
@@ -397,6 +413,20 @@ export default function App() {
     }));
     try {
       await setDoc(doc(db, 'submissions', id), newSubmission);
+
+      // Log activity
+      if (currentUser) {
+        logActivity({
+          user: currentUser,
+          category: 'submission',
+          actionType: 'submit_assignment',
+          title: `Nộp bài tập: "${submission.assignmentTitle || 'Bài làm'}"`,
+          description: submission.grade ? `Điểm tự động: ${submission.grade}/10` : 'Đã hoàn thành và gửi bài nộp.',
+          targetId: submission.assignmentId,
+          targetName: submission.assignmentTitle,
+          meta: { grade: submission.grade, assignmentId: submission.assignmentId }
+        });
+      }
       
       // Also update student's cumulative personal points!
       if (submission.studentId) {
@@ -426,9 +456,24 @@ export default function App() {
         feedback
       });
 
-      // Automatically publish a system notification for grading
       const sub = submissions.find(s => s.id === submissionId);
       const assign = assignments.find(a => a.id === sub?.assignmentId);
+
+      // Log activity
+      if (currentUser) {
+        logActivity({
+          user: currentUser,
+          category: 'grade',
+          actionType: 'grade_submission',
+          title: `Chấm điểm bài làm: ${grade} điểm cho học sinh "${sub?.studentName || 'Học sinh'}"`,
+          description: feedback ? `Nhận xét: "${feedback}"` : `Chấm bài tập "${assign?.title || 'Bài tập'}"`,
+          targetId: submissionId,
+          targetName: assign?.title,
+          meta: { grade, studentName: sub?.studentName, feedback }
+        });
+      }
+
+      // Automatically publish a system notification for grading
       if (sub && assign) {
         const notifId = `auto_grade_${Date.now()}`;
         const newNotif: SystemNotification = {
@@ -454,6 +499,19 @@ export default function App() {
         teacherId: newSim.teacherId || currentUser?.id || '',
         teacherName: newSim.teacherName || currentUser?.name || 'Giáo viên',
       });
+
+      // Log activity
+      if (currentUser) {
+        logActivity({
+          user: currentUser,
+          category: 'simulation',
+          actionType: 'simulation_create',
+          title: `Đăng mô phỏng thí nghiệm mới: "${newSim.title}"`,
+          description: `Danh mục: ${newSim.category || 'Mô phỏng khoa học'}`,
+          targetId: newSim.id,
+          targetName: newSim.title
+        });
+      }
     } catch (error) {
       console.error('Lỗi lưu mô phỏng:', error);
       handleFirestoreError(error, OperationType.CREATE, `simulations/${newSim.id}`);
@@ -468,6 +526,19 @@ export default function App() {
     }));
     try {
       await setDoc(doc(db, 'class_sessions', classData.id), classData);
+
+      // Log activity
+      if (currentUser) {
+        logActivity({
+          user: currentUser,
+          category: 'class',
+          actionType: 'class_create',
+          title: `Lên lịch buổi học trực tuyến: "${classData.title}"`,
+          description: `Thời gian: ${new Date(classData.startTime).toLocaleString('vi-VN')}, Môn: ${classData.subject || 'Chung'}`,
+          targetId: classData.id,
+          targetName: classData.title
+        });
+      }
 
       // Automatically publish system notification for new class session
       const notifId = `auto_class_pub_${Date.now()}`;
@@ -487,6 +558,14 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    if (currentUser) {
+      logActivity({
+        user: currentUser,
+        category: 'auth',
+        actionType: 'auth_logout',
+        title: `Đăng xuất khỏi hệ thống: ${currentUser.name}`,
+      });
+    }
     sessionStorage.removeItem('session_read_letters');
     setSessionReadLetters([]);
     await signOut(auth);
@@ -607,6 +686,13 @@ export default function App() {
             loveLetters={loveLetters}
             usersList={allUsers}
             classesList={classes.map((c) => c.title || c.id)}
+          />
+        ) : null;
+      case 'activity-logs':
+        return isTeacherOrAdmin ? (
+          <ActivityLogsView
+            currentUser={activeUser}
+            onNavigateToTab={setActiveTab}
           />
         ) : null;
       case 'students':

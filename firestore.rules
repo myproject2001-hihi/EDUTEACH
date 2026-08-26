@@ -75,6 +75,13 @@ service cloud.firestore {
       allow delete: if isAuthenticated();
     }
 
+    // Activity logs collection (Lịch sử thao tác hệ thống)
+    match /activity_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isTeacher();
+    }
+
     match /settings/{document=**} {
       allow read, write: if isTeacher();
     }

@@ -6,6 +6,7 @@ import { UserAvatar, combineName, getFirstName, getLastName } from '../component
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { logActivity } from '../lib/activityLogger';
 
 interface AuthViewProps {
   onLogin: (role: Role) => void;
@@ -242,6 +243,21 @@ export function AuthView({ onLogin }: AuthViewProps) {
       };
       
       await setDoc(doc(db, 'reset_requests', userData.id), requestPayload);
+
+      logActivity({
+        user: {
+          id: userData.id,
+          name: resetStudentName.trim() || userData.name || searchUsername,
+          role: userData.role || 'student',
+          className: resetClassName.trim() || userData.className
+        },
+        category: 'auth',
+        actionType: 'auth_reset_request',
+        title: `Gửi yêu cầu cấp lại mật khẩu: ${resetStudentName.trim()}`,
+        description: `Tài khoản: ${searchUsername}, Lớp: ${resetClassName.trim()}, SĐT: ${resetPhone.trim()}`,
+        targetId: userData.id,
+        targetName: searchUsername
+      });
       
       setResetSuccessMessage(`Gửi yêu cầu thành công! Yêu cầu cấp lại mật khẩu của học sinh ${resetStudentName.trim()} đã được gửi đến Thầy cô phụ trách để duyệt và cấp lại mật khẩu tạm thời. Vui lòng chuyển sang tab "Tra cứu trạng thái duyệt" để kiểm tra kết quả phê duyệt.`);
     } catch (err: any) {
@@ -454,6 +470,18 @@ export function AuthView({ onLogin }: AuthViewProps) {
 
               if (userDocSnap && userDocSnap.exists()) {
                 const userData = userDocSnap.data();
+                logActivity({
+                  user: {
+                    id: userCredential.user.uid,
+                    name: userData.name || loginUsername,
+                    role: userData.role as Role,
+                    className: userData.className
+                  },
+                  category: 'auth',
+                  actionType: 'auth_login',
+                  title: `Đăng nhập thành công: ${userData.name || loginUsername}`,
+                  description: `Vai trò: ${userData.role === 'admin' ? 'Quản trị viên' : userData.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}`
+                });
                 onLogin(userData.role as Role);
               } else {
                 const detectedRole = loginUsername.toLowerCase().includes('teacher') ? 'teacher' : 'student';
@@ -472,6 +500,17 @@ export function AuthView({ onLogin }: AuthViewProps) {
                 } catch (setErr) {
                   handleFirestoreError(setErr, OperationType.CREATE, `users/${userCredential.user.uid}`);
                 }
+                logActivity({
+                  user: {
+                    id: userCredential.user.uid,
+                    name: loginUsername,
+                    role: detectedRole as Role
+                  },
+                  category: 'auth',
+                  actionType: 'auth_login',
+                  title: `Đăng nhập thành công: ${loginUsername}`,
+                  description: `Vai trò: ${detectedRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}`
+                });
                 onLogin(detectedRole);
               }
             } catch (err: any) {
@@ -642,6 +681,18 @@ export function AuthView({ onLogin }: AuthViewProps) {
 
               try {
                 await setDoc(doc(db, 'users', uid), newUserProfile);
+                logActivity({
+                  user: {
+                    id: uid,
+                    name: fullName,
+                    role: signupRole,
+                    className: newUserProfile.className
+                  },
+                  category: 'auth',
+                  actionType: 'auth_register',
+                  title: `Đăng ký tài khoản mới: ${fullName}`,
+                  description: `Vai trò: ${signupRole === 'admin' ? 'Quản trị viên' : signupRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}, Lớp: ${newUserProfile.className}`
+                });
               } catch (setErr) {
                 handleFirestoreError(setErr, OperationType.CREATE, `users/${uid}`);
               }

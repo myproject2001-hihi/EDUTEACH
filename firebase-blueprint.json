@@ -114,6 +114,27 @@
         "readByUsers": "array (optional)",
         "alreadyClaimedUserId": "string (optional)"
       }
+    },
+    "activity_logs": {
+      "description": "System-wide activity and audit log of user actions across the platform",
+      "fields": {
+        "id": "string",
+        "userId": "string",
+        "userName": "string",
+        "userRole": "string ('admin' | 'teacher' | 'student')",
+        "userAvatar": "string (optional)",
+        "userClass": "string (optional)",
+        "category": "string",
+        "actionType": "string",
+        "title": "string",
+        "description": "string (optional)",
+        "targetId": "string (optional)",
+        "targetName": "string (optional)",
+        "device": "string (optional)",
+        "meta": "map (optional)",
+        "timestamp": "string",
+        "createdAtMs": "number (optional)"
+      }
     }
   }
 }

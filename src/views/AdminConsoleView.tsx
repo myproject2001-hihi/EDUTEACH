@@ -3,12 +3,14 @@ import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotificatio
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail } from 'lucide-react';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 import { NotificationsManagerView } from './NotificationsManagerView';
 import { TableSkeleton, NotificationListSkeleton } from '../components/Skeletons';
 import { LoveLetterManager } from '../components/LoveLetterManager';
+import { ActivityLogsView } from './ActivityLogsView';
+import { logActivity } from '../lib/activityLogger';
 
 export interface AuditItemDetails {
   description?: string;
@@ -56,7 +58,7 @@ interface AdminConsoleViewProps {
 }
 
 export function AdminConsoleView({ user, assignments, classes, simulations, submissions, loveLetters = [] }: AdminConsoleViewProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications' | 'letters'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications' | 'letters' | 'logs'>('users');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -214,6 +216,18 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
         firstName: editFirstName,
         className: editClassName
       } : u));
+      
+      logActivity({
+        user,
+        category: 'user_management',
+        actionType: 'user_role_change',
+        title: `Cập nhật thông tin & phân quyền cho "${updatedFullName}"`,
+        description: `Vai trò mới: ${roleToSet === 'admin' ? 'Quản trị viên' : roleToSet === 'teacher' ? 'Giáo viên' : 'Học sinh'}, Lớp: ${editClassName || 'Không'}`,
+        targetId: targetUser.id,
+        targetName: updatedFullName,
+        meta: { newRole: roleToSet, className: editClassName }
+      });
+
       showNotify('success', `Đã cập nhật thông tin và vai trò của ${updatedFullName} thành công!`);
       setEditingUser(null);
     } catch (err: any) {
@@ -243,6 +257,16 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
         processedBy: user.name,
       });
 
+      logActivity({
+        user,
+        category: 'auth',
+        actionType: 'auth_reset_approve',
+        title: `Duyệt cấp lại mật khẩu cho tài khoản: ${reqUsername}`,
+        description: `Mật khẩu tạm thời đã cấp: ${tempPasswordInput.trim()}`,
+        targetId: requestId,
+        targetName: reqUsername
+      });
+
       showNotify('success', `Đã duyệt yêu cầu và cấp mật khẩu mới "${tempPasswordInput.trim()}" cho tài khoản ${reqUsername}`);
       setTempPasswordInput('');
     } catch (err) {
@@ -261,6 +285,16 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
         processedAt: new Date().toISOString(),
         processedBy: user.name,
       });
+
+      logActivity({
+        user,
+        category: 'auth',
+        actionType: 'auth_reset_reject',
+        title: `Từ chối yêu cầu cấp lại mật khẩu`,
+        description: `Mã yêu cầu: ${requestId}`,
+        targetId: requestId
+      });
+
       showNotify('success', 'Đã từ chối yêu cầu cấp lại mật khẩu.');
     } catch (err) {
       console.error(err);
@@ -276,6 +310,17 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
     try {
       await deleteDoc(doc(db, 'users', deleteConfirmUser.id));
       setUsersList(prev => prev.filter(u => u.id !== deleteConfirmUser.id));
+      
+      logActivity({
+        user,
+        category: 'user_management',
+        actionType: 'user_delete',
+        title: `Xóa tài khoản người dùng: "${deleteConfirmUser.name}"`,
+        description: `Tài khoản / ID: ${deleteConfirmUser.id}`,
+        targetId: deleteConfirmUser.id,
+        targetName: deleteConfirmUser.name
+      });
+
       showNotify('success', `Đã xóa thành công tài khoản ${deleteConfirmUser.name}`);
       setDeleteConfirmUser(null);
     } catch (err: any) {
@@ -768,6 +813,18 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           >
             <Heart className="w-4 h-4 text-rose-500 fill-rose-100" />
             Thư Yêu Thương ({loveLetters.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'logs'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <History className="w-4 h-4 text-indigo-500" />
+            Lịch Sử Thao Tác
           </button>
         </div>
 
@@ -1415,6 +1472,13 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           usersList={usersList}
           classesList={classes.map(c => c.title || c.id)}
           showNotify={showNotify}
+        />
+      )}
+
+      {/* TAB 6: ACTIVITY LOGS */}
+      {activeTab === 'logs' && (
+        <ActivityLogsView
+          currentUser={user}
         />
       )}
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot, History } from 'lucide-react';
 import { Role, User, Assignment, Submission, SystemNotification, ClassSession } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 import { db } from '../firebase';
@@ -374,6 +374,9 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
   const navItems = [
     { id: 'dashboard', label: 'Trang chủ', icon: LayoutDashboard },
     ...(isAdmin ? [{ id: 'admin', label: 'Quản trị hệ thống', icon: ShieldCheck }] : []),
+    ...(isTeacher || isAdmin ? [
+      { id: 'activity-logs', label: 'Lịch sử thao tác', icon: History }
+    ] : []),
     ...(isTeacher ? [
       { id: 'students', label: 'Học sinh', icon: Users },
       { id: 'notifications-manager', label: 'Quản lý thông báo', icon: BellRing }

@@ -146,4 +146,38 @@ export interface LoveLetter {
   alreadyClaimedUserId?: string;
 }
 
+export type ActivityActionCategory = 
+  | 'auth'
+  | 'assignment'
+  | 'submission'
+  | 'grade'
+  | 'class'
+  | 'game'
+  | 'flashcard'
+  | 'simulation'
+  | 'letter'
+  | 'notification'
+  | 'user_management'
+  | 'profile'
+  | 'system';
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: Role;
+  userAvatar?: string;
+  userClass?: string;
+  category: ActivityActionCategory;
+  actionType: string;
+  title: string;
+  description?: string;
+  targetId?: string;
+  targetName?: string;
+  device?: string;
+  meta?: Record<string, any>;
+  timestamp: string; // ISO string
+  createdAtMs?: number;
+}
+
 
