@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Settings, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { Save, Settings, CheckCircle, AlertCircle, Sparkles, HelpCircle, MessageSquare, Camera } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { User } from '../types';
+import { ZaloGuideModal } from '../components/ZaloGuideModal';
+import { CameraCapture } from '../components/CameraCapture';
 
 interface SettingsViewProps {
   user: User;
@@ -17,6 +19,8 @@ export function SettingsView({ user }: SettingsViewProps) {
   
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isZaloGuideOpen, setIsZaloGuideOpen] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -39,6 +43,23 @@ export function SettingsView({ user }: SettingsViewProps) {
     };
     loadConfig();
   }, [user]);
+
+  const handleCaptureAvatar = async (dataUrl: string) => {
+    setIsLoading(true);
+    setNotification(null);
+    try {
+      await updateDoc(doc(db, 'users', user.id), {
+        avatar: dataUrl
+      });
+      setNotification({ message: 'Cập nhật ảnh đại diện mới thành công!', type: 'success' });
+    } catch (err) {
+      console.error("Lỗi cập nhật ảnh đại diện:", err);
+      setNotification({ message: 'Có lỗi xảy ra khi cập nhật ảnh đại diện.', type: 'error' });
+    } finally {
+      setIsLoading(false);
+      setShowCamera(false);
+    }
+  };
 
   const handleSaveConfig = async () => {
     setIsLoading(true);
@@ -87,8 +108,67 @@ export function SettingsView({ user }: SettingsViewProps) {
 
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 space-y-6">
+          
+          {/* Section 1: Ảnh đại diện & Thông tin cá nhân */}
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">1. Thông tin chung</h3>
+            <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
+              <span>👤</span> 1. Ảnh đại diện & Thông tin tài khoản
+            </h3>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-100">
+              <div className="relative group">
+                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-white shadow-md bg-slate-100 flex items-center justify-center shrink-0">
+                  {user.avatar ? (
+                    <img 
+                      src={user.avatar} 
+                      alt={user.name} 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="text-slate-400 font-extrabold text-3xl">
+                      {user.name?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Floating camera trigger button */}
+                <button
+                  type="button"
+                  onClick={() => setShowCamera(true)}
+                  className="absolute bottom-0 right-0 p-2 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center"
+                  title="Chụp ảnh mới bằng camera"
+                >
+                  <Camera className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="flex-1 text-center sm:text-left space-y-2">
+                <div>
+                  <h4 className="text-base font-extrabold text-slate-900">{user.name}</h4>
+                  <p className="text-xs font-semibold text-slate-500 capitalize mt-0.5">
+                    Vai trò: {user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                  </p>
+                </div>
+                <p className="text-xs text-slate-600 max-w-md">
+                  Bạn có thể cập nhật ảnh đại diện của mình bằng cách mở camera thiết bị để chụp một bức ảnh mới ngay lập tức.
+                </p>
+                <div className="pt-1 flex justify-center sm:justify-start">
+                  <button
+                    type="button"
+                    onClick={() => setShowCamera(true)}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2"
+                  >
+                    <Camera className="w-4 h-4 text-indigo-500" />
+                    Chụp ảnh đại diện bằng Camera
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">2. Thông tin chung</h3>
             
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Niên khóa học tập</label>
@@ -105,7 +185,7 @@ export function SettingsView({ user }: SettingsViewProps) {
 
           {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="space-y-4 pt-4 border-t border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">2. Cấu hình Lớp học</h3>
+              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">3. Cấu hình Lớp học</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -135,7 +215,15 @@ export function SettingsView({ user }: SettingsViewProps) {
             </div>
           )}
 
-          <div className="pt-6 border-t border-slate-100 flex items-center justify-end">
+          <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setIsZaloGuideOpen(true)}
+              className="px-5 py-2.5 bg-[#0068ff] hover:bg-[#0051d4] text-white text-sm font-bold rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Xem hướng dẫn Zalo
+            </button>
             <button
               onClick={handleSaveConfig}
               disabled={isLoading}
@@ -160,6 +248,20 @@ export function SettingsView({ user }: SettingsViewProps) {
           </p>
         </div>
       </div>
+
+      <ZaloGuideModal
+        isOpen={isZaloGuideOpen}
+        onClose={() => setIsZaloGuideOpen(false)}
+        role={user.role}
+      />
+
+      {showCamera && (
+        <CameraCapture 
+          mode="avatar" 
+          onCapture={handleCaptureAvatar} 
+          onCancel={() => setShowCamera(false)} 
+        />
+      )}
     </div>
   );
 }

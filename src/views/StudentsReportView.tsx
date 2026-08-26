@@ -12,6 +12,7 @@ interface StudentsReportProps {
 
 export function StudentsReportView({ progressData }: StudentsReportProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'grade-desc' | 'grade-asc' | 'completion-desc'>('name-asc');
   const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(null);
 
   const [className, setClassName] = useState(() => localStorage.getItem('class_name') || '123456');
@@ -156,11 +157,30 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     }
   };
 
-  const filteredData = combinedRoster.filter(s => 
-    s.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.phoneStudent && s.phoneStudent.includes(searchTerm)) ||
-    (s.phoneParent && s.phoneParent.includes(searchTerm))
-  );
+  const sortedAndFilteredData = React.useMemo(() => {
+    let result = combinedRoster.filter(s => 
+      s.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (s.phoneStudent && s.phoneStudent.includes(searchTerm)) ||
+      (s.phoneParent && s.phoneParent.includes(searchTerm))
+    );
+
+    result.sort((a, b) => {
+      if (sortBy === 'name-asc') {
+        return a.studentName.localeCompare(b.studentName, 'vi');
+      } else if (sortBy === 'name-desc') {
+        return b.studentName.localeCompare(a.studentName, 'vi');
+      } else if (sortBy === 'grade-desc') {
+        return b.averageGrade - a.averageGrade;
+      } else if (sortBy === 'grade-asc') {
+        return a.averageGrade - b.averageGrade;
+      } else if (sortBy === 'completion-desc') {
+        return b.completionRate - a.completionRate;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [combinedRoster, searchTerm, sortBy]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
@@ -328,15 +348,34 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
             </div>
 
             {activeSubTab === 'roster' && (
-              <div className="relative w-full sm:w-60">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  placeholder="Tìm học sinh..." 
-                  className="w-full pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none placeholder:text-slate-400"
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                {/* Sắp xếp */}
+                <div className="relative flex items-center bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs text-slate-700 font-semibold shadow-sm">
+                  <span className="text-slate-400 text-[10px] uppercase font-black tracking-wider mr-1.5 shrink-0 select-none">Xếp theo:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e: any) => setSortBy(e.target.value)}
+                    className="bg-transparent border-none outline-none font-bold text-indigo-600 focus:ring-0 py-0.5 cursor-pointer pr-1"
+                  >
+                    <option value="name-asc">Họ tên (A-Z)</option>
+                    <option value="name-desc">Họ tên (Z-A)</option>
+                    <option value="grade-desc">Điểm TB (Cao nhất)</option>
+                    <option value="grade-asc">Điểm TB (Thấp nhất)</option>
+                    <option value="completion-desc">Nộp bài (Cao nhất)</option>
+                  </select>
+                </div>
+
+                {/* Tìm kiếm */}
+                <div className="relative w-full sm:w-48">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input 
+                    type="text" 
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    placeholder="Tìm học sinh..." 
+                    className="w-full pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none placeholder:text-slate-400 font-medium"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -354,7 +393,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredData.length === 0 ? (
+                  {sortedAndFilteredData.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-slate-400">
                         <User className="w-10 h-10 mx-auto text-slate-300 mb-2" />
@@ -365,7 +404,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                       </td>
                     </tr>
                   ) : (
-                    filteredData.map((student) => (
+                    sortedAndFilteredData.map((student) => (
                       <tr 
                         key={student.studentId} 
                         onClick={() => setSelectedStudent(student)}

@@ -15,6 +15,8 @@ export interface User {
   connectionCode?: string;
   points?: number; // Điểm tích lũy cá nhân
   readNotifications?: string[]; // IDs of notifications marked as read
+  zaloUserId?: string; // Zalo User ID (định danh theo OA)
+  zaloFollowed?: boolean; // Học sinh đã quan tâm OA chưa
   createdAt?: string;
 }
 

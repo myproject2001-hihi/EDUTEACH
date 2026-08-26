@@ -575,8 +575,49 @@ export function AssignmentsView({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const [deleteConfirmAssignment, setDeleteConfirmAssignment] = useState<Assignment | null>(null);
+  const [selectedIdsForDeletion, setSelectedIdsForDeletion] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(assignments[0] || null);
+
+  // Search & Filters states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterDueDate, setFilterDueDate] = useState<string>('all');
+
+  // Chat với giáo viên states
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatType, setChatType] = useState<'system' | 'zalo' | 'both'>('both');
+  const [chatStatus, setChatStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+
+  const filteredAssignments = React.useMemo(() => {
+    return assignments.filter(assignment => {
+      // 1. Search Query Match
+      const q = searchQuery.toLowerCase().trim();
+      if (q) {
+        const titleMatch = (assignment.title || '').toLowerCase().includes(q);
+        const descMatch = (assignment.description || '').toLowerCase().includes(q);
+        const sessionMatch = (assignment.classSessionTitle || '').toLowerCase().includes(q);
+        if (!titleMatch && !descMatch && !sessionMatch) return false;
+      }
+
+      // 2. Filter by Type Match
+      if (filterType !== 'all') {
+        if (assignment.type !== filterType) return false;
+      }
+
+      // 3. Filter by Due Date Match
+      if (filterDueDate !== 'all') {
+        const isPastDue = new Date(assignment.dueDate) < new Date();
+        if (filterDueDate === 'upcoming' && isPastDue) return false;
+        if (filterDueDate === 'overdue' && !isPastDue) return false;
+      }
+
+      return true;
+    });
+  }, [assignments, searchQuery, filterType, filterDueDate]);
+
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(filteredAssignments[0] || assignments[0] || null);
 
   // Unsubmitted students modal state
   const [usersList, setUsersList] = useState<User[]>([]);
@@ -948,6 +989,275 @@ export function AssignmentsView({
   const [gradingSubId, setGradingSubId] = useState<string | null>(null);
   const [gradeValue, setGradeValue] = useState<number>(0);
   const [feedbackValue, setFeedbackValue] = useState<string>('');
+  const [submissionToDelete, setSubmissionToDelete] = useState<Submission | null>(null);
+  const [isDeletingSubmission, setIsDeletingSubmission] = useState(false);
+
+  const handleDeleteSubmission = async () => {
+    if (!submissionToDelete) return;
+    setIsDeletingSubmission(true);
+    try {
+      await deleteDoc(doc(db, 'submissions', submissionToDelete.id));
+      setSubmissionToDelete(null);
+    } catch (error) {
+      console.error('Error deleting submission:', error);
+      alert('Không thể xóa bài nộp. Vui lòng thử lại sau.');
+    } finally {
+      setIsDeletingSubmission(false);
+    }
+  };
+
+  // Zalo Bot Integration States
+  const [zaloConfig, setZaloConfig] = useState({
+    oaId: '',
+    accessToken: '',
+    oaLink: '',
+    testPhone: ''
+  });
+  const [showZaloSetup, setShowZaloSetup] = useState(false);
+  const [isSavingZalo, setIsSavingZalo] = useState(false);
+  const [zaloStudentUserId, setZaloStudentUserId] = useState(user.zaloUserId || '');
+  const [isLinkingZalo, setIsLinkingZalo] = useState(false);
+  const [zaloSendStatus, setZaloSendStatus] = useState<Record<string, 'idle' | 'sending' | 'success' | 'error'>>({});
+
+  // Subscribe to Zalo config from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'zalo_oa'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setZaloConfig({
+          oaId: data.oaId || '',
+          accessToken: data.accessToken || '',
+          oaLink: data.oaLink || '',
+          testPhone: data.testPhone || ''
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const handleLinkZalo = async () => {
+    if (!zaloStudentUserId.trim()) {
+      alert('Vui lòng nhập Zalo User ID của bạn.');
+      return;
+    }
+    setIsLinkingZalo(true);
+    try {
+      await setDoc(doc(db, 'users', user.id), {
+        zaloUserId: zaloStudentUserId.trim(),
+        zaloFollowed: true
+      }, { merge: true });
+      alert('Liên kết tài khoản Zalo thành công!');
+    } catch (error) {
+      console.error('Error linking Zalo:', error);
+      alert('Đã xảy ra lỗi khi liên kết. Vui lòng thử lại.');
+    } finally {
+      setIsLinkingZalo(false);
+    }
+  };
+
+  const handleSaveZaloConfig = async () => {
+    setIsSavingZalo(true);
+    try {
+      await setDoc(doc(db, 'settings', 'zalo_oa'), {
+        oaId: zaloConfig.oaId.trim(),
+        accessToken: zaloConfig.accessToken.trim(),
+        oaLink: zaloConfig.oaLink.trim(),
+        testPhone: zaloConfig.testPhone.trim(),
+        updatedAt: new Date().toISOString()
+      });
+      alert('Cấu hình Zalo OA thành công và đã lưu lên hệ thống!');
+    } catch (error) {
+      console.error('Error saving Zalo config:', error);
+      alert('Không thể lưu cấu hình. Vui lòng kiểm tra quyền hạn của bạn.');
+    } finally {
+      setIsSavingZalo(false);
+    }
+  };
+
+  const handleSendViaZalo = async (assignment: Assignment, targetStudentId?: string) => {
+    if (!zaloConfig.accessToken) {
+      alert('Vui lòng cấu hình Zalo OA Access Token trong bảng điều khiển tích hợp Zalo trước khi gửi.');
+      setShowZaloSetup(true);
+      return;
+    }
+
+    const key = targetStudentId ? `${assignment.id}_${targetStudentId}` : assignment.id;
+    setZaloSendStatus(prev => ({ ...prev, [key]: 'sending' }));
+
+    try {
+      let targets: { name: string; zaloUserId: string }[] = [];
+
+      if (targetStudentId) {
+        const student = usersList.find(u => u.id === targetStudentId);
+        if (student?.zaloUserId) {
+          targets.push({ name: student.name, zaloUserId: student.zaloUserId });
+        } else {
+          alert(`Học sinh "${student?.name || 'này'}" chưa liên kết tài khoản Zalo.`);
+          setZaloSendStatus(prev => ({ ...prev, [key]: 'error' }));
+          return;
+        }
+      } else {
+        const submittedStudentIds = submissions
+          .filter(s => s.assignmentId === assignment.id)
+          .map(s => s.studentId);
+
+        const unsubmittedStudents = usersList.filter(u => 
+          u.role === 'student' && !submittedStudentIds.includes(u.id)
+        );
+
+        targets = unsubmittedStudents
+          .filter(u => u.zaloUserId)
+          .map(u => ({ name: u.name, zaloUserId: u.zaloUserId! }));
+
+        if (targets.length === 0) {
+          alert('Không tìm thấy học sinh nào chưa nộp bài có liên kết Zalo.');
+          setZaloSendStatus(prev => ({ ...prev, [key]: 'idle' }));
+          return;
+        }
+      }
+
+      let successCount = 0;
+      let errorMsgs: string[] = [];
+
+      for (const target of targets) {
+        const messageText = `🤖 [EduConnect] THÔNG BÁO BÀI HỌC\nChào ${target.name},\nBạn có bài tập/thông tin ôn tập mới từ thầy cô:\n\n📌 Bài học: ${assignment.title}\n⏰ Hạn nộp: ${format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\n📝 Thể loại: ${assignment.type === 'flashcard' ? 'Thẻ ghi nhớ (Flashcard)' : assignment.type === 'simulation' ? 'Bài mô phỏng tương tác' : assignment.type === 'game' ? 'Trò chơi ôn tập' : 'Kiểm tra trắc nghiệm'}\n\nHãy nhanh chóng hoàn thành bài nộp để tích lũy thêm điểm nhé! 💪`;
+
+        const response = await fetch('/api/zalo/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accessToken: zaloConfig.accessToken,
+            zaloUserId: target.zaloUserId,
+            message: messageText
+          })
+        });
+
+        const result = await response.json();
+        if (response.ok && result.success) {
+          successCount++;
+        } else {
+          errorMsgs.push(`${target.name}: ${result.error || 'Lỗi gửi tin'}`);
+        }
+      }
+
+      if (successCount > 0) {
+        setZaloSendStatus(prev => ({ ...prev, [key]: 'success' }));
+        setTimeout(() => {
+          setZaloSendStatus(prev => ({ ...prev, [key]: 'idle' }));
+        }, 3000);
+        
+        if (errorMsgs.length > 0) {
+          alert(`Đã gửi thành công ${successCount} tin nhắn Zalo. Lỗi tại:\n${errorMsgs.join('\n')}`);
+        } else {
+          alert(`Đã gửi thông báo Zalo thành công đến ${successCount} học sinh!`);
+        }
+      } else {
+        alert(`Không thể gửi thông báo. Lỗi:\n${errorMsgs.join('\n')}`);
+        setZaloSendStatus(prev => ({ ...prev, [key]: 'error' }));
+      }
+    } catch (error: any) {
+      console.error('Error sending Zalo:', error);
+      alert(`Đã xảy ra lỗi: ${error.message}`);
+      setZaloSendStatus(prev => ({ ...prev, [key]: 'error' }));
+    }
+  };
+
+  const handleSendChatQuestion = async () => {
+    if (!chatQuestion.trim()) {
+      alert('Vui lòng nhập nội dung câu hỏi/thắc mắc.');
+      return;
+    }
+    if (!selectedAssignment) return;
+
+    setChatStatus({ type: 'sending', message: 'Đang xử lý gửi câu hỏi...' });
+
+    try {
+      const timestamp = new Date().toISOString();
+      const notifId = 'chat_notif_' + Date.now();
+
+      // 1. Send via System Notification
+      if (chatType === 'system' || chatType === 'both') {
+        const newNotif = {
+          id: notifId,
+          title: `❓ Thắc mắc bài: ${user.name}`,
+          content: `Học sinh *${user.name}* (Lớp ${user.className || 'Chưa rõ'}) có thắc mắc về bài tập "${selectedAssignment.title}":\n\n"${chatQuestion.trim()}"`,
+          type: 'personal_reminder', // Ensures teachers/admins get notified
+          badge: '💬 Hỏi Bài',
+          badgeColor: 'rose',
+          createdAt: timestamp
+        };
+        await setDoc(doc(db, 'system_notifications', notifId), newNotif);
+      }
+
+      // 2. Send via Zalo (If both or Zalo)
+      let zaloSuccess = false;
+      let zaloAttempted = false;
+      if (chatType === 'zalo' || chatType === 'both') {
+        // Find teachers/admins with Zalo User IDs
+        const zaloTeachers = usersList.filter(u => (u.role === 'teacher' || u.role === 'admin') && u.zaloUserId);
+        
+        if (zaloTeachers.length > 0 && zaloConfig.accessToken) {
+          zaloAttempted = true;
+          let successCount = 0;
+          
+          for (const teacher of zaloTeachers) {
+            const textMsg = `❓ [EduConnect Hỏi Bài]\nChào thầy/cô,\nHọc sinh ${user.name} có thắc mắc về bài tập:\n\n📚 Bài học: ${selectedAssignment.title}\n💬 Nội dung thắc mắc:\n"${chatQuestion.trim()}"\n\nThầy/cô vui lòng truy cập hệ thống để phản hồi cho em nhé!`;
+            
+            try {
+              const res = await fetch('/api/zalo/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  accessToken: zaloConfig.accessToken,
+                  zaloUserId: teacher.zaloUserId,
+                  message: textMsg
+                })
+              });
+              const data = await res.json();
+              if (res.ok && data.success) {
+                successCount++;
+              }
+            } catch (err) {
+              console.error("Lỗi gửi tin qua Zalo cho giáo viên:", err);
+            }
+          }
+          zaloSuccess = successCount > 0;
+        }
+      }
+
+      let successMsg = 'Gửi câu hỏi thành công!';
+      if (chatType === 'both') {
+        if (zaloAttempted) {
+          successMsg = zaloSuccess 
+            ? 'Đã gửi câu hỏi lên thông báo hệ thống và tin nhắn Zalo tới giáo viên thành công!'
+            : 'Đã gửi lên thông báo hệ thống. Gửi qua Zalo thất bại do giáo viên chưa liên kết hoặc lỗi Zalo.';
+        } else {
+          successMsg = 'Đã gửi lên thông báo hệ thống thành công! (Giáo viên chưa liên kết tài khoản Zalo)';
+        }
+      } else if (chatType === 'zalo') {
+        if (!zaloAttempted) {
+          throw new Error('Giáo viên chưa đăng ký liên kết Zalo User ID.');
+        }
+        if (!zaloSuccess) {
+          throw new Error('Gửi qua Zalo OA thất bại. Vui lòng kiểm tra lại token Zalo OA.');
+        }
+        successMsg = 'Đã gửi câu hỏi qua tin nhắn Zalo tới giáo viên thành công!';
+      }
+
+      setChatStatus({ type: 'success', message: successMsg });
+      setChatQuestion('');
+      setTimeout(() => {
+        setShowChatModal(false);
+        setChatStatus({ type: 'idle', message: '' });
+      }, 3500);
+
+    } catch (err: any) {
+      console.error("Lỗi gửi thắc mắc bài tập:", err);
+      setChatStatus({ type: 'error', message: err.message || 'Gửi thắc mắc thất bại, vui lòng thử lại.' });
+    }
+  };
 
   const handleImportFlashcards = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1151,9 +1461,28 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         setSelectedAssignment(remaining[0] || null);
       }
       setDeleteConfirmAssignment(null);
+      // Clean up from deletion selected list if there
+      setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignmentId));
     } catch (err) {
       console.error("Error deleting assignment:", err);
       alert("Có lỗi xảy ra khi xóa bài tập!");
+    }
+  };
+
+  const handleBulkDeleteAssignments = async () => {
+    try {
+      for (const id of selectedIdsForDeletion) {
+        await deleteDoc(doc(db, 'assignments', id));
+      }
+      const remaining = assignments.filter(a => !selectedIdsForDeletion.includes(a.id));
+      if (selectedAssignment && selectedIdsForDeletion.includes(selectedAssignment.id)) {
+        setSelectedAssignment(remaining[0] || null);
+      }
+      setSelectedIdsForDeletion([]);
+      setShowBulkDeleteConfirm(false);
+    } catch (err) {
+      console.error("Error bulk deleting assignments:", err);
+      alert("Có lỗi xảy ra khi xóa hàng loạt bài tập!");
     }
   };
 
@@ -1555,6 +1884,234 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         )}
       </div>
 
+      {/* ZALO BOT INTEGRATION SECTION */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#0068ff]/10 text-[#0068ff] rounded-2xl flex items-center justify-center font-black shadow-inner">
+              🤖
+            </div>
+            <div>
+              <h4 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+                Tích hợp Thông Báo Zalo Bot
+                {user.zaloUserId ? (
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 uppercase">
+                    Đã liên kết
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full border border-slate-200 uppercase">
+                    Chưa kết nối
+                  </span>
+                )}
+              </h4>
+              <p className="text-xs text-slate-500">
+                {isTeacher 
+                  ? 'Gửi thông báo bài tập, flashcard, mô phỏng tức thì tới Zalo của học sinh qua Zalo OA.' 
+                  : 'Nhận thông báo bài học mới, điểm số và nhận xét từ thầy cô trực tiếp qua tin nhắn Zalo.'}
+              </p>
+            </div>
+          </div>
+          
+          <button
+            type="button"
+            onClick={() => setShowZaloSetup(!showZaloSetup)}
+            className="text-xs font-bold text-[#0068ff] hover:bg-[#0068ff]/5 px-3 py-2 rounded-xl transition-colors border border-[#0068ff]/20 flex items-center gap-1.5 active:scale-95"
+          >
+            {showZaloSetup ? 'Thu gọn bảng HD' : 'Cấu hình & Hướng dẫn'}
+            <HelpCircle className="w-4 h-4" />
+          </button>
+        </div>
+
+        <AnimatePresence>
+          {showZaloSetup && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden border-t border-slate-100 pt-4"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* ROLE-BASED ACTION PANEL */}
+                <div className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-200/60">
+                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                    <span>⚙️ {isTeacher ? 'Cấu Hình Zalo Official Account (Dành cho Giáo viên)' : 'Kết Nối Tài Khoản Zalo (Dành cho Học sinh)'}</span>
+                  </h5>
+
+                  {isTeacher ? (
+                    // TEACHER FORM
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Zalo Official Account ID (OA ID)</label>
+                        <input
+                          type="text"
+                          value={zaloConfig.oaId}
+                          onChange={(e) => setZaloConfig(prev => ({ ...prev, oaId: e.target.value }))}
+                          placeholder="Ví dụ: 43820247593821038"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-medium"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                          <span>OA Access Token (Hiệu lực 25 giờ)</span>
+                          <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded">Zalo OA v3.0</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={zaloConfig.accessToken}
+                          onChange={(e) => setZaloConfig(prev => ({ ...prev, accessToken: e.target.value }))}
+                          placeholder="Nhập Access Token dài sinh ra từ Zalo App của bạn..."
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-mono text-[11px]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-700 mb-1">Đường dẫn quan tâm OA (OA Link / QR Code URL)</label>
+                        <input
+                          type="text"
+                          value={zaloConfig.oaLink}
+                          onChange={(e) => setZaloConfig(prev => ({ ...prev, oaLink: e.target.value }))}
+                          placeholder="Ví dụ: https://zalo.me/1234567890123456"
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-medium"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleSaveZaloConfig}
+                        disabled={isSavingZalo}
+                        className="w-full py-2.5 bg-[#0068ff] hover:bg-[#0051d4] text-white font-extrabold rounded-xl transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                      >
+                        {isSavingZalo ? 'Đang lưu cấu hình...' : 'Lưu cấu hình hệ thống'}
+                      </button>
+                    </div>
+                  ) : (
+                    // STUDENT FORM
+                    <div className="space-y-4 text-xs">
+                      {user.zaloUserId ? (
+                        <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-100 flex items-start gap-2.5">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-extrabold text-sm text-emerald-900">Tài khoản đã liên kết Zalo thành công!</p>
+                            <p className="font-medium text-xs mt-1">Zalo User ID của bạn: <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-200/60 font-bold">{user.zaloUserId}</span></p>
+                            <p className="text-[10px] text-emerald-700 mt-1">Bất cứ khi nào giáo viên có bài tập, flashcard hay thông báo mới, hệ thống sẽ tự động nhắn tin nhắc nhở vào Zalo của bạn.</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-amber-50 text-amber-800 p-3.5 rounded-xl border border-amber-100">
+                          <p className="font-bold flex items-center gap-1">⚠️ Chưa kết nối thông báo</p>
+                          <p className="text-[10px] mt-1 leading-relaxed font-medium">Hãy theo dõi 3 bước đơn giản ở bảng hướng dẫn bên phải để nhận tin nhắn bài học tức thì.</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <label className="block font-bold text-slate-700">Nhập Zalo User ID (Định danh riêng theo OA của bạn)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={zaloStudentUserId}
+                            onChange={(e) => setZaloStudentUserId(e.target.value)}
+                            placeholder="Nhập mã ID Zalo gồm chữ và số..."
+                            className="flex-1 px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-mono font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleLinkZalo}
+                            disabled={isLinkingZalo}
+                            className="px-4 bg-[#0068ff] hover:bg-[#0051d4] text-white font-bold rounded-xl transition-all shadow-md shadow-blue-100 flex items-center justify-center active:scale-95 disabled:opacity-50"
+                          >
+                            {isLinkingZalo ? 'Đang liên kết...' : 'Kết nối'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* DETAILED USER GUIDE */}
+                <div className="space-y-4 text-xs font-medium text-slate-600">
+                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                    <span>📖 Hướng Dẫn Sử Dụng Chi Tiết</span>
+                  </h5>
+
+                  {isTeacher ? (
+                    // TEACHER GUIDE
+                    <div className="space-y-3 leading-relaxed">
+                      <div className="space-y-1.5">
+                        <p className="font-black text-slate-800 text-xs">Các bước thiết lập ban đầu cho giáo viên:</p>
+                        <ol className="list-decimal list-inside space-y-2 pl-1">
+                          <li>
+                            Truy cập cổng nhà phát triển Zalo: <a href="https://developers.zalo.me" target="_blank" rel="noopener noreferrer" className="text-[#0068ff] font-bold underline">developers.zalo.me</a> và tạo một <b>Ứng dụng liên kết với Zalo OA</b> của bạn.
+                          </li>
+                          <li>
+                            Vào phần <b>Công cụ thử nghiệm API (API Explorer)</b>, chọn Official Account tương ứng và lấy <b>Access Token</b> với đầy đủ quyền (gửi tin nhắn qua OA, quản lý tin nhắn người dùng).
+                          </li>
+                          <li>
+                            Dán <b>OA ID</b>, <b>Access Token</b> và <b>Link quan tâm OA</b> vào mẫu cấu hình bên trái và bấm <b>Lưu cấu hình hệ thống</b>.
+                          </li>
+                          <li>
+                            Gửi đường dẫn quan tâm OA cho học sinh/phụ huynh quét mã để bắt đầu quan tâm trang OA của lớp.
+                          </li>
+                        </ol>
+                      </div>
+
+                      <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/60 text-slate-700 text-[11px]">
+                        <p className="font-extrabold text-[#0068ff] flex items-center gap-1">💡 Mẹo Giao Bài Nhanh:</p>
+                        <p className="mt-0.5 leading-relaxed font-medium">Bên dưới mỗi bài tập (Online Test, Mô Phỏng, Flashcard), hệ thống có tích hợp nút <b>"Gửi thông báo Zalo"</b>. Thầy cô chỉ cần bấm nút này, hệ thống sẽ tự động chọn lọc các học sinh <b>chưa nộp bài</b> đã liên kết Zalo để nhắn tin trực tiếp nhắc nhở.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    // STUDENT GUIDE
+                    <div className="space-y-3 leading-relaxed">
+                      <div className="space-y-2">
+                        <p className="font-black text-slate-800">Để nhận thông báo qua Zalo, vui lòng làm theo 3 bước sau:</p>
+                        <div className="space-y-3 pl-1">
+                          <div className="flex gap-2 items-start">
+                            <span className="w-5 h-5 bg-[#0068ff]/10 text-[#0068ff] rounded-full flex items-center justify-center font-bold shrink-0 text-[10px]">1</span>
+                            <div>
+                              <p className="font-bold text-slate-800">Quan tâm trang Zalo OA của lớp</p>
+                              {zaloConfig.oaLink ? (
+                                <a
+                                  href={zaloConfig.oaLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 mt-1 font-extrabold text-white bg-[#0068ff] hover:bg-[#0051d4] px-3 py-1 rounded-lg transition-all text-[11px]"
+                                >
+                                  👉 Bấm vào đây để quan tâm OA
+                                </a>
+                              ) : (
+                                <p className="text-amber-600 font-semibold italic mt-0.5">Yêu cầu thầy cô cung cấp đường dẫn quan tâm Zalo OA của lớp học.</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 items-start">
+                            <span className="w-5 h-5 bg-[#0068ff]/10 text-[#0068ff] rounded-full flex items-center justify-center font-bold shrink-0 text-[10px]">2</span>
+                            <div>
+                              <p className="font-bold text-slate-800">Lấy mã định danh Zalo (Zalo User ID)</p>
+                              <p className="text-slate-500 text-[11px] leading-normal mt-0.5">Sau khi bấm quan tâm, nhắn tin cho OA dòng chữ <b className="text-[#0068ff] font-mono bg-slate-100 px-1 py-0.5 rounded border">/id</b> hoặc <b className="text-[#0068ff] font-mono bg-slate-100 px-1 py-0.5 rounded border">me</b>. Bot của lớp học sẽ ngay lập tức trả lời và gửi kèm cho bạn một dãy mã số.</p>
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 items-start">
+                            <span className="w-5 h-5 bg-[#0068ff]/10 text-[#0068ff] rounded-full flex items-center justify-center font-bold shrink-0 text-[10px]">3</span>
+                            <div>
+                              <p className="font-bold text-slate-800">Dán ID và lưu liên kết</p>
+                              <p className="text-slate-500 text-[11px] leading-normal mt-0.5">Sao chép chính xác mã số nhận được từ Zalo Bot, dán vào khung nhập ở bên trái và bấm <b>Kết nối</b>. Bạn sẽ nhận được thông báo bài học tự động tức thì.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -1564,18 +2121,125 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
             <h3 className="font-bold text-slate-900 text-base">
               {viewMode === 'games' ? 'Danh sách Game' : viewMode === 'flashcards' ? 'Danh sách Flashcard' : 'Danh sách Bài Tập'}
             </h3>
-            <span className="text-xs font-semibold text-slate-500">{assignments.length} bài</span>
+            <span className="text-xs font-semibold text-slate-500">
+              {filteredAssignments.length === assignments.length 
+                ? `${assignments.length} bài` 
+                : `Tìm thấy ${filteredAssignments.length}/${assignments.length}`}
+            </span>
           </div>
+
+          {/* SEARCH & FILTERS BOX */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3 shadow-sm">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Tìm tên bài, buổi học, mô tả..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-xl transition-all"
+              />
+              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-2 text-slate-400 hover:text-slate-600 font-bold transition-colors"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 pl-0.5">Loại bài tập</label>
+                <select
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-lg transition-all cursor-pointer font-medium text-slate-700"
+                >
+                  <option value="all">Tất cả loại</option>
+                  <option value="file_upload">Nộp tự luận</option>
+                  <option value="online_test">Trắc nghiệm</option>
+                  <option value="simulation">Mô phỏng</option>
+                  <option value="game">Trò chơi</option>
+                  <option value="flashcard">Flashcard</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 pl-0.5">Thời hạn</label>
+                <select
+                  value={filterDueDate}
+                  onChange={(e) => setFilterDueDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-lg transition-all cursor-pointer font-medium text-slate-700"
+                >
+                  <option value="all">Tất cả hạn</option>
+                  <option value="upcoming">Còn hạn nộp</option>
+                  <option value="overdue">Đã quá hạn</option>
+                </select>
+              </div>
+            </div>
+
+            {(searchQuery || filterType !== 'all' || filterDueDate !== 'all') && (
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
+                <span className="text-slate-400 font-medium">Đang lọc kết quả</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterType('all');
+                    setFilterDueDate('all');
+                  }}
+                  className="font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
+            )}
+          </div>
+
+          {isTeacher && filteredAssignments.length > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-2 text-xs shadow-inner">
+              <div className="flex items-center gap-2 font-bold text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={filteredAssignments.length > 0 && selectedIdsForDeletion.length === filteredAssignments.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIdsForDeletion(filteredAssignments.map(a => a.id));
+                    } else {
+                      setSelectedIdsForDeletion([]);
+                    }
+                  }}
+                  className="w-4 h-4 text-[#0068ff] focus:ring-[#0068ff] border-slate-300 rounded cursor-pointer transition-all"
+                />
+                <span>Chọn tất cả ({selectedIdsForDeletion.length}/{filteredAssignments.length})</span>
+              </div>
+              {selectedIdsForDeletion.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Xóa {selectedIdsForDeletion.length} mục
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="space-y-3">
             {isLoadingAssignments ? (
               <AssignmentListSkeleton count={4} />
-            ) : assignments.length === 0 ? (
+            ) : filteredAssignments.length === 0 ? (
               <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl text-center text-slate-500 text-xs">
-                {viewMode === 'games' ? 'Chưa có game nào.' : viewMode === 'flashcards' ? 'Chưa có flashcard nào.' : 'Chưa có bài tập nào.'}
+                {searchQuery || filterType !== 'all' || filterDueDate !== 'all'
+                  ? 'Không tìm thấy bài tập nào phù hợp với bộ lọc tìm kiếm.'
+                  : viewMode === 'games' ? 'Chưa có game nào.' : viewMode === 'flashcards' ? 'Chưa có flashcard nào.' : 'Chưa có bài tập nào.'}
               </div>
             ) : (
-              assignments.map(assignment => {
+              filteredAssignments.map(assignment => {
               const isSelected = selectedAssignment?.id === assignment.id;
               const isPastDue = new Date(assignment.dueDate) < new Date();
               const mySubmission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user.id);
@@ -1591,7 +2255,28 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
                   }`}
                 >
-                  <div className="flex justify-between items-start gap-2 mb-2">
+                  <div className="flex gap-3 items-start">
+                    {isTeacher && (
+                      <div 
+                        className="pt-1.5 shrink-0 flex items-center" 
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIdsForDeletion.includes(assignment.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedIdsForDeletion(prev => [...prev, assignment.id]);
+                            } else {
+                              setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignment.id));
+                            }
+                          }}
+                          className="w-4.5 h-4.5 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer transition-all"
+                        />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start gap-2 mb-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
                         {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Bài Mô phỏng' : 'Nộp bài'}
@@ -1680,9 +2365,38 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           <AlertTriangle className="w-3.5 h-3.5" />
                           <span>Chưa nộp</span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSendViaZalo(assignment);
+                          }}
+                          disabled={zaloSendStatus[assignment.id] === 'sending'}
+                          className={`px-2.5 py-1.5 text-white text-[11px] font-bold rounded-xl transition-all flex items-center gap-1 shadow-sm active:scale-95 disabled:opacity-50 ${
+                            zaloSendStatus[assignment.id] === 'success'
+                              ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
+                              : zaloSendStatus[assignment.id] === 'error'
+                              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-100'
+                              : 'bg-[#0068ff] hover:bg-[#0051d4] shadow-blue-100'
+                          }`}
+                          title="Gửi thông báo bài tập mới hoặc nhắc nhở những em chưa nộp bài qua Zalo Bot"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          <span>
+                            {zaloSendStatus[assignment.id] === 'sending' 
+                              ? 'Đang gửi...' 
+                              : zaloSendStatus[assignment.id] === 'success' 
+                              ? 'Đã gửi ✓' 
+                              : zaloSendStatus[assignment.id] === 'error' 
+                              ? 'Lỗi ✕' 
+                              : 'Nhắc Zalo'}
+                          </span>
+                        </button>
                       </div>
                     </div>
                   )}
+                    </div>
+                  </div>
                 </div>
               );
             }))}
@@ -1740,7 +2454,44 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                         <Copy className="w-4 h-4 text-indigo-600" />
                         Sao chép tóm tắt
                       </button>
+                      <button 
+                        type="button"
+                        onClick={() => handleSendViaZalo(selectedAssignment)}
+                        disabled={zaloSendStatus[selectedAssignment.id] === 'sending'}
+                        className={`flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50 text-white ${
+                          zaloSendStatus[selectedAssignment.id] === 'success'
+                            ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
+                            : zaloSendStatus[selectedAssignment.id] === 'error'
+                            ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-100'
+                            : 'bg-[#0068ff] hover:bg-[#0051d4] shadow-blue-100'
+                        }`}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        <span>
+                          {zaloSendStatus[selectedAssignment.id] === 'sending' 
+                            ? 'Đang gửi Zalo...' 
+                            : zaloSendStatus[selectedAssignment.id] === 'success' 
+                            ? 'Đã gửi ✓' 
+                            : zaloSendStatus[selectedAssignment.id] === 'error' 
+                            ? 'Lỗi gửi tin ✕' 
+                            : 'Gửi qua Zalo Bot'}
+                        </span>
+                      </button>
                     </div>
+                  )}
+                  {!isTeacher && !isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatQuestion('');
+                        setChatStatus({ type: 'idle', message: '' });
+                        setShowChatModal(true);
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-black bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-800 border border-indigo-200 px-3.5 py-2 rounded-xl transition-all shadow-sm active:scale-95"
+                    >
+                      <MessageCircle className="w-4 h-4 text-indigo-600 animate-pulse" />
+                      <span>Chat với Giáo viên</span>
+                    </button>
                   )}
                 </div>
 
@@ -2844,6 +3595,15 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                                     className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors border border-slate-200"
                                   >
                                     {gradingSubId === sub.id ? 'Thu gọn' : (sub.grade !== undefined ? 'Sửa nhanh' : 'Chấm nhanh')}
+                                  </button>
+                                  
+                                  <button
+                                    type="button"
+                                    onClick={() => setSubmissionToDelete(sub)}
+                                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200"
+                                    title="Xóa bài nộp"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 </div>
                               </div>
@@ -4189,6 +4949,19 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         )}
       </AnimatePresence>
 
+      {/* DELETE SUBMISSION CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={!!submissionToDelete}
+        onClose={() => setSubmissionToDelete(null)}
+        onConfirm={handleDeleteSubmission}
+        title="Xác nhận xóa bài nộp"
+        message={`Bạn có chắc chắn muốn xóa bài nộp này không? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa bài"
+        cancelText="Hủy"
+        variant="danger"
+        loading={isDeletingSubmission}
+      />
+
       {/* DELETE ASSIGNMENT CONFIRMATION MODAL */}
       <ConfirmModal
         isOpen={!!deleteConfirmAssignment}
@@ -4204,6 +4977,109 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         cancelText="Hủy"
         variant="danger"
       />
+
+      {/* BULK DELETE CONFIRMATION MODAL */}
+      <AnimatePresence>
+        {showBulkDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowBulkDeleteConfirm(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white rounded-3xl shadow-2xl max-w-xl w-full overflow-hidden border border-slate-100 flex flex-col z-10"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center font-black shadow-inner">
+                    ⚠️
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">
+                      Xác nhận xóa hàng loạt
+                    </h3>
+                    <p className="text-xs text-slate-500">Bạn đang thực hiện xóa {selectedIdsForDeletion.length} mục đã chọn.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="p-1.5 hover:bg-slate-200/60 active:scale-95 text-slate-400 hover:text-slate-700 rounded-xl transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Table / List Body */}
+              <div className="p-6 overflow-y-auto max-h-[300px] space-y-4">
+                <p className="text-xs font-bold text-slate-600">
+                  Danh sách các bài học / bài tập sẽ bị xóa vĩnh viễn khỏi hệ thống:
+                </p>
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="p-3 font-extrabold text-slate-700 w-12">#</th>
+                        <th className="p-3 font-extrabold text-slate-700">Tiêu đề bài tập</th>
+                        <th className="p-3 font-extrabold text-slate-700 w-24">Thể loại</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {assignments
+                        .filter(a => selectedIdsForDeletion.includes(a.id))
+                        .map((a, index) => (
+                          <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="p-3 font-mono font-bold text-slate-500">{index + 1}</td>
+                            <td className="p-3 font-bold text-slate-800 truncate max-w-[250px]">{a.title}</td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold uppercase">
+                                {a.type === 'online_test' ? 'Kiểm tra' : a.type === 'simulation' ? 'Mô phỏng' : a.type === 'game' ? 'Trò chơi' : a.type === 'flashcard' ? 'Flashcard' : 'Nộp bài'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 text-xs leading-relaxed text-rose-950 font-medium">
+                  <p className="font-extrabold text-rose-900 flex items-center gap-1">🚨 Cảnh báo hệ thống:</p>
+                  <p className="mt-1">
+                    Hành động này là <b>không thể khôi phục</b>. Tất cả dữ liệu điểm số, danh sách học sinh nộp bài và nhận xét liên quan đến các mục này sẽ biến mất vĩnh viễn khỏi cơ sở dữ liệu Firestore.
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkDeleteAssignments}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-rose-100 flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Xác nhận xóa hết
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* STUDENT SUBMISSION DETAIL MODAL */}
       <StudentSubmissionDetailModal
@@ -4224,6 +5100,192 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         currentUser={user}
         usersList={usersList}
       />
+
+      {/* CHAT / STUDENT QUESTION MODAL */}
+      <AnimatePresence>
+        {showChatModal && selectedAssignment && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (chatStatus.type !== 'sending') {
+                  setShowChatModal(false);
+                }
+              }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 flex flex-col z-10"
+            >
+              {/* Header */}
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-lg font-bold shadow-inner">
+                    💬
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">
+                      Gửi Thắc mắc / Chat với Giáo viên
+                    </h3>
+                    <p className="text-xs text-slate-500">Giúp bạn giải đáp nhanh câu hỏi về bài tập</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowChatModal(false)}
+                  disabled={chatStatus.type === 'sending'}
+                  className="p-1.5 hover:bg-slate-200/60 active:scale-95 text-slate-400 hover:text-slate-700 rounded-xl transition-all disabled:opacity-50"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-4">
+                {/* Assignment context info */}
+                <div className="p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 flex flex-col gap-1 text-xs">
+                  <span className="font-bold text-slate-500 uppercase tracking-wider text-[9px]">Bài tập đang thắc mắc</span>
+                  <span className="font-black text-indigo-900 text-sm">{selectedAssignment.title}</span>
+                  {selectedAssignment.classSessionTitle && (
+                    <span className="text-indigo-600 font-semibold">Buổi học: {selectedAssignment.classSessionTitle}</span>
+                  )}
+                </div>
+
+                {/* Form Input */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-slate-700">Câu hỏi hoặc Thắc mắc của bạn:</label>
+                  <textarea
+                    rows={4}
+                    value={chatQuestion}
+                    onChange={(e) => setChatQuestion(e.target.value)}
+                    placeholder="Thưa thầy/cô, phần này em làm đến bước... thì chưa hiểu rõ..."
+                    disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
+                    className="w-full px-3.5 py-3 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-2xl transition-all resize-none placeholder-slate-400"
+                  />
+                </div>
+
+                {/* Send Method Selector */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-black text-slate-700">Phương thức gửi:</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setChatType('system')}
+                      disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
+                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
+                        chatType === 'system'
+                          ? 'border-indigo-500 bg-indigo-50/80 text-indigo-900 ring-1 ring-indigo-500 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <span className="text-base">🔔</span>
+                      <span className="text-[10px]">Hệ thống</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setChatType('zalo')}
+                      disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
+                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
+                        chatType === 'zalo'
+                          ? 'border-indigo-500 bg-indigo-50/80 text-indigo-900 ring-1 ring-indigo-500 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <span className="text-base">💬</span>
+                      <span className="text-[10px]">Zalo Bot</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setChatType('both')}
+                      disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
+                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
+                        chatType === 'both'
+                          ? 'border-indigo-500 bg-indigo-50/80 text-indigo-900 ring-1 ring-indigo-500 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      <span className="text-base">✨</span>
+                      <span className="text-[10px]">Cả hai (Khuyên dùng)</span>
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
+                    * Zalo Bot sẽ gửi tin nhắn trực tiếp qua tài khoản Zalo OA của trường học tới Zalo cá nhân của thầy cô phụ trách.
+                  </p>
+                </div>
+
+                {/* Status alert */}
+                {chatStatus.type !== 'idle' && (
+                  <div className={`p-3.5 rounded-2xl text-xs leading-relaxed font-bold flex items-center gap-2 ${
+                    chatStatus.type === 'sending'
+                      ? 'bg-indigo-50 border border-indigo-100 text-indigo-800'
+                      : chatStatus.type === 'success'
+                      ? 'bg-emerald-50 border border-emerald-100 text-emerald-800'
+                      : 'bg-rose-50 border border-rose-100 text-rose-800'
+                  }`}>
+                    {chatStatus.type === 'sending' && (
+                      <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                    )}
+                    <span>{chatStatus.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer / Actions */}
+              <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                {/* Fallback Direct Link */}
+                {(() => {
+                  const teacher = usersList.find(u => u.role === 'teacher' || u.role === 'admin');
+                  const phone = teacher?.phoneStudent || teacher?.phoneParent || '';
+                  const cleanPhone = phone.replace(/[^0-9]/g, '');
+                  if (cleanPhone && cleanPhone.length >= 9) {
+                    return (
+                      <a
+                        href={`https://zalo.me/${cleanPhone}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 self-start sm:self-auto py-1 px-2 hover:bg-emerald-50 rounded-lg transition-all"
+                      >
+                        <MessageCircle className="w-4 h-4 shrink-0" />
+                        Nhắn Zalo trực tiếp cho thầy cô ↗
+                      </a>
+                    );
+                  }
+                  return <div />;
+                })()}
+
+                <div className="flex items-center gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowChatModal(false)}
+                    disabled={chatStatus.type === 'sending'}
+                    className="px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all disabled:opacity-50"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendChatQuestion}
+                    disabled={chatStatus.type === 'sending' || chatStatus.type === 'success' || !chatQuestion.trim()}
+                    className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 active:scale-95 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-indigo-100 flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    Gửi thắc mắc
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

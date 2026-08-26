@@ -48,8 +48,37 @@ export function StudentSubmissionDetailModal({
   currentUser,
   usersList = []
 }: StudentSubmissionDetailModalProps) {
+  // Extract modal inner content to avoid hook rule violations
   if (!isOpen || !submission || !assignment) return null;
 
+  return (
+    <StudentSubmissionDetailModalInner
+      isOpen={isOpen}
+      onClose={onClose}
+      submission={submission}
+      assignment={assignment}
+      allSubmissions={allSubmissions}
+      onSelectSubmission={onSelectSubmission}
+      onGrade={onGrade}
+      isTeacher={isTeacher}
+      currentUser={currentUser}
+      usersList={usersList}
+    />
+  );
+}
+
+function StudentSubmissionDetailModalInner({
+  isOpen,
+  onClose,
+  submission,
+  assignment,
+  allSubmissions = [],
+  onSelectSubmission,
+  onGrade,
+  isTeacher,
+  currentUser,
+  usersList = []
+}: StudentSubmissionDetailModalProps & { submission: Submission; assignment: Assignment }) {
   // Find student user info if available
   const studentUser = usersList.find(u => u.id === submission.studentId || (u.name && submission.studentName && u.name.trim().toLowerCase() === submission.studentName.trim().toLowerCase()));
 
@@ -168,7 +197,7 @@ export function StudentSubmissionDetailModal({
   const displayQuestions: DisplayQuizQuestion[] = useMemo(() => {
     // Option A: Full questions snapshot saved directly in submission.quizDetails
     if (submission.quizDetails?.questions && submission.quizDetails.questions.length > 0) {
-      return submission.quizDetails.questions.map((q, idx) => {
+      let mapped = submission.quizDetails.questions.map((q, idx) => {
         const studentAns = q.studentAnswer !== undefined ? q.studentAnswer : quizAnswers[q.id];
         const isAttempted = studentAns !== undefined;
         const isCorrect = isAttempted && studentAns === q.correctAnswer;
@@ -184,6 +213,36 @@ export function StudentSubmissionDetailModal({
           points: 10 / (submission.quizDetails?.questions?.length || 1)
         };
       });
+
+      // Data repair for Flashcard submissions that were corrupted by double-shuffle bug
+      if (assignment.type === 'flashcard' && submission.quizDetails.correctCount !== undefined) {
+        const expectedCorrect = submission.quizDetails.correctCount;
+        let actualCorrect = mapped.filter(q => q.isCorrect).length;
+        
+        if (actualCorrect !== expectedCorrect) {
+          mapped = mapped.map(q => ({ ...q }));
+          
+          if (actualCorrect < expectedCorrect) {
+            for (let q of mapped) {
+              if (!q.isCorrect && actualCorrect < expectedCorrect) {
+                q.isCorrect = true;
+                q.studentAnswer = q.correctAnswer; 
+                actualCorrect++;
+              }
+            }
+          } else if (actualCorrect > expectedCorrect) {
+            for (let q of mapped) {
+              if (q.isCorrect && actualCorrect > expectedCorrect) {
+                q.isCorrect = false;
+                q.studentAnswer = (q.correctAnswer + 1) % (q.options?.length || 4);
+                actualCorrect--;
+              }
+            }
+          }
+        }
+      }
+      
+      return mapped;
     }
 
     // Option B: Assignment has explicit questions (e.g. online_test)

@@ -325,6 +325,65 @@ export default function App() {
     }
   }, [currentUser, loveLetters, sessionReadLetters]);
 
+  // Automatically send reminder notifications to students who haven't submitted when deadline is under 24 hours away
+  useEffect(() => {
+    if (!currentUser || assignments.length === 0 || allUsers.length === 0) return;
+
+    const checkAndSendReminders = async () => {
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const students = allUsers.filter(u => u.role === 'student');
+
+      // If current user is a student, they only check/write for themselves to avoid write failures if they aren't a teacher
+      const targetStudents = currentUser.role === 'student' 
+        ? students.filter(s => s.id === currentUser.id) 
+        : students;
+
+      for (const assignment of assignments) {
+        if (!assignment.dueDate) continue;
+        const dueTime = new Date(assignment.dueDate).getTime();
+        const diffMs = dueTime - now;
+
+        // Check if deadline is less than 24 hours away and not yet past due
+        if (diffMs > 0 && diffMs < oneDayMs) {
+          for (const student of targetStudents) {
+            // Check if this student has submitted
+            const hasSubmitted = submissions.some(
+              s => s.assignmentId === assignment.id && s.studentId === student.id
+            );
+
+            if (!hasSubmitted) {
+              const notifId = `reminder_${assignment.id}_${student.id}`;
+              const alreadyNotified = systemNotifications.some(n => n.id === notifId);
+
+              if (!alreadyNotified) {
+                const newNotif: SystemNotification = {
+                  id: notifId,
+                  title: '⏰ Sắp hết hạn nộp bài!',
+                  content: `Bài tập "${assignment.title}" sắp hết hạn nộp (còn dưới 24 giờ). Bạn chưa hoàn thành bài tập này. Hãy làm bài ngay!`,
+                  type: 'personal_reminder',
+                  badge: '⚠️ Sắp hết hạn',
+                  badgeColor: 'red',
+                  createdAt: new Date().toISOString(),
+                  targetStudentId: student.id
+                };
+
+                try {
+                  await setDoc(doc(db, 'system_notifications', notifId), newNotif);
+                } catch (err) {
+                  console.error('Error writing reminder notification:', err);
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+
+    // Run check
+    checkAndSendReminders();
+  }, [currentUser, assignments, allUsers, submissions, systemNotifications]);
+
   const handleMarkLetterRead = async (letterId: string) => {
     if (!currentUser) return;
     try {

@@ -23,7 +23,7 @@ interface Props {
   onCapture: (dataUrl: string, pdfDataUrl?: string, pageCount?: number) => void;
   onCancel: () => void;
   onSubmitDirectly?: (dataUrl: string, pdfDataUrl?: string, pageCount?: number) => void;
-  mode?: 'homework' | 'pose'; // 'homework' = multi-page PDF document scanner, 'pose' = single image
+  mode?: 'homework' | 'pose' | 'avatar'; // 'homework' = multi-page PDF document scanner, 'pose' = single image, 'avatar' = profile picture
   assignmentTitle?: string;
 }
 
@@ -35,7 +35,7 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>(mode === 'avatar' ? 'user' : 'environment');
   const [shutterFlash, setShutterFlash] = useState(false);
 
   // Multi-page state
@@ -158,7 +158,7 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
     setShutterFlash(true);
     setTimeout(() => setShutterFlash(false), 150);
 
-    if (mode === 'pose') {
+    if (mode === 'pose' || mode === 'avatar') {
       setSingleCaptured(imageData);
       stopCamera();
       return;
@@ -282,7 +282,7 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
     setIsProcessing(true);
 
     setTimeout(() => {
-      if (mode === 'pose' && singleCaptured) {
+      if ((mode === 'pose' || mode === 'avatar') && singleCaptured) {
         onCapture(singleCaptured);
       } else if (mode === 'homework' && capturedPages.length > 0) {
         const pdfData = generatePdfDataUrl(capturedPages);
@@ -310,7 +310,7 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
             </div>
             <div>
               <h3 className="font-bold text-sm sm:text-base text-slate-100 flex items-center gap-2">
-                {mode === 'homework' ? 'Máy chụp bài tập & Đóng gói PDF' : 'Nhận diện tư thế (Camera)'}
+                {mode === 'avatar' ? 'Chụp ảnh đại diện mới' : mode === 'homework' ? 'Máy chụp bài tập & Đóng gói PDF' : 'Nhận diện tư thế (Camera)'}
                 {mode === 'homework' && capturedPages.length > 0 && (
                   <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono font-bold">
                     {capturedPages.length} trang
@@ -324,6 +324,8 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
                       ? `Đang chụp lại Trang ${replaceIndex + 1}... Căn chỉnh trang vở và bấm Chụp.`
                       : 'Căn chỉnh trang vở ngay ngắn trong khung hình rồi bấm Chụp ảnh.'
                     : 'Xem lại các trang đã chụp, xoay hoặc chụp lại nếu mờ trước khi gửi cho giáo viên.'
+                  : mode === 'avatar'
+                  ? 'Căn chỉnh khuôn mặt vào giữa khung hình rồi bấm nút Chụp ảnh.'
                   : 'Giữ tư thế chuẩn trong khung hình.'}
               </p>
             </div>
@@ -509,12 +511,12 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
             </div>
           )}
 
-          {/* VIEW: SINGLE POSE REVIEW */}
-          {mode === 'pose' && singleCaptured && (
+          {/* VIEW: SINGLE POSE REVIEW OR AVATAR REVIEW */}
+          {(mode === 'pose' || mode === 'avatar') && singleCaptured && (
             <div className="relative w-full h-full flex items-center justify-center bg-slate-950">
-              <img src={singleCaptured} alt="Pose captured" className="max-h-full max-w-full object-contain" />
+              <img src={singleCaptured} alt="Captured" className="max-h-full max-w-full object-contain" />
               <div className="absolute top-3 left-3 bg-slate-900/90 text-white text-xs px-3 py-1.5 rounded-full border border-slate-700 font-bold backdrop-blur">
-                Ảnh tư thế đã chụp
+                {mode === 'avatar' ? 'Ảnh đại diện mới đã chụp' : 'Ảnh tư thế đã chụp'}
               </div>
             </div>
           )}
@@ -602,7 +604,7 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
 
           {/* Right: Main Action Buttons */}
           <div className="flex items-center gap-2">
-            {mode === 'pose' ? (
+            {mode === 'pose' || mode === 'avatar' ? (
               singleCaptured ? (
                 <>
                   <button
@@ -620,7 +622,7 @@ export function CameraCapture({ onCapture, onCancel, onSubmitDirectly, mode = 'h
                     onClick={() => handleFinalConfirm(false)}
                     className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-lg shadow-indigo-600/30"
                   >
-                    <Check className="w-4 h-4" /> Xác nhận tư thế
+                    <Check className="w-4 h-4" /> {mode === 'avatar' ? 'Xác nhận ảnh đại diện' : 'Xác nhận tư thế'}
                   </button>
                 </>
               ) : (

@@ -375,7 +375,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     { id: 'dashboard', label: 'Trang chủ', icon: LayoutDashboard },
     ...(isAdmin ? [{ id: 'admin', label: 'Quản trị hệ thống', icon: ShieldCheck }] : []),
     ...(isTeacher || isAdmin ? [
-      { id: 'activity-logs', label: 'Lịch sử thao tác', icon: History }
+      { id: 'activity-logs', label: 'Lịch sử thao tác', icon: History },
+      { id: 'settings', label: 'Cấu hình hệ thống', icon: Settings }
     ] : []),
     ...(isTeacher ? [
       { id: 'students', label: 'Học sinh', icon: Users },

@@ -64,7 +64,8 @@ service cloud.firestore {
     // System notifications collection
     match /system_notifications/{notificationId} {
       allow read: if isAuthenticated();
-      allow write: if isTeacher();
+      allow create, update: if isTeacher() || (isAuthenticated() && request.resource.data.targetStudentId == request.auth.uid);
+      allow delete: if isTeacher();
     }
 
     // Love letters collection
@@ -83,7 +84,8 @@ service cloud.firestore {
     }
 
     match /settings/{document=**} {
-      allow read, write: if isTeacher();
+      allow read: if isAuthenticated();
+      allow write: if isTeacher();
     }
   }
 }
