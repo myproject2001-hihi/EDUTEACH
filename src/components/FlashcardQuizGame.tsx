@@ -51,8 +51,7 @@ export function FlashcardQuizGame({
   onFinish,
   onExit
 }: Props) {
-  // 1. Build quiz questions list with randomized options
-  const quizItems: FlashcardQuizItem[] = useMemo(() => {
+  const [quizItems] = useState<FlashcardQuizItem[]>(() => {
     // If structured questions already exist, use them and randomize their option order
     if (questions && questions.length > 0) {
       return questions.map((q, idx) => {
@@ -148,7 +147,7 @@ export function FlashcardQuizGame({
         solutionText: ''
       };
     });
-  }, [flashcards, questions]);
+  });
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
