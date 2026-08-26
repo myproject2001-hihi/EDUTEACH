@@ -145,7 +145,7 @@ export function FlashcardQuizGame({
         options: randomizedOptions,
         correctAnswer: correctIdx >= 0 ? correctIdx : 0,
         points: 10 / validCards.length,
-        solutionText: ''
+        solutionText: `Mặt sau (Định nghĩa & Công thức chính xác): ${card.back}`
       };
     });
   }, [flashcards, questions]);

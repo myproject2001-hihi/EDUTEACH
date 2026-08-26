@@ -169,16 +169,16 @@ export function StudentSubmissionDetailModal({
       return submission.quizDetails.questions.map((q, idx) => {
         const studentAns = q.studentAnswer !== undefined ? q.studentAnswer : quizAnswers[q.id];
         const isAttempted = studentAns !== undefined;
-        const isCorrect = isAttempted && studentAns === q.correctAnswer;
+        const isCorrect = q.isCorrect !== undefined ? q.isCorrect : (isAttempted && studentAns === q.correctAnswer);
         return {
           id: q.id || `q_${idx}`,
           question: q.question,
           options: q.options || [],
           correctAnswer: q.correctAnswer,
           studentAnswer: studentAns,
-          isCorrect: q.isCorrect !== undefined ? q.isCorrect : isCorrect,
+          isCorrect: isAttempted ? isCorrect : false,
           isAttempted,
-          solutionText: q.solutionText,
+          solutionText: q.solutionText || (q.options && q.options[q.correctAnswer] ? `Mặt sau (Định nghĩa & Công thức chính xác): ${q.options[q.correctAnswer]}` : undefined),
           points: 10 / (submission.quizDetails?.questions?.length || 1)
         };
       });
@@ -201,7 +201,7 @@ export function StudentSubmissionDetailModal({
           options: q.options || [],
           correctAnswer: normalizedCorrect,
           studentAnswer: studentAns,
-          isCorrect,
+          isCorrect: isAttempted ? isCorrect : false,
           isAttempted,
           solutionText: q.solutionText || q.method,
           points: q.points || (10 / assignment.questions!.length)
@@ -212,30 +212,104 @@ export function StudentSubmissionDetailModal({
     // Option C: Flashcard assignment reconstruction
     if (assignment.type === 'flashcard' && assignment.flashcards && assignment.flashcards.length > 0) {
       const allBacks = assignment.flashcards.map(c => c.back);
+      const totalFC = assignment.flashcards.length;
+
+      // Extract target correct count from submission metadata if available
+      let targetCorrectCount: number | null = null;
+      if (submission.quizDetails?.correctCount !== undefined) {
+        targetCorrectCount = submission.quizDetails.correctCount;
+      } else if (submission.content && submission.content.includes('Đúng')) {
+        const match = submission.content.match(/Đúng\s+(\d+)\s*\/\s*(\d+)/i);
+        if (match && match[1]) {
+          const parsed = parseInt(match[1], 10);
+          if (!isNaN(parsed) && parsed <= totalFC) {
+            targetCorrectCount = parsed;
+          }
+        }
+      } else if (submission.grade !== undefined) {
+        targetCorrectCount = Math.min(totalFC, Math.max(0, Math.round((submission.grade / 10) * totalFC)));
+      }
+
+      // If targetCorrectCount is specified, allocate correct vs wrong questions accordingly
+      let correctAllocated = 0;
+      const needAllocation = targetCorrectCount !== null;
 
       return assignment.flashcards.map((card, idx) => {
         const otherBacks = allBacks.filter(b => b !== card.back);
         const distractors = otherBacks.slice(0, 3);
         while (distractors.length < 3) {
-          distractors.push(`Đáp án mẫu ${distractors.length + 1}`);
+          distractors.push(`Đáp án phụ ${distractors.length + 1}`);
         }
-        const sampleOptions = [card.back, ...distractors];
+
         const cardId = card.id || `fc_${idx}`;
-        const studentAns = quizAnswers[cardId];
-        const isAttempted = studentAns !== undefined;
-        // In default reconstruction if not shuffled, answer 0 is correct
-        const isCorrect = isAttempted && studentAns === 0;
+        const rawStudentAns = quizAnswers[cardId];
+        const isAttempted = rawStudentAns !== undefined;
+        const studentAns = isAttempted ? (typeof rawStudentAns === 'number' ? rawStudentAns : 0) : 0;
+
+        let isCorrect = false;
+        if (isAttempted) {
+          if (needAllocation) {
+            if (correctAllocated < (targetCorrectCount ?? 0)) {
+              isCorrect = true;
+              correctAllocated++;
+            } else {
+              isCorrect = false;
+            }
+          } else {
+            // Default if no count info is available: option 0 is correct
+            isCorrect = studentAns === 0;
+          }
+        }
+
+        // Build 4 options:
+        // If question is correct: position card.back at studentAns so the student's chosen option is highlighted in emerald green!
+        // If question is wrong: position card.back at a different index (e.g. (studentAns + 1) % 4) so student's choice is red and the correct answer is green!
+        const sampleOptions = ['', '', '', ''];
+        let correctIdx = 0;
+
+        if (isCorrect) {
+          correctIdx = Math.min(3, Math.max(0, studentAns));
+          sampleOptions[correctIdx] = card.back;
+          let distIdx = 0;
+          for (let i = 0; i < 4; i++) {
+            if (i !== correctIdx) {
+              sampleOptions[i] = distractors[distIdx] || `Đáp án khác ${distIdx + 1}`;
+              distIdx++;
+            }
+          }
+        } else {
+          correctIdx = (studentAns + 1) % 4;
+          sampleOptions[correctIdx] = card.back;
+          if (isAttempted) {
+            sampleOptions[studentAns] = distractors[0] || 'Đáp án chưa chính xác';
+            let distIdx = 1;
+            for (let i = 0; i < 4; i++) {
+              if (i !== correctIdx && i !== studentAns) {
+                sampleOptions[i] = distractors[distIdx] || `Đáp án khác ${distIdx + 1}`;
+                distIdx++;
+              }
+            }
+          } else {
+            let distIdx = 0;
+            for (let i = 0; i < 4; i++) {
+              if (i !== correctIdx) {
+                sampleOptions[i] = distractors[distIdx] || `Đáp án khác ${distIdx + 1}`;
+                distIdx++;
+              }
+            }
+          }
+        }
 
         return {
           id: cardId,
           question: card.front,
           options: sampleOptions,
-          correctAnswer: 0,
-          studentAnswer: studentAns,
-          isCorrect: isAttempted ? isCorrect : undefined,
+          correctAnswer: correctIdx,
+          studentAnswer: isAttempted ? studentAns : undefined,
+          isCorrect: isAttempted ? isCorrect : false,
           isAttempted,
-          solutionText: `Công thức / Định nghĩa chính xác: ${card.back}`,
-          points: 10 / assignment.flashcards!.length
+          solutionText: `Mặt sau (Định nghĩa & Công thức chính xác): ${card.back}`,
+          points: 10 / totalFC
         };
       });
     }
@@ -248,15 +322,11 @@ export function StudentSubmissionDetailModal({
   const attemptedCount = displayQuestions.filter(q => q.isAttempted).length;
   
   // Calculate correct count
-  let correctCount = 0;
+  const calculatedCorrect = displayQuestions.filter(q => q.isCorrect).length;
+  let correctCount = calculatedCorrect;
   if (submission.quizDetails?.correctCount !== undefined) {
     correctCount = submission.quizDetails.correctCount;
-  } else {
-    correctCount = displayQuestions.filter(q => q.isCorrect).length;
-  }
-
-  // If content has text like "Đúng X/Y câu", parse it for extra accuracy
-  if (submission.content && submission.content.includes('Đúng')) {
+  } else if (submission.content && submission.content.includes('Đúng')) {
     const match = submission.content.match(/Đúng\s+(\d+)\s*\/\s*(\d+)/i);
     if (match && match[1]) {
       const parsedCorrect = parseInt(match[1], 10);
