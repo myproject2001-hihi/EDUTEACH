@@ -1692,12 +1692,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                       <div className="w-7 h-7 rounded-xl bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
                         5
                       </div>
-                      <div>
-                        <h5 className="font-bold text-slate-900 text-xs">Kích hoạt Zalo Bot nhận thông báo tự động</h5>
-                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">
-                          Gửi tin nhắn cú pháp <code className="font-mono bg-slate-100 text-purple-700 px-1 py-0.5 rounded font-bold">/start {registeredStudentInfo.connectionCode}</code> đến Zalo Bot để nhận thông báo điểm số & nhắc lịch học.
-                        </p>
-                      </div>
+                      
                     </div>
                   </div>
                 </div>

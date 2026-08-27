@@ -1015,7 +1015,7 @@ export function AssignmentsView({
   });
   const [showZaloSetup, setShowZaloSetup] = useState(false);
   const [isSavingZalo, setIsSavingZalo] = useState(false);
-  const [zaloStudentUserId, setZaloStudentUserId] = useState(user.zaloUserId || '');
+  const [zaloStudentUserId, setZaloStudentUserId] = useState((user as any).zaloUserId || '');
   const [isLinkingZalo, setIsLinkingZalo] = useState(false);
   const [zaloSendStatus, setZaloSendStatus] = useState<Record<string, 'idle' | 'sending' | 'success' | 'error'>>({});
 
@@ -1074,185 +1074,35 @@ export function AssignmentsView({
     }
   };
 
-  const handleSendViaZalo = async (assignment: Assignment, targetStudentId?: string) => {
-    if (!zaloConfig.accessToken) {
-      alert('Vui lòng cấu hình Zalo OA Access Token trong bảng điều khiển tích hợp Zalo trước khi gửi.');
-      setShowZaloSetup(true);
-      return;
-    }
-
-    const key = targetStudentId ? `${assignment.id}_${targetStudentId}` : assignment.id;
-    setZaloSendStatus(prev => ({ ...prev, [key]: 'sending' }));
-
-    try {
-      let targets: { name: string; zaloUserId: string }[] = [];
-
-      if (targetStudentId) {
-        const student = usersList.find(u => u.id === targetStudentId);
-        if (student?.zaloUserId) {
-          targets.push({ name: student.name, zaloUserId: student.zaloUserId });
-        } else {
-          alert(`Học sinh "${student?.name || 'này'}" chưa liên kết tài khoản Zalo.`);
-          setZaloSendStatus(prev => ({ ...prev, [key]: 'error' }));
-          return;
-        }
-      } else {
-        const submittedStudentIds = submissions
-          .filter(s => s.assignmentId === assignment.id)
-          .map(s => s.studentId);
-
-        const unsubmittedStudents = usersList.filter(u => 
-          u.role === 'student' && !submittedStudentIds.includes(u.id)
-        );
-
-        targets = unsubmittedStudents
-          .filter(u => u.zaloUserId)
-          .map(u => ({ name: u.name, zaloUserId: u.zaloUserId! }));
-
-        if (targets.length === 0) {
-          alert('Không tìm thấy học sinh nào chưa nộp bài có liên kết Zalo.');
-          setZaloSendStatus(prev => ({ ...prev, [key]: 'idle' }));
-          return;
-        }
-      }
-
-      let successCount = 0;
-      let errorMsgs: string[] = [];
-
-      for (const target of targets) {
-        const messageText = `🤖 [EduConnect] THÔNG BÁO BÀI HỌC\nChào ${target.name},\nBạn có bài tập/thông tin ôn tập mới từ thầy cô:\n\n📌 Bài học: ${assignment.title}\n⏰ Hạn nộp: ${format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\n📝 Thể loại: ${assignment.type === 'flashcard' ? 'Thẻ ghi nhớ (Flashcard)' : assignment.type === 'simulation' ? 'Bài mô phỏng tương tác' : assignment.type === 'game' ? 'Trò chơi ôn tập' : 'Kiểm tra trắc nghiệm'}\n\nHãy nhanh chóng hoàn thành bài nộp để tích lũy thêm điểm nhé! 💪`;
-
-        const response = await fetch('/api/zalo/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            accessToken: zaloConfig.accessToken,
-            zaloUserId: target.zaloUserId,
-            message: messageText
-          })
-        });
-
-        const result = await response.json();
-        if (response.ok && result.success) {
-          successCount++;
-        } else {
-          errorMsgs.push(`${target.name}: ${result.error || 'Lỗi gửi tin'}`);
-        }
-      }
-
-      if (successCount > 0) {
-        setZaloSendStatus(prev => ({ ...prev, [key]: 'success' }));
-        setTimeout(() => {
-          setZaloSendStatus(prev => ({ ...prev, [key]: 'idle' }));
-        }, 3000);
-        
-        if (errorMsgs.length > 0) {
-          alert(`Đã gửi thành công ${successCount} tin nhắn Zalo. Lỗi tại:\n${errorMsgs.join('\n')}`);
-        } else {
-          alert(`Đã gửi thông báo Zalo thành công đến ${successCount} học sinh!`);
-        }
-      } else {
-        alert(`Không thể gửi thông báo. Lỗi:\n${errorMsgs.join('\n')}`);
-        setZaloSendStatus(prev => ({ ...prev, [key]: 'error' }));
-      }
-    } catch (error: any) {
-      console.error('Error sending Zalo:', error);
-      alert(`Đã xảy ra lỗi: ${error.message}`);
-      setZaloSendStatus(prev => ({ ...prev, [key]: 'error' }));
-    }
-  };
-
+  const handleSendViaZalo = async (assignment: Assignment, targetStudentId?: string) => {};
   const handleSendChatQuestion = async () => {
-    if (!chatQuestion.trim()) {
-      alert('Vui lòng nhập nội dung câu hỏi/thắc mắc.');
-      return;
-    }
-    if (!selectedAssignment) return;
-
-    setChatStatus({ type: 'sending', message: 'Đang xử lý gửi câu hỏi...' });
+    if (!chatQuestion.trim()) return;
+    setChatStatus({ type: 'sending', message: '' });
 
     try {
       const timestamp = new Date().toISOString();
       const notifId = 'chat_notif_' + Date.now();
 
-      // 1. Send via System Notification
-      if (chatType === 'system' || chatType === 'both') {
-        const newNotif = {
-          id: notifId,
-          title: `❓ Thắc mắc bài: ${user.name}`,
-          content: `Học sinh *${user.name}* (Lớp ${user.className || 'Chưa rõ'}) có thắc mắc về bài tập "${selectedAssignment.title}":\n\n"${chatQuestion.trim()}"`,
-          type: 'personal_reminder', // Ensures teachers/admins get notified
-          badge: '💬 Hỏi Bài',
-          badgeColor: 'rose',
-          createdAt: timestamp
-        };
-        await setDoc(doc(db, 'system_notifications', notifId), newNotif);
-      }
+      const newNotif = {
+        id: notifId,
+        title: `❓ Thắc mắc bài: ${user.name}`,
+        content: `Học sinh *${user.name}* (Lớp ${user.className || 'Chưa rõ'}) có thắc mắc về bài tập "${selectedAssignment?.title || 'Không xác định'}":
 
-      // 2. Send via Zalo (If both or Zalo)
-      let zaloSuccess = false;
-      let zaloAttempted = false;
-      if (chatType === 'zalo' || chatType === 'both') {
-        // Find teachers/admins with Zalo User IDs
-        const zaloTeachers = usersList.filter(u => (u.role === 'teacher' || u.role === 'admin') && u.zaloUserId);
-        
-        if (zaloTeachers.length > 0 && zaloConfig.accessToken) {
-          zaloAttempted = true;
-          let successCount = 0;
-          
-          for (const teacher of zaloTeachers) {
-            const textMsg = `❓ [EduConnect Hỏi Bài]\nChào thầy/cô,\nHọc sinh ${user.name} có thắc mắc về bài tập:\n\n📚 Bài học: ${selectedAssignment.title}\n💬 Nội dung thắc mắc:\n"${chatQuestion.trim()}"\n\nThầy/cô vui lòng truy cập hệ thống để phản hồi cho em nhé!`;
-            
-            try {
-              const res = await fetch('/api/zalo/send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  accessToken: zaloConfig.accessToken,
-                  zaloUserId: teacher.zaloUserId,
-                  message: textMsg
-                })
-              });
-              const data = await res.json();
-              if (res.ok && data.success) {
-                successCount++;
-              }
-            } catch (err) {
-              console.error("Lỗi gửi tin qua Zalo cho giáo viên:", err);
-            }
-          }
-          zaloSuccess = successCount > 0;
-        }
-      }
+"${chatQuestion.trim()}"`,
+        type: 'personal_reminder', // Ensures teachers/admins get notified
+        badge: '💬 Hỏi Bài',
+        badgeColor: 'rose',
+        createdAt: timestamp
+      };
 
-      let successMsg = 'Gửi câu hỏi thành công!';
-      if (chatType === 'both') {
-        if (zaloAttempted) {
-          successMsg = zaloSuccess 
-            ? 'Đã gửi câu hỏi lên thông báo hệ thống và tin nhắn Zalo tới giáo viên thành công!'
-            : 'Đã gửi lên thông báo hệ thống. Gửi qua Zalo thất bại do giáo viên chưa liên kết hoặc lỗi Zalo.';
-        } else {
-          successMsg = 'Đã gửi lên thông báo hệ thống thành công! (Giáo viên chưa liên kết tài khoản Zalo)';
-        }
-      } else if (chatType === 'zalo') {
-        if (!zaloAttempted) {
-          throw new Error('Giáo viên chưa đăng ký liên kết Zalo User ID.');
-        }
-        if (!zaloSuccess) {
-          throw new Error('Gửi qua Zalo OA thất bại. Vui lòng kiểm tra lại token Zalo OA.');
-        }
-        successMsg = 'Đã gửi câu hỏi qua tin nhắn Zalo tới giáo viên thành công!';
-      }
+      await setDoc(doc(db, 'system_notifications', notifId), newNotif);
 
-      setChatStatus({ type: 'success', message: successMsg });
+      setChatStatus({ type: 'success', message: 'Gửi câu hỏi thành công!' });
       setChatQuestion('');
       setTimeout(() => {
         setShowChatModal(false);
         setChatStatus({ type: 'idle', message: '' });
       }, 3500);
-
     } catch (err: any) {
       console.error("Lỗi gửi thắc mắc bài tập:", err);
       setChatStatus({ type: 'error', message: err.message || 'Gửi thắc mắc thất bại, vui lòng thử lại.' });
@@ -1885,6 +1735,8 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       </div>
 
       {/* ZALO BOT INTEGRATION SECTION */}
+      {false && (
+
       <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
@@ -1894,7 +1746,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
             <div>
               <h4 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
                 Tích hợp Thông Báo Zalo Bot
-                {user.zaloUserId ? (
+                {(user as any).zaloUserId ? (
                   <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 uppercase">
                     Đã liên kết
                   </span>
@@ -1989,12 +1841,12 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                   ) : (
                     // STUDENT FORM
                     <div className="space-y-4 text-xs">
-                      {user.zaloUserId ? (
+                      {(user as any).zaloUserId ? (
                         <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-100 flex items-start gap-2.5">
                           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                           <div>
                             <p className="font-extrabold text-sm text-emerald-900">Tài khoản đã liên kết Zalo thành công!</p>
-                            <p className="font-medium text-xs mt-1">Zalo User ID của bạn: <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-200/60 font-bold">{user.zaloUserId}</span></p>
+                            <p className="font-medium text-xs mt-1">Zalo User ID của bạn: <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-200/60 font-bold">{(user as any).zaloUserId}</span></p>
                             <p className="text-[10px] text-emerald-700 mt-1">Bất cứ khi nào giáo viên có bài tập, flashcard hay thông báo mới, hệ thống sẽ tự động nhắn tin nhắc nhở vào Zalo của bạn.</p>
                           </div>
                         </div>
@@ -2039,19 +1891,19 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                     // TEACHER GUIDE
                     <div className="space-y-3 leading-relaxed">
                       <div className="space-y-1.5">
-                        <p className="font-black text-slate-800 text-xs">Các bước thiết lập ban đầu cho giáo viên:</p>
+                        <p className="font-black text-slate-800 text-xs">Các bước thiết lập nhanh cho giáo viên:</p>
                         <ol className="list-decimal list-inside space-y-2 pl-1">
                           <li>
-                            Truy cập cổng nhà phát triển Zalo: <a href="https://developers.zalo.me" target="_blank" rel="noopener noreferrer" className="text-[#0068ff] font-bold underline">developers.zalo.me</a> và tạo một <b>Ứng dụng liên kết với Zalo OA</b> của bạn.
+                            Truy cập <a href="https://developers.zalo.me" target="_blank" rel="noopener noreferrer" className="text-[#0068ff] font-bold underline">developers.zalo.me</a>, vào ứng dụng của bạn và bật trạng thái <b>"Đang hoạt động"</b>.
                           </li>
                           <li>
-                            Vào phần <b>Công cụ thử nghiệm API (API Explorer)</b>, chọn Official Account tương ứng và lấy <b>Access Token</b> với đầy đủ quyền (gửi tin nhắn qua OA, quản lý tin nhắn người dùng).
+                            Ở menu bên trái: vào <b>Sản phẩm &gt; Official Account &gt; Quản lý liên kết</b> để liên kết với trang Zalo OA lớp học của bạn.
                           </li>
                           <li>
-                            Dán <b>OA ID</b>, <b>Access Token</b> và <b>Link quan tâm OA</b> vào mẫu cấu hình bên trái và bấm <b>Lưu cấu hình hệ thống</b>.
+                            Mở công cụ <a href="https://developers.zalo.me/tools/explorer" target="_blank" rel="noopener noreferrer" className="text-[#0068ff] font-bold underline">API Explorer</a>, chọn Official Account Token và lấy mã <b>Access Token</b> (tích quyền gửi tin qua OA).
                           </li>
                           <li>
-                            Gửi đường dẫn quan tâm OA cho học sinh/phụ huynh quét mã để bắt đầu quan tâm trang OA của lớp.
+                            Dán <b>OA ID</b>, <b>Access Token</b> và <b>Link quan tâm OA</b> vào mẫu bên trái và bấm <b>Lưu cấu hình hệ thống</b>.
                           </li>
                         </ol>
                       </div>
@@ -2112,6 +1964,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
         </AnimatePresence>
       </div>
 
+      )}
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -2365,33 +2218,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                           <AlertTriangle className="w-3.5 h-3.5" />
                           <span>Chưa nộp</span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSendViaZalo(assignment);
-                          }}
-                          disabled={zaloSendStatus[assignment.id] === 'sending'}
-                          className={`px-2.5 py-1.5 text-white text-[11px] font-bold rounded-xl transition-all flex items-center gap-1 shadow-sm active:scale-95 disabled:opacity-50 ${
-                            zaloSendStatus[assignment.id] === 'success'
-                              ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
-                              : zaloSendStatus[assignment.id] === 'error'
-                              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-100'
-                              : 'bg-[#0068ff] hover:bg-[#0051d4] shadow-blue-100'
-                          }`}
-                          title="Gửi thông báo bài tập mới hoặc nhắc nhở những em chưa nộp bài qua Zalo Bot"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>
-                            {zaloSendStatus[assignment.id] === 'sending' 
-                              ? 'Đang gửi...' 
-                              : zaloSendStatus[assignment.id] === 'success' 
-                              ? 'Đã gửi ✓' 
-                              : zaloSendStatus[assignment.id] === 'error' 
-                              ? 'Lỗi ✕' 
-                              : 'Nhắc Zalo'}
-                          </span>
-                        </button>
+                        
                       </div>
                     </div>
                   )}
@@ -5189,33 +5016,9 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                       <span className="text-[10px]">Hệ thống</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setChatType('zalo')}
-                      disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
-                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
-                        chatType === 'zalo'
-                          ? 'border-indigo-500 bg-indigo-50/80 text-indigo-900 ring-1 ring-indigo-500 font-bold'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                      }`}
-                    >
-                      <span className="text-base">💬</span>
-                      <span className="text-[10px]">Zalo Bot</span>
-                    </button>
+                    
 
-                    <button
-                      type="button"
-                      onClick={() => setChatType('both')}
-                      disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
-                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
-                        chatType === 'both'
-                          ? 'border-indigo-500 bg-indigo-50/80 text-indigo-900 ring-1 ring-indigo-500 font-bold'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                      }`}
-                    >
-                      <span className="text-base">✨</span>
-                      <span className="text-[10px]">Cả hai (Khuyên dùng)</span>
-                    </button>
+                    
                   </div>
                   <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
                     * Zalo Bot sẽ gửi tin nhắn trực tiếp qua tài khoản Zalo OA của trường học tới Zalo cá nhân của thầy cô phụ trách.
@@ -5244,7 +5047,7 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 {/* Fallback Direct Link */}
                 {(() => {
                   const teacher = usersList.find(u => u.role === 'teacher' || u.role === 'admin');
-                  const phone = teacher?.phoneStudent || teacher?.phoneParent || '';
+                  const phone = (teacher as any)?.teacherZaloPhone || teacher?.phoneStudent || teacher?.phoneParent || '';
                   const cleanPhone = phone.replace(/[^0-9]/g, '');
                   if (cleanPhone && cleanPhone.length >= 9) {
                     return (

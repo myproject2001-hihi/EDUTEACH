@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Settings, CheckCircle, AlertCircle, Sparkles, HelpCircle, MessageSquare, Camera } from 'lucide-react';
+import { Save, Settings, CheckCircle, AlertCircle, Sparkles, HelpCircle, Camera } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { User } from '../types';
-import { ZaloGuideModal } from '../components/ZaloGuideModal';
 import { CameraCapture } from '../components/CameraCapture';
 
 interface SettingsViewProps {
@@ -19,7 +18,6 @@ export function SettingsView({ user }: SettingsViewProps) {
   
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [isZaloGuideOpen, setIsZaloGuideOpen] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
 
   useEffect(() => {
@@ -185,7 +183,7 @@ export function SettingsView({ user }: SettingsViewProps) {
 
           {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="space-y-4 pt-4 border-t border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">3. Cấu hình Lớp học</h3>
+              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">3. Cấu hình Lớp học & Thông báo</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -214,16 +212,7 @@ export function SettingsView({ user }: SettingsViewProps) {
               </div>
             </div>
           )}
-
           <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setIsZaloGuideOpen(true)}
-              className="px-5 py-2.5 bg-[#0068ff] hover:bg-[#0051d4] text-white text-sm font-bold rounded-xl flex items-center gap-2 transition-all shadow-sm active:scale-95"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Xem hướng dẫn Zalo
-            </button>
             <button
               onClick={handleSaveConfig}
               disabled={isLoading}
@@ -248,13 +237,7 @@ export function SettingsView({ user }: SettingsViewProps) {
           </p>
         </div>
       </div>
-
-      <ZaloGuideModal
-        isOpen={isZaloGuideOpen}
-        onClose={() => setIsZaloGuideOpen(false)}
-        role={user.role}
-      />
-
+      
       {showCamera && (
         <CameraCapture 
           mode="avatar" 
