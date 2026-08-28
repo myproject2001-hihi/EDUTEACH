@@ -66,6 +66,51 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
   const [endTime, setEndTime] = useState('');
   const [link, setLink] = useState('');
   const [note, setNote] = useState('');
+  const [formIsCompleted, setFormIsCompleted] = useState(false);
+  const [formCompletedNote, setFormCompletedNote] = useState('');
+
+  // Monthly stats filtering state
+  const [statsMonth, setStatsMonth] = useState<number>(new Date().getMonth() + 1); // 1-12
+  const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
+  const [copiedStats, setCopiedStats] = useState(false);
+
+  // Filter sessions that are completed and matching statsMonth and statsYear
+  const completedSessionsInMonth = React.useMemo(() => {
+    return sessions.filter(s => {
+      if (!s.isCompleted) return false;
+      const date = new Date(s.startTime);
+      return (date.getMonth() + 1) === statsMonth && date.getFullYear() === statsYear;
+    });
+  }, [sessions, statsMonth, statsYear]);
+
+  // Calculate unique teaching days (unique calendar dates)
+  const uniqueTeachingDays = React.useMemo(() => {
+    return Array.from(new Set(completedSessionsInMonth.map(s => {
+      return format(new Date(s.startTime), 'yyyy-MM-dd');
+    }))).length;
+  }, [completedSessionsInMonth]);
+
+  // Calculate total duration (hours)
+  const totalTeachingHours = React.useMemo(() => {
+    return completedSessionsInMonth.reduce((acc, s) => {
+      const start = new Date(s.startTime).getTime();
+      const end = new Date(s.endTime).getTime();
+      const hours = (end - start) / (1000 * 60 * 60);
+      return acc + (isNaN(hours) ? 0 : hours);
+    }, 0);
+  }, [completedSessionsInMonth]);
+
+  const studentAttendedSessions = React.useMemo(() => {
+    return completedSessionsInMonth.filter(s => 
+      s.attendedByStudents?.some(sa => sa.studentId === user.id)
+    );
+  }, [completedSessionsInMonth, user.id]);
+
+  const studentAttendanceRate = React.useMemo(() => {
+    return completedSessionsInMonth.length > 0
+      ? Math.round((studentAttendedSessions.length / completedSessionsInMonth.length) * 100)
+      : 0;
+  }, [completedSessionsInMonth, studentAttendedSessions]);
 
   // Notification Modal State
   const [notifyModal, setNotifyModal] = useState(false);
@@ -92,6 +137,8 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
     setEndTime('');
     setLink('https://meet.google.com/abc-defg-hij');
     setNote('');
+    setFormIsCompleted(false);
+    setFormCompletedNote('');
     setShowModal(true);
   };
 
@@ -103,6 +150,8 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
     setEndTime(session.endTime.slice(0, 16));
     setLink(session.link);
     setNote(session.note || '');
+    setFormIsCompleted(session.isCompleted || false);
+    setFormCompletedNote(session.completedNote || '');
     setShowModal(true);
   };
 
@@ -116,7 +165,9 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
         startTime: startTime || editingSession.startTime,
         endTime: endTime || editingSession.endTime,
         link,
-        note
+        note,
+        isCompleted: formIsCompleted,
+        completedNote: formIsCompleted ? formCompletedNote.trim() : ''
       };
       if (onUpdateClass) {
         onUpdateClass(updated);
@@ -133,6 +184,8 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
         note,
         teacherId: user.id,
         teacherName: user.name,
+        isCompleted: formIsCompleted,
+        completedNote: formIsCompleted ? formCompletedNote.trim() : ''
       };
       if (onAddClass) {
         onAddClass(newS);
@@ -301,13 +354,145 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
               </button>
             </div>
           </div>
+          
+          {/* Monthly Work Summary & Report Widget (shown on completed tab) */}
+          {scheduleTab === 'completed' && (
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 mb-1.5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-sm">Thống kê dạy & học theo tháng</h4>
+                    <p className="text-slate-500 text-[11px] font-medium">Báo cáo chấm công, số ngày dạy thực tế và dọn dẹp ghi chú</p>
+                  </div>
+                </div>
+
+                {/* Selectors */}
+                <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                  <select
+                    value={statsMonth}
+                    onChange={e => {
+                      setStatsMonth(Number(e.target.value));
+                      setCopiedStats(false);
+                    }}
+                    className="p-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                      <option key={m} value={m}>Tháng {m}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={statsYear}
+                    onChange={e => {
+                      setStatsYear(Number(e.target.value));
+                      setCopiedStats(false);
+                    }}
+                    className="p-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {[2025, 2026, 2027].map(y => (
+                      <option key={y} value={y}>Năm {y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Stats Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-sm text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Số ngày dạy thực tế</span>
+                  <span className="text-xl font-black text-indigo-600 block">{uniqueTeachingDays}</span>
+                  <span className="text-[10px] text-slate-500 font-semibold block">ngày có lịch dạy</span>
+                </div>
+
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-sm text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Tổng số buổi dạy</span>
+                  <span className="text-xl font-black text-indigo-600 block">{completedSessionsInMonth.length}</span>
+                  <span className="text-[10px] text-slate-500 font-semibold block">buổi học đã xong</span>
+                </div>
+
+                <div className="bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-sm text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Tổng số giờ dạy</span>
+                  <span className="text-xl font-black text-indigo-600 block">{totalTeachingHours.toFixed(1)}</span>
+                  <span className="text-[10px] text-slate-500 font-semibold block">giờ lên lớp online</span>
+                </div>
+
+                {isTeacher ? (
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-sm text-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Sĩ số trung bình</span>
+                    <span className="text-xl font-black text-indigo-600 block">
+                      {completedSessionsInMonth.length > 0
+                        ? (completedSessionsInMonth.reduce((acc, s) => acc + (s.attendedByStudents?.length || 0), 0) / completedSessionsInMonth.length).toFixed(1)
+                        : "0.0"
+                      }
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-semibold block">học sinh / buổi</span>
+                  </div>
+                ) : (
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/70 shadow-sm text-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block mb-0.5">Tỉ lệ tham gia học</span>
+                    <span className="text-xl font-black text-emerald-600 block">{studentAttendanceRate}%</span>
+                    <span className="text-[10px] text-slate-500 font-semibold block">đã click ({studentAttendedSessions.length}/{completedSessionsInMonth.length})</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons to copy summary */}
+              {completedSessionsInMonth.length > 0 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const reportText = `[BÁO CÁO THỐNG KÊ DẠY HỌC - THÁNG ${String(statsMonth).padStart(2, '0')}/${statsYear}]
+- Giáo viên ghi nhận: ${user.name}
+- Số ngày dạy thực tế: ${uniqueTeachingDays} ngày
+- Tổng số buổi dạy online: ${completedSessionsInMonth.length} buổi
+- Tổng số giờ dạy: ${totalTeachingHours.toFixed(1)} giờ
+- Danh sách chi tiết các buổi dạy:
+${completedSessionsInMonth.map((s, idx) => {
+  const dateStr = format(new Date(s.startTime), 'dd/MM/yyyy');
+  const durHours = (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / (1000 * 60 * 60);
+  return `  ${idx + 1}. Ngày ${dateStr}: "${s.title}" (${s.subject}) - Thời lượng: ${durHours.toFixed(1)} giờ${s.completedNote ? ` - Nhật ký: ${s.completedNote}` : ''}`;
+}).join('\n')}
+
+--- Cổng thông tin học tập trực tuyến ---`;
+                      
+                      navigator.clipboard.writeText(reportText);
+                      setCopiedStats(true);
+                      setTimeout(() => setCopiedStats(false), 2000);
+                    }}
+                    className={`px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm ${
+                      copiedStats 
+                        ? 'bg-emerald-600 text-white animate-pulse' 
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
+                  >
+                    {copiedStats ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Đã sao chép báo cáo!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        Sao chép Thống kê & Báo cáo tháng này
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {(() => {
             const displayedSessions = sessions.filter(s => {
               if (scheduleTab === 'upcoming') {
                 return !s.isCompleted;
               } else {
-                return s.isCompleted === true;
+                const date = new Date(s.startTime);
+                return s.isCompleted === true && (date.getMonth() + 1) === statsMonth && date.getFullYear() === statsYear;
               }
             });
 
@@ -318,7 +503,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
                   <p className="font-extrabold text-xs">
                     {scheduleTab === 'upcoming' 
                       ? 'Không có buổi học nào sắp diễn ra.' 
-                      : 'Chưa có buổi học nào được đánh dấu hoàn thành.'}
+                      : `Không có buổi học hoàn thành nào được ghi nhận trong Tháng ${statsMonth}/${statsYear}.`}
                   </p>
                 </div>
               );
@@ -738,7 +923,37 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
                 />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2">
+              {/* Mark Completed Switch & Ghi chú nhật ký */}
+              <div className="border-t border-slate-100 pt-3.5 space-y-3">
+                <label className="flex items-center gap-2.5 font-bold text-slate-700 cursor-pointer select-none">
+                  <input 
+                    type="checkbox"
+                    checked={formIsCompleted}
+                    onChange={e => setFormIsCompleted(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="text-indigo-950 font-extrabold">Đánh dấu buổi học này đã học xong (Đã hoàn thành)</span>
+                </label>
+
+                {formIsCompleted && (
+                  <div className="space-y-1.5 p-3.5 bg-indigo-50/30 rounded-2xl border border-indigo-100/70">
+                    <label className="block font-bold text-indigo-900 text-xs uppercase flex items-center gap-1">
+                      <FileText className="w-4 h-4 text-indigo-600" />
+                      Nhật ký & Ghi chú dạy học của Giáo viên:
+                    </label>
+                    <textarea 
+                      rows={2}
+                      value={formCompletedNote}
+                      onChange={e => setFormCompletedNote(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-xs resize-none"
+                      placeholder="Ghi nhận nội dung đã học, dặn dò bài tập về nhà..."
+                    />
+                    <p className="text-[10px] text-slate-400 font-medium italic">Khi đánh dấu hoàn thành, buổi học sẽ xuất hiện trực tiếp trong mục Thống kê & Nhật ký học tập của tháng.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 font-bold text-slate-600 hover:bg-slate-100 rounded-xl">
                   Hủy
                 </button>
