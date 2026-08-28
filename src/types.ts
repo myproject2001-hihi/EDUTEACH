@@ -101,6 +101,9 @@ export interface ClassSession {
   createdAt?: string;
   teacherId?: string;
   teacherName?: string;
+  isCompleted?: boolean;
+  completedNote?: string;
+  attendedByStudents?: { studentId: string; studentName: string; clickedAt: string }[];
 }
 
 export interface HTMLSimulation {

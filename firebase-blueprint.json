@@ -55,7 +55,10 @@
         "startTime": "string",
         "endTime": "string",
         "link": "string",
-        "note": "string (optional)"
+        "note": "string (optional)",
+        "isCompleted": "boolean (optional)",
+        "completedNote": "string (optional)",
+        "attendedByStudents": "array (optional)"
       }
     },
     "simulations": {

@@ -616,6 +616,27 @@ export default function App() {
     }
   };
 
+  const handleUpdateClass = async (updatedClass: ClassSession) => {
+    try {
+      await setDoc(doc(db, 'class_sessions', updatedClass.id), updatedClass);
+
+      // Log activity
+      if (currentUser) {
+        logActivity({
+          user: currentUser,
+          category: 'class',
+          actionType: 'class_update',
+          title: `Cập nhật buổi học trực tuyến: "${updatedClass.title}"`,
+          description: updatedClass.isCompleted ? 'Trạng thái: Đã học (hoàn thành)' : 'Cập nhật nội dung/link buổi học',
+          targetId: updatedClass.id,
+          targetName: updatedClass.title
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `class_sessions/${updatedClass.id}`);
+    }
+  };
+
   const handleLogout = async () => {
     if (currentUser) {
       logActivity({
@@ -737,7 +758,7 @@ export default function App() {
           />
         );
       case 'schedule':
-        return <ScheduleView user={activeUser} classes={classes} onAddClass={handleAddClass} />;
+        return <ScheduleView user={activeUser} classes={classes} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} />;
       case 'notifications-manager':
         return isTeacherOrAdmin ? (
           <NotificationsManagerView
