@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle, Maximize2, Minimize2 } from 'lucide-react';
 import { CameraCapture } from './CameraCapture';
 import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { MarkdownMath } from './MarkdownMath';
@@ -270,10 +270,52 @@ function LiveCamera({
 }
 
 export function GamePreview({ gameType, questions, onClose, isStudentMode = false, onSubmitWork }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const [showGameCamera, setShowGameCamera] = useState(false);
   const [capturedPoseImg, setCapturedPoseImg] = useState<string | null>(null);
   const [isHelpOpen, setIsHelpOpen] = useState(true);
+
+  useEffect(() => {
+    const handleFSChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFSChange);
+    document.addEventListener('webkitfullscreenchange', handleFSChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFSChange);
+      document.removeEventListener('webkitfullscreenchange', handleFSChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      if (containerRef.current && containerRef.current.requestFullscreen) {
+        try {
+          await containerRef.current.requestFullscreen();
+          setIsFullscreen(true);
+        } catch (err) {
+          console.warn("Fullscreen request failed:", err);
+          setIsFullscreen(true);
+        }
+      } else {
+        setIsFullscreen(true);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        try {
+          await document.exitFullscreen();
+          setIsFullscreen(false);
+        } catch (err) {
+          console.warn("Fullscreen exit failed:", err);
+          setIsFullscreen(false);
+        }
+      } else {
+        setIsFullscreen(false);
+      }
+    }
+  };
   const [tiltDir, setTiltDir] = useState<'left' | 'right' | 'up' | 'down' | 'none'>('none');
   const [fingerCount, setFingerCount] = useState<number | 'none'>('none');
   const [isCalibrated, setIsCalibrated] = useState(false);
@@ -1045,8 +1087,15 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-1 sm:p-2">
-      <div className="bg-slate-100 w-full h-full max-w-full max-h-full rounded-2xl shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
+    <div 
+      ref={containerRef}
+      className={`fixed inset-0 z-[10000] bg-slate-900/95 backdrop-blur-md flex items-center justify-center ${
+        isFullscreen ? 'p-0 w-screen h-screen' : 'p-1 sm:p-2'
+      }`}
+    >
+      <div className={`bg-slate-100 w-full h-full max-w-full max-h-full overflow-hidden flex flex-col relative border border-slate-700 ${
+        isFullscreen ? 'rounded-none border-0' : 'rounded-2xl shadow-2xl'
+      }`}>
         <div className="h-12 sm:h-14 bg-slate-900 flex items-center justify-between px-3 sm:px-6 shrink-0 border-b border-slate-800">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="flex gap-1.5 shrink-0">
@@ -1056,10 +1105,32 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
             </div>
             <span className="text-slate-300 font-bold text-xs sm:text-sm ml-2 sm:ml-4 uppercase tracking-wider flex items-center gap-1.5 truncate">
               <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />
-              <span className="truncate">Chế độ Xem trước</span>
+              <span className="truncate">{isStudentMode ? '🎮 Đang Chơi Game' : 'Chế độ Xem trước'}</span>
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className={`p-1.5 sm:px-3 rounded-xl transition-all duration-200 group flex items-center gap-1.5 shrink-0 border ${
+                isFullscreen
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500/50 shadow-sm'
+              }`}
+              title={isFullscreen ? "Thu nhỏ (Esc)" : "Phóng to toàn màn hình"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4 text-amber-300 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider hidden sm:inline text-amber-200">Thu nhỏ</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white">Phóng to</span>
+                </>
+              )}
+            </button>
             <button 
               onClick={() => setIsHelpOpen(true)} 
               className="p-1.5 sm:px-3 bg-slate-800 hover:bg-indigo-600 text-indigo-400 hover:text-white rounded-xl transition-all duration-200 group flex items-center gap-1.5 shrink-0"

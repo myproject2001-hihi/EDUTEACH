@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, ChevronLeft, ChevronRight, RotateCw, Eye, Shuffle, Sparkles, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, ChevronLeft, ChevronRight, RotateCw, Eye, Shuffle, Sparkles, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 import { motion } from 'motion/react';
 
@@ -19,6 +19,9 @@ interface Props {
 }
 
 export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ Flashcard', onClose }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   // Filter out completely empty flashcards for preview, or use all
   const validCards = flashcards.filter(c => c.front.trim() || c.back.trim() || c.frontImage || c.backImage || c.image);
   const displayCards = validCards.length > 0 ? validCards : flashcards;
@@ -27,6 +30,42 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
   const [isFlipped, setIsFlipped] = useState(false);
   const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
   const [isShuffled, setIsShuffled] = useState(false);
+
+  useEffect(() => {
+    const handleFSChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFSChange);
+    return () => document.removeEventListener('fullscreenchange', handleFSChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      if (containerRef.current && containerRef.current.requestFullscreen) {
+        try {
+          await containerRef.current.requestFullscreen();
+          setIsFullscreen(true);
+        } catch (err) {
+          console.warn("Fullscreen error:", err);
+          setIsFullscreen(true);
+        }
+      } else {
+        setIsFullscreen(true);
+      }
+    } else {
+      if (document.exitFullscreen) {
+        try {
+          await document.exitFullscreen();
+          setIsFullscreen(false);
+        } catch (err) {
+          console.warn("Fullscreen exit error:", err);
+          setIsFullscreen(false);
+        }
+      } else {
+        setIsFullscreen(false);
+      }
+    }
+  };
 
   // Initialize order array
   useEffect(() => {
@@ -96,8 +135,15 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
   }, [currentIndex, displayCards.length, isShuffled, shuffledOrder]);
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-1 sm:p-4 md:p-6">
-      <div className="bg-slate-900 text-slate-100 w-full max-w-5xl h-full max-h-[98vh] sm:max-h-[92vh] rounded-xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
+    <div 
+      ref={containerRef}
+      className={`fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center ${
+        isFullscreen ? 'p-0 w-screen h-screen' : 'p-1 sm:p-4 md:p-6'
+      }`}
+    >
+      <div className={`bg-slate-900 text-slate-100 w-full max-w-5xl h-full flex flex-col relative border border-slate-700 overflow-hidden ${
+        isFullscreen ? 'max-h-full rounded-none border-0' : 'max-h-[98vh] sm:max-h-[92vh] rounded-xl sm:rounded-3xl shadow-2xl'
+      }`}>
         
         {/* Top Header */}
         <div className="h-11 sm:h-14 bg-slate-950 flex items-center justify-between px-3 sm:px-6 shrink-0 border-b border-slate-800">
@@ -119,6 +165,28 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className={`p-1.5 sm:px-3 rounded-xl transition-all duration-200 group flex items-center gap-1.5 shrink-0 border ${
+                isFullscreen
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-400/40'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-500/50 shadow-sm'
+              }`}
+              title={isFullscreen ? "Thu nhỏ (Esc)" : "Phóng to toàn màn hình"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize2 className="w-4 h-4 text-amber-300 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider hidden sm:inline text-amber-200">Thu nhỏ</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-white">Phóng to</span>
+                </>
+              )}
+            </button>
             <span className="hidden md:inline-flex text-[11px] text-slate-400 font-medium bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
               Phím: <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-200 font-mono mx-1">◄ ►</kbd> Chuyển thẻ • <kbd className="px-1 py-0.5 bg-slate-700 rounded text-slate-200 font-mono mx-1">Space</kbd> Lật
             </span>

@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -675,6 +675,39 @@ export function AssignmentsView({
   const [activeSubSetId, setActiveSubSetId] = useState<string>('all');
   const [expandedSubSetId, setExpandedSubSetId] = useState<string | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [isFlashcardFullscreen, setIsFlashcardFullscreen] = useState(false);
+
+  const toggleFlashcardFullscreen = async () => {
+    if (!document.fullscreenElement) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (err) {
+        console.warn('Fullscreen request failed:', err);
+      }
+      setIsFlashcardFullscreen(true);
+    } else {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      } catch (err) {
+        console.warn('Fullscreen exit failed:', err);
+      }
+      setIsFlashcardFullscreen(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleFSChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFlashcardFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', handleFSChange);
+    return () => document.removeEventListener('fullscreenchange', handleFSChange);
+  }, []);
 
   useEffect(() => {
     if (selectedAssignment?.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0) {
@@ -3443,22 +3476,73 @@ export function AssignmentsView({
 
                       // 2. FLASHCARD PLAYER VIEW (FOR ACTIVE SUB-SET OR SINGLE SET)
                       return (
-                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 text-center max-w-2xl mx-auto flex flex-col shadow-sm">
+                        <div className={`transition-all duration-300 flex flex-col shadow-sm ${
+                          isFlashcardFullscreen
+                            ? 'fixed inset-0 z-[10000] bg-slate-950 text-white p-3 sm:p-6 space-y-3 w-screen h-screen overflow-y-auto'
+                            : 'bg-slate-50 border border-slate-200 rounded-3xl p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 text-center max-w-2xl mx-auto'
+                        }`}>
+                          {/* Header Toolbar with Phóng To / Fullscreen toggle */}
+                          <div className={`flex items-center justify-between gap-2 pb-2 border-b ${
+                            isFlashcardFullscreen ? 'border-slate-800' : 'border-slate-200'
+                          }`}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`px-2.5 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                                isFlashcardFullscreen ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-400/30' : 'bg-indigo-100 text-indigo-800'
+                              }`}>
+                                🎴 Thẻ Ghi Nhớ
+                              </span>
+                              {!hasSubSets && (
+                                <h3 className={`font-extrabold text-xs sm:text-sm truncate ${isFlashcardFullscreen ? 'text-white' : 'text-slate-900'}`}>
+                                  {selectedAssignment.title}
+                                </h3>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={toggleFlashcardFullscreen}
+                              className={`px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0 ${
+                                isFlashcardFullscreen
+                                  ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 border border-amber-300'
+                                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+                              }`}
+                              title={isFlashcardFullscreen ? "Thu nhỏ màn hình (Esc)" : "Phóng to toàn màn hình"}
+                            >
+                              {isFlashcardFullscreen ? (
+                                <>
+                                  <Minimize2 className="w-4 h-4" />
+                                  <span>Thu nhỏ (Esc)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Maximize2 className="w-4 h-4" />
+                                  <span>Phóng to</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
                           {/* Navigation Bar if parent assignment with sub-sets */}
                           {hasSubSets && (
                             <div className="space-y-3 text-left">
-                              <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-2.5 sm:p-3 shadow-sm">
+                              <div className={`flex items-center justify-between border rounded-2xl p-2.5 sm:p-3 shadow-sm ${
+                                isFlashcardFullscreen ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                              }`}>
                                 <button
                                   type="button"
                                   onClick={() => setActiveSubSetId('overview')}
-                                  className="inline-flex items-center gap-1.5 text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl text-xs font-extrabold border border-indigo-200 transition-all active:scale-95"
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all active:scale-95 ${
+                                    isFlashcardFullscreen
+                                      ? 'bg-indigo-950 hover:bg-indigo-900 text-indigo-200 border border-indigo-800'
+                                      : 'text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200'
+                                  }`}
                                 >
                                   <ArrowLeft className="w-4 h-4 shrink-0" />
                                   <span>Quay lại danh sách bộ con</span>
                                 </button>
                                 <div className="text-right">
-                                  <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Đang học:</span>
-                                  <span className="text-xs font-black text-indigo-900 truncate max-w-[160px] sm:max-w-xs block">
+                                  <span className={`text-[10px] font-bold block uppercase tracking-wider ${isFlashcardFullscreen ? 'text-slate-400' : 'text-slate-400'}`}>Đang học:</span>
+                                  <span className={`text-xs font-black truncate max-w-[160px] sm:max-w-xs block ${isFlashcardFullscreen ? 'text-indigo-300' : 'text-indigo-900'}`}>
                                     {activeSubSetId === 'all'
                                       ? '✨ Tất cả các bộ con (Gộp chung)'
                                       : `📚 ${selectedAssignment.subFlashcardSets?.find(s => s.id === activeSubSetId)?.title || 'Bộ con'}`}
@@ -3478,7 +3562,7 @@ export function AssignmentsView({
                                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border shrink-0 ${
                                     activeSubSetId === 'all'
                                       ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                                      : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                                      : isFlashcardFullscreen ? 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800' : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
                                   }`}
                                 >
                                   Sparkles Tất cả bộ ({selectedAssignment.flashcards?.length || selectedAssignment.subFlashcardSets?.reduce((acc, s) => acc + (s.flashcards?.length || 0), 0) || 0} thẻ)
@@ -3496,7 +3580,7 @@ export function AssignmentsView({
                                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border shrink-0 ${
                                       activeSubSetId === sub.id
                                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                        : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                                        : isFlashcardFullscreen ? 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800' : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
                                     }`}
                                   >
                                     📚 {sub.title} ({sub.flashcards?.length || 0})
@@ -3506,15 +3590,7 @@ export function AssignmentsView({
                             </div>
                           )}
 
-                          {!hasSubSets && (
-                            <div className="space-y-1">
-                              <h3 className="font-extrabold text-slate-900 text-base sm:text-xl flex items-center justify-center gap-2">
-                                <span>{selectedAssignment.title}</span>
-                              </h3>
-                            </div>
-                          )}
-
-                          <p className="text-xs text-slate-500">
+                          <p className={`text-xs ${isFlashcardFullscreen ? 'text-slate-400' : 'text-slate-500'}`}>
                             Lật tất cả thẻ ({displayFlashcards.length} thẻ) để mở khóa bài kiểm tra.
                           </p>
                           
@@ -3549,7 +3625,11 @@ export function AssignmentsView({
                                 }
                                 setTouchStartX(null);
                               }}
-                              className="w-full h-[350px] sm:h-[380px] md:h-[420px] perspective-1000 cursor-pointer group my-1 sm:my-3 select-none"
+                              className={`w-full perspective-1000 cursor-pointer group my-1 sm:my-3 select-none ${
+                                isFlashcardFullscreen
+                                  ? 'h-[calc(100vh-230px)] min-h-[360px] max-h-[700px]'
+                                  : 'h-[350px] sm:h-[380px] md:h-[420px]'
+                              }`}
                               whileHover={{ scale: 1.01 }}
                               whileTap={{ scale: 0.99 }}
                               transition={{ type: "spring", stiffness: 350, damping: 25 }}
@@ -4415,6 +4495,7 @@ export function AssignmentsView({
                       setShowFlashcardQuizTest={setShowFlashcardQuizTest}
                       handleDownloadSampleFlashcards={handleDownloadSampleFlashcards}
                       handleImportFlashcards={handleImportFlashcards}
+                      allAssignments={assignments}
                     />
                   )}
 
