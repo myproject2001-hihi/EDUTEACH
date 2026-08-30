@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -1548,10 +1548,10 @@ export function AssignmentsView({
       isMandatory: newIsMandatory,
       isPublished: newIsPublished,
       maxAttempts: newMaxAttempts,
-      flashcards: newType === 'flashcard' ? newFlashcards : undefined,
+      flashcards: newType === 'flashcard' ? (newSubFlashcardSets.length > 0 ? undefined : newFlashcards) : undefined,
       subFlashcardSets: newType === 'flashcard' && newSubFlashcardSets.length > 0 ? newSubFlashcardSets : undefined,
-      rawCode: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? rawQuestionCode : undefined,
-      questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
+      rawCode: (newType === 'online_test' || newType === 'game' || (newType === 'flashcard' && newSubFlashcardSets.length === 0)) ? rawQuestionCode : undefined,
+      questions: (newType === 'online_test' || newType === 'game' || (newType === 'flashcard' && newSubFlashcardSets.length === 0)) ? finalQuestions : undefined,
     };
 
     // Remove explicit undefined fields which crashes Firestore v9
@@ -1636,11 +1636,10 @@ export function AssignmentsView({
             id: s.id || `sub_${Date.now()}_${Math.random().toString(36).substring(7)}`,
             title: s.title,
             description: s.description || '',
-            flashcards: s.flashcards || []
+            flashcards: s.flashcards || [],
+            questions: s.questions || [],
+            rawCode: s.rawCode || (s.questions && s.questions.length > 0 ? questionsToRawCode(s.questions) : '')
           });
-          if (s.flashcards) {
-            combinedCards.push(...s.flashcards);
-          }
         });
       } else {
         const cards = a.flashcards || [];
@@ -1648,20 +1647,18 @@ export function AssignmentsView({
           id: a.id || `sub_${Date.now()}_${aIdx}`,
           title: a.title || `Bộ thẻ ${aIdx + 1}`,
           description: a.description || '',
-          flashcards: cards
+          flashcards: cards,
+          questions: a.questions || [],
+          rawCode: a.rawCode || (a.questions && a.questions.length > 0 ? questionsToRawCode(a.questions) : '')
         });
-        combinedCards.push(...cards);
       }
     });
-
-    if (combinedCards.length === 0) {
-      combinedCards = [{ id: Date.now().toString(), front: '', back: '' }];
-    }
 
     // Default active flashcards to the first subSet cards for crisp editing
     const initialActiveCards = subSets[0]?.flashcards && subSets[0].flashcards.length > 0
       ? subSets[0].flashcards
-      : combinedCards;
+      : [{ id: Date.now().toString(), front: '', back: '' }];
+    const initialRawCode = subSets[0]?.rawCode || (subSets[0]?.questions && subSets[0].questions.length > 0 ? questionsToRawCode(subSets[0].questions) : '');
 
     const parentTitle = `BỘ LỚN: ${selectedAssignments.map(a => a.title).join(' + ')}`;
     const parentDesc = `Bộ thẻ tổng hợp bao gồm ${subSets.length} bộ con (${selectedAssignments.map(a => a.title).join(', ')})`;
@@ -1669,6 +1666,7 @@ export function AssignmentsView({
     handleOpenCreateModal('flashcard', initialActiveCards, subSets);
     setNewTitle(parentTitle);
     setNewDescription(parentDesc);
+    setRawQuestionCode(initialRawCode);
     setSelectedIdsForDeletion([]);
     setShowCreateModal(true);
   };
@@ -3439,18 +3437,41 @@ export function AssignmentsView({
                                         <span>{isExpanded ? 'Ẩn thẻ' : 'Xem danh sách thẻ'}</span>
                                       </button>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveSubSetId(sub.id);
-                                          setActiveCardIndex(0);
-                                          setFlippedCards(new Set());
-                                        }}
-                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
-                                      >
-                                        <BookOpen className="w-3.5 h-3.5" />
-                                        <span>Học bộ con này</span>
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        {isTeacher && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const subCards = sub.flashcards && sub.flashcards.length > 0 ? sub.flashcards : [{ id: Date.now().toString(), front: '', back: '' }];
+                                              handleOpenCreateModal('flashcard', subCards, undefined);
+                                              setNewTitle(sub.title || 'Bộ thẻ bài tập mới');
+                                              setNewDescription(sub.description || `Bài tập thẻ flashcard: ${sub.title}`);
+                                              const rawCode = sub.rawCode || (sub.questions && sub.questions.length > 0 ? questionsToRawCode(sub.questions) : '');
+                                              setRawQuestionCode(rawCode);
+                                              setNewSubFlashcardSets([]);
+                                              setShowCreateModal(true);
+                                            }}
+                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-300 transition-all flex items-center gap-1.5 active:scale-95 shadow-sm"
+                                            title="Giao bài tập riêng độc lập từ bộ con này"
+                                          >
+                                            <FileQuestion className="w-3.5 h-3.5" />
+                                            <span>Giao bài tập</span>
+                                          </button>
+                                        )}
+
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveSubSetId(sub.id);
+                                            setActiveCardIndex(0);
+                                            setFlippedCards(new Set());
+                                          }}
+                                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
+                                        >
+                                          <BookOpen className="w-3.5 h-3.5" />
+                                          <span>Học bộ con này</span>
+                                        </button>
+                                      </div>
                                     </div>
 
                                     {/* Accordion Preview of Flashcards in this Sub-Set */}

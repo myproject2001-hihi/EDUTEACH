@@ -4,7 +4,7 @@ import {
   Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, 
   FolderOpen, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpDown, Check, Layers, Search, ListOrdered, RotateCcw, FileQuestion
 } from 'lucide-react';
-import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
+import { SAMPLE_TEMPLATES, parseRawCodeToQuestions, questionsToRawCode } from '../views/AssignmentsView';
 import { SubFlashcardSet, Assignment } from '../types';
 
 interface Flashcard {
@@ -69,6 +69,47 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   const safeSubIndex = hasSubSets ? Math.min(activeSubIndex, (newSubFlashcardSets?.length || 1) - 1) : 0;
   const currentSubSet = hasSubSets && newSubFlashcardSets ? newSubFlashcardSets[safeSubIndex] : null;
 
+  const switchSubSet = (nextIdx: number) => {
+    if (!newSubFlashcardSets || nextIdx < 0 || nextIdx >= newSubFlashcardSets.length) return;
+    // 1. Sync current rawQuestionCode to current subset
+    if (setNewSubFlashcardSets) {
+      const updated = [...newSubFlashcardSets];
+      if (updated[safeSubIndex]) {
+        const { parsedQuestions } = parseRawCodeToQuestions(rawQuestionCode);
+        updated[safeSubIndex] = {
+          ...updated[safeSubIndex],
+          rawCode: rawQuestionCode,
+          questions: parsedQuestions
+        };
+        setNewSubFlashcardSets(updated);
+      }
+    }
+    // 2. Switch to next sub-set
+    setActiveSubIndex(nextIdx);
+    const targetSub = newSubFlashcardSets[nextIdx];
+    if (targetSub) {
+      setNewFlashcards(targetSub.flashcards && targetSub.flashcards.length > 0 ? targetSub.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
+      const nextCode = targetSub.rawCode || (targetSub.questions && targetSub.questions.length > 0 ? questionsToRawCode(targetSub.questions) : '');
+      setRawQuestionCode(nextCode);
+    }
+  };
+
+  const handleRawQuestionCodeChange = (code: string) => {
+    setRawQuestionCode(code);
+    if (hasSubSets && setNewSubFlashcardSets && newSubFlashcardSets) {
+      const updated = [...newSubFlashcardSets];
+      if (updated[safeSubIndex]) {
+        const { parsedQuestions } = parseRawCodeToQuestions(code);
+        updated[safeSubIndex] = {
+          ...updated[safeSubIndex],
+          rawCode: code,
+          questions: parsedQuestions
+        };
+        setNewSubFlashcardSets(updated);
+      }
+    }
+  };
+
   const moveSubSet = (fromIdx: number, toIdx: number) => {
     if (!setNewSubFlashcardSets || !newSubFlashcardSets) return;
     if (toIdx < 0 || toIdx >= newSubFlashcardSets.length || fromIdx === toIdx) return;
@@ -78,6 +119,8 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setNewSubFlashcardSets(updated);
     setActiveSubIndex(toIdx);
     setNewFlashcards(moved.flashcards && moved.flashcards.length > 0 ? moved.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
+    const nextCode = moved.rawCode || (moved.questions && moved.questions.length > 0 ? questionsToRawCode(moved.questions) : '');
+    setRawQuestionCode(nextCode);
   };
 
   const reverseAllSubSets = () => {
@@ -86,7 +129,10 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     const newActive = Math.max(0, newSubFlashcardSets.length - 1 - safeSubIndex);
     setNewSubFlashcardSets(reversed);
     setActiveSubIndex(newActive);
-    setNewFlashcards(reversed[newActive]?.flashcards || [{ id: Date.now().toString(), front: '', back: '' }]);
+    const activeSub = reversed[newActive];
+    setNewFlashcards(activeSub?.flashcards || [{ id: Date.now().toString(), front: '', back: '' }]);
+    const nextCode = activeSub?.rawCode || (activeSub?.questions && activeSub.questions.length > 0 ? questionsToRawCode(activeSub.questions) : '');
+    setRawQuestionCode(nextCode);
   };
 
   const updateActiveCards = (updatedCards: Flashcard[]) => {
@@ -585,11 +631,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         <div key={sub.id || sIdx} className="flex items-center shrink-0">
                           <button
                             type="button"
-                            onClick={() => {
-                              setActiveSubIndex(sIdx);
-                              const targetCards = sub.flashcards || [];
-                              setNewFlashcards(targetCards.length > 0 ? targetCards : [{ id: Date.now().toString(), front: '', back: '' }]);
-                            }}
+                            onClick={() => switchSubSet(sIdx)}
                             className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border ${
                               isActive
                                 ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
@@ -752,9 +794,12 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     {/* Giao bài tập trắc nghiệm */}
                     <button
                       type="button"
-                      onClick={() => setFlashcardSubStep(2)}
+                      onClick={() => {
+                        switchSubSet(safeSubIndex);
+                        setFlashcardSubStep(2);
+                      }}
                       className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
-                      title="Giao bài tập trắc nghiệm / Cấu hình câu hỏi trắc nghiệm"
+                      title="Giao bài tập trắc nghiệm / Soạn câu hỏi trắc nghiệm cho bộ con này"
                       aria-label="Giao bài tập trắc nghiệm"
                     >
                       <FileQuestion className="w-4 h-4" />
@@ -939,11 +984,65 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               transition={{ duration: 0.22, ease: "easeInOut" }}
               className="flex-1 min-h-0 flex flex-col space-y-4 w-full"
             >
+              {/* Sub-Set Indicator & Switcher for Step 2 */}
+              {hasSubSets && (
+                <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border border-indigo-200/80 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm shrink-0">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm text-sm">
+                      📦
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
+                          Bộ con #{safeSubIndex + 1}
+                        </span>
+                        <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                          {currentSubSet?.title || `Bộ con ${safeSubIndex + 1}`}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Đang soạn câu hỏi trắc nghiệm riêng cho bộ con này ({currentSubSet?.flashcards?.length || 0} thẻ ghi nhớ)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Quick sub-set switcher */}
+                    {newSubFlashcardSets && newSubFlashcardSets.length > 1 && (
+                      <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                        <span className="text-[10px] font-bold text-slate-400">Chuyển:</span>
+                        <select
+                          value={safeSubIndex}
+                          onChange={(e) => switchSubSet(Number(e.target.value))}
+                          className="text-xs font-extrabold text-slate-800 bg-transparent outline-none cursor-pointer"
+                        >
+                          {newSubFlashcardSets.map((s, idx) => (
+                            <option key={s.id || idx} value={idx}>
+                              #{idx + 1} - {s.title || `Bộ con ${idx + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Return to Step 1 Button */}
+                    <button
+                      type="button"
+                      onClick={() => setFlashcardSubStep(1)}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors shadow-sm flex items-center gap-1 active:scale-95"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Quay lại thẻ (Bước 1)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 mb-1 gap-2 shrink-0">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 2</span>
                   <span className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-2">
-                    <span>📝</span> Mã nguồn câu hỏi kiểm tra Flashcard
+                    <span>📝</span> {hasSubSets ? `Mã nguồn câu hỏi của #${safeSubIndex + 1} (${currentSubSet?.title || 'Bộ con'})` : 'Mã nguồn câu hỏi kiểm tra Flashcard'}
                   </span>
                   <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
                     {rawQuestionCode.split('\n').length} dòng
@@ -952,7 +1051,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 <div className="flex items-center gap-2">
                   <button 
                     type="button"
-                    onClick={() => setRawQuestionCode('')}
+                    onClick={() => handleRawQuestionCodeChange('')}
                     title="Xóa trắng mã nguồn câu hỏi"
                     className="p-1.5 px-3 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
                   >
@@ -974,7 +1073,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[220px]">
                 <textarea
                   value={rawQuestionCode}
-                  onChange={(e) => setRawQuestionCode(e.target.value)}
+                  onChange={(e) => handleRawQuestionCodeChange(e.target.value)}
                   placeholder="Nhập nội dung câu hỏi trắc nghiệm kiểm tra sau khi học..."
                   className="flex-1 w-full p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
                   spellCheck={false}
@@ -985,8 +1084,8 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
                 <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu đề thi:</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
-                  <button type="button" onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
+                  <button type="button" onClick={() => handleRawQuestionCodeChange(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
+                  <button type="button" onClick={() => handleRawQuestionCodeChange(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
                 </div>
               </div>
             </motion.div>
