@@ -17,8 +17,8 @@ interface Flashcard {
 }
 
 interface FlashcardWizardProps {
-  flashcardSubStep: 1 | 2;
-  setFlashcardSubStep: (step: 1 | 2) => void;
+  flashcardSubStep?: 1 | 2;
+  setFlashcardSubStep?: (step: 1 | 2) => void;
   newFlashcards: Flashcard[];
   setNewFlashcards: (cards: Flashcard[]) => void;
   newSubFlashcardSets?: SubFlashcardSet[];
@@ -33,8 +33,6 @@ interface FlashcardWizardProps {
 }
 
 export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
-  flashcardSubStep,
-  setFlashcardSubStep,
   newFlashcards,
   setNewFlashcards,
   newSubFlashcardSets,
@@ -442,618 +440,551 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
   return (
     <div id="flashcard-wizard-container" className="flex-1 flex flex-col md:overflow-hidden bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
-      {/* Stepper Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 border-b border-slate-100 pb-3 shrink-0">
-        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto custom-scrollbar flex-1 pb-1 sm:pb-0">
-          <button
-            type="button"
-            onClick={() => setFlashcardSubStep(1)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-          >
-            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">1</span>
-            {hasSubSets ? 'Thiết Lập Bộ Thẻ Con' : 'Thiết Lập Bộ Thẻ'}
-          </button>
-          <span className="text-slate-300 text-xs shrink-0">➔</span>
-          <button
-            type="button"
-            onClick={() => setFlashcardSubStep(2)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-          >
-            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">2</span>
-            Câu Hỏi Trắc Nghiệm
-          </button>
-        </div>
-      </div>
+      {/* Main Single-View Content */}
+      <div className="flex-1 min-h-0 flex flex-col space-y-3">
+        {/* Single Flashcard Set Top Banner (Hidden when hasSubSets is true) */}
+        {!hasSubSets && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0 bg-white p-3 rounded-2xl border shadow-sm">
+            <div>
+              <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bộ thẻ Flashcard</span>
+              <h4 className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 flex items-center gap-2">
+                <span>🗂️</span> Tạo danh sách thẻ ghi nhớ ({newFlashcards.length} thẻ)
+              </h4>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              {setNewSubFlashcardSets && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const initialSub: SubFlashcardSet = {
+                      id: `sub_${Date.now()}_1`,
+                      title: 'Bộ con 1',
+                      description: '',
+                      flashcards: newFlashcards.length > 0 ? newFlashcards : [{ id: Date.now().toString(), front: '', back: '' }],
+                      questions: []
+                    };
+                    setNewSubFlashcardSets([initialSub]);
+                    setActiveSubIndex(0);
+                    setShowSelectSubSetModal(true);
+                  }}
+                  className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
+                  title="Chuyển sang chế độ bài học tổng hợp gồm nhiều bộ con"
+                >
+                  <Layers className="w-3.5 h-3.5" /> Gộp thành Bài học tổng hợp
+                </button>
+              )}
 
-      {/* Step Contents */}
-      <div className="flex-1 md:overflow-hidden min-h-0 flex flex-col">
-        <AnimatePresence mode="wait">
-          {flashcardSubStep === 1 && (
-            <motion.div 
-              key="flashcard-step-1"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="flex-1 min-h-0 flex flex-col space-y-3"
-            >
-              {/* Single Flashcard Set Top Banner (Hidden when hasSubSets is true) */}
-              {!hasSubSets && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0 bg-white p-3 rounded-2xl border shadow-sm">
-                  <div>
-                    <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 1</span>
-                    <h4 className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 flex items-center gap-2">
-                      <span>🗂️</span> Tạo danh sách thẻ ghi nhớ ({newFlashcards.length} thẻ)
-                    </h4>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {setNewSubFlashcardSets && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const initialSub: SubFlashcardSet = {
-                            id: `sub_${Date.now()}_1`,
-                            title: 'Bộ con 1',
-                            description: '',
-                            flashcards: newFlashcards.length > 0 ? newFlashcards : [{ id: Date.now().toString(), front: '', back: '' }],
-                            questions: []
-                          };
-                          setNewSubFlashcardSets([initialSub]);
-                          setActiveSubIndex(0);
-                          setShowSelectSubSetModal(true);
-                        }}
-                        className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
-                        title="Chuyển sang chế độ bài học tổng hợp gồm nhiều bộ con"
-                      >
-                        <Layers className="w-3.5 h-3.5" /> Gộp thành Bài học tổng hợp
-                      </button>
-                    )}
+              <button 
+                type="button"
+                onClick={() => setShowFlashcardPreview(true)}
+                className="px-3.5 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm border border-indigo-500 flex items-center gap-1.5 transition-all shadow-md shadow-indigo-100 shrink-0"
+                title="Xem trước trải nghiệm học lật thẻ của học sinh"
+              >
+                <Play className="w-3.5 h-3.5" /> Preview bộ thẻ
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ thẻ ghi nhớ hiện tại không? Tất cả ảnh và nội dung đã thiết lập sẽ bị mất.")) {
+                    updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
+                  }
+                }}
+                className="px-2.5 sm:px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 shrink-0"
+                title="Xóa nhanh toàn bộ danh sách thẻ"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả
+              </button>
 
-                    <button 
-                      type="button"
-                      onClick={() => setShowFlashcardPreview(true)}
-                      className="px-3.5 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm border border-indigo-500 flex items-center gap-1.5 transition-all shadow-md shadow-indigo-100 shrink-0"
-                      title="Xem trước trải nghiệm học lật thẻ của học sinh"
-                    >
-                      <Play className="w-3.5 h-3.5" /> Preview bộ thẻ
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ thẻ ghi nhớ hiện tại không? Tất cả ảnh và nội dung đã thiết lập sẽ bị mất.")) {
-                          updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
-                        }
-                      }}
-                      className="px-2.5 sm:px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 shrink-0"
-                      title="Xóa nhanh toàn bộ danh sách thẻ"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả
-                    </button>
+              {/* Smart Batch Upload Button */}
+              <button
+                type="button"
+                onClick={() => setShowBatchModal(true)}
+                className="px-3 sm:px-4 py-2 bg-purple-50 text-purple-700 font-extrabold rounded-xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition-colors shrink-0 shadow-sm active:scale-95"
+                title="Ghép hàng loạt ảnh mặt trước và mặt sau cực dễ"
+              >
+                <FolderOpen className="w-3.5 h-3.5" /> Ghép ảnh hàng loạt
+              </button>
 
-                    {/* Smart Batch Upload Button */}
+              <button 
+                type="button" 
+                onClick={handleDownloadSampleFlashcards}
+                className="px-3 sm:px-4 py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" /> Tải file mẫu
+              </button>
+              <label className="px-3 sm:px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors shrink-0">
+                <Upload className="w-3.5 h-3.5" /> Nhập file
+                <input type="file" accept=".txt,.csv,.json" hidden onChange={handleImportFlashcards} />
+              </label>
+              <button 
+                type="button" 
+                onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
+                className="px-3 sm:px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 flex items-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm thẻ mới
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Hierarchical Sub-Sets Management Tabs & Active Sub-Set Config */}
+        {hasSubSets && newSubFlashcardSets && (
+          <div className="bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 rounded-2xl p-4 text-white space-y-3 shadow-md border border-indigo-500/30 shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-indigo-500/30 rounded-xl text-indigo-200">📦</span>
+                <div>
+                  <h5 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
+                    <span>BÀI HỌC TỔNG HỢP (BỘ CHA)</span>
+                    <span className="text-[10px] px-2.5 py-0.5 bg-indigo-500/40 rounded-md font-bold text-indigo-200 border border-indigo-400/30">
+                      {newSubFlashcardSets.length} bộ con
+                    </span>
+                  </h5>
+                  <p className="text-[11px] text-indigo-200/80 mt-0.5">
+                    Nhấp chọn từng bộ con bên dưới để chỉnh sửa thẻ và câu hỏi trắc nghiệm riêng của bộ đó.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action buttons for Sub-sets Header */}
+              <div className="flex items-center gap-2">
+                {newSubFlashcardSets.length > 1 && (
+                  <>
                     <button
                       type="button"
-                      onClick={() => setShowBatchModal(true)}
-                      className="px-3 sm:px-4 py-2 bg-purple-50 text-purple-700 font-extrabold rounded-xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition-colors shrink-0 shadow-sm active:scale-95"
-                      title="Ghép hàng loạt ảnh mặt trước và mặt sau cực dễ"
+                      onClick={() => setShowReorderModal(true)}
+                      className="p-2 bg-white/15 hover:bg-white/25 text-amber-300 rounded-xl border border-white/20 transition-all active:scale-95 flex items-center justify-center shadow-sm"
+                      title={`Sắp xếp thứ tự (${newSubFlashcardSets.length} bộ con)`}
+                      aria-label="Sắp xếp thứ tự"
                     >
-                      <FolderOpen className="w-3.5 h-3.5" /> Ghép ảnh hàng loạt
+                      <ArrowUpDown className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={reverseAllSubSets}
+                      className="p-2 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-xl border border-white/15 transition-all active:scale-95 flex items-center justify-center shadow-sm"
+                      title="Đảo ngược toàn bộ thứ tự các bộ con"
+                      aria-label="Đảo thứ tự"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+
+                {setNewSubFlashcardSets && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSelectSubSetModal(true)}
+                    className="p-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 rounded-xl border border-amber-300 transition-all active:scale-95 flex items-center justify-center shrink-0 shadow-md"
+                    title="Thêm bộ con mới"
+                    aria-label="Thêm bộ con mới"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Sub-Set Horizontal Navigation Tabs */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 custom-scrollbar">
+              {newSubFlashcardSets.map((sub, sIdx) => {
+                const isActive = sIdx === safeSubIndex;
+                const cardCount = sub.flashcards?.length || 0;
+                const qCount = sub.questions?.length || (sub.rawCode ? sub.rawCode.trim().split('\n').length : 0);
+
+                return (
+                  <div key={sub.id || sIdx} className="flex items-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => switchSubSet(sIdx)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border ${
+                        isActive
+                          ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
+                          : 'bg-white/10 hover:bg-white/20 text-indigo-100 border-white/15'
+                      }`}
+                    >
+                      <span>📦 #{sIdx + 1} {sub.title || 'Bộ con'}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
+                        isActive ? 'bg-black/20 text-slate-900' : 'bg-black/30 text-indigo-200'
+                      }`}>
+                        {cardCount} thẻ
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Active Sub-set Settings Card */}
+            {currentSubSet && (
+              <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                <div className="sm:col-span-4">
+                  <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
+                    Tên bộ con #{safeSubIndex + 1}:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentSubSet.title}
+                    onChange={(e) => {
+                      if (setNewSubFlashcardSets && newSubFlashcardSets) {
+                        const updated = [...newSubFlashcardSets];
+                        updated[safeSubIndex] = { ...updated[safeSubIndex], title: e.target.value };
+                        setNewSubFlashcardSets(updated);
+                      }
+                    }}
+                    placeholder="Tên bộ con (VD: Từ vựng Bài 1)"
+                    className="w-full px-3 py-1.5 bg-black/30 border border-white/20 rounded-lg text-xs text-white placeholder-indigo-300/60 font-bold outline-none focus:border-amber-300"
+                  />
+                </div>
+
+                <div className="sm:col-span-4">
+                  <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
+                    Mô tả bộ con #{safeSubIndex + 1}:
+                  </label>
+                  <input
+                    type="text"
+                    value={currentSubSet.description || ''}
+                    onChange={(e) => {
+                      if (setNewSubFlashcardSets && newSubFlashcardSets) {
+                        const updated = [...newSubFlashcardSets];
+                        updated[safeSubIndex] = { ...updated[safeSubIndex], description: e.target.value };
+                        setNewSubFlashcardSets(updated);
+                      }
+                    }}
+                    placeholder="Mô tả bộ con (không bắt buộc)"
+                    className="w-full px-3 py-1.5 bg-black/30 border border-white/20 rounded-lg text-xs text-indigo-100 placeholder-indigo-300/60 outline-none focus:border-amber-300"
+                  />
+                </div>
+
+                {/* Sub-set Position / Order Controls */}
+                <div className="sm:col-span-3">
+                  <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
+                    Thứ tự vị trí:
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={safeSubIndex === 0}
+                      onClick={() => moveSubSet(safeSubIndex, safeSubIndex - 1)}
+                      className="p-1.5 bg-black/30 hover:bg-black/50 disabled:opacity-30 disabled:hover:bg-black/30 text-white rounded-lg border border-white/20 transition-colors"
+                      title="Dời bộ này sang trước (về bên trái)"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
                     </button>
 
-                    <button 
-                      type="button" 
-                      onClick={handleDownloadSampleFlashcards}
-                      className="px-3 sm:px-4 py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors shrink-0"
+                    <select
+                      value={safeSubIndex}
+                      onChange={(e) => moveSubSet(safeSubIndex, Number(e.target.value))}
+                      className="flex-1 px-2.5 py-1.5 bg-black/40 border border-amber-400/40 rounded-lg text-xs text-amber-200 font-extrabold outline-none cursor-pointer"
                     >
-                      <Download className="w-3.5 h-3.5" /> Tải file mẫu
-                    </button>
-                    <label className="px-3 sm:px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors shrink-0">
-                      <Upload className="w-3.5 h-3.5" /> Nhập file
-                      <input type="file" accept=".txt,.csv,.json" hidden onChange={handleImportFlashcards} />
-                    </label>
-                    <button 
-                      type="button" 
-                      onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
-                      className="px-3 sm:px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 flex items-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
+                      {newSubFlashcardSets.map((_, idx) => (
+                        <option key={idx} value={idx} className="bg-slate-900 text-white">
+                          Vị trí #{idx + 1}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      disabled={safeSubIndex === newSubFlashcardSets.length - 1}
+                      onClick={() => moveSubSet(safeSubIndex, safeSubIndex + 1)}
+                      className="p-1.5 bg-black/30 hover:bg-black/50 disabled:opacity-30 disabled:hover:bg-black/30 text-white rounded-lg border border-white/20 transition-colors"
+                      title="Dời bộ này ra sau (về bên phải)"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Thêm thẻ mới
+                      <ArrowRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
-              )}
 
-              {/* Hierarchical Sub-Sets Management Tabs & Active Sub-Set Config */}
-              {hasSubSets && newSubFlashcardSets && (
-                <div className="bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 rounded-2xl p-4 text-white space-y-3 shadow-md border border-indigo-500/30 shrink-0">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="p-2 bg-indigo-500/30 rounded-xl text-indigo-200">📦</span>
-                      <div>
-                        <h5 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
-                          <span>BÀI HỌC TỔNG HỢP (BỘ CHA)</span>
-                          <span className="text-[10px] px-2.5 py-0.5 bg-indigo-500/40 rounded-md font-bold text-indigo-200 border border-indigo-400/30">
-                            {newSubFlashcardSets.length} bộ con
-                          </span>
-                        </h5>
-                        <p className="text-[11px] text-indigo-200/80 mt-0.5">
-                          Nhấp chọn từng bộ con bên dưới để chỉnh sửa hoặc điều chỉnh thứ tự hiển thị.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Hình 1: Icon only buttons for Sub-sets Header */}
-                    <div className="flex items-center gap-2">
-                      {newSubFlashcardSets.length > 1 && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setShowReorderModal(true)}
-                            className="p-2 bg-white/15 hover:bg-white/25 text-amber-300 rounded-xl border border-white/20 transition-all active:scale-95 flex items-center justify-center shadow-sm"
-                            title={`Sắp xếp thứ tự (${newSubFlashcardSets.length} bộ con)`}
-                            aria-label="Sắp xếp thứ tự"
-                          >
-                            <ArrowUpDown className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={reverseAllSubSets}
-                            className="p-2 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-xl border border-white/15 transition-all active:scale-95 flex items-center justify-center shadow-sm"
-                            title="Đảo ngược toàn bộ thứ tự các bộ con"
-                            aria-label="Đảo thứ tự"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-
-                      {setNewSubFlashcardSets && (
-                        <button
-                          type="button"
-                          onClick={() => setShowSelectSubSetModal(true)}
-                          className="p-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 rounded-xl border border-amber-300 transition-all active:scale-95 flex items-center justify-center shrink-0 shadow-md"
-                          title="Thêm bộ con mới"
-                          aria-label="Thêm bộ con mới"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Sub-Set Horizontal Navigation Tabs */}
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 custom-scrollbar">
-                    {newSubFlashcardSets.map((sub, sIdx) => {
-                      const isActive = sIdx === safeSubIndex;
-                      const cardCount = sub.flashcards?.length || 0;
-
-                      return (
-                        <div key={sub.id || sIdx} className="flex items-center shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => switchSubSet(sIdx)}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border ${
-                              isActive
-                                ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
-                                : 'bg-white/10 hover:bg-white/20 text-indigo-100 border-white/15'
-                            }`}
-                          >
-                            <span>📦 #{sIdx + 1} {sub.title || 'Bộ con'}</span>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
-                              isActive ? 'bg-black/20 text-slate-900' : 'bg-black/30 text-indigo-200'
-                            }`}>
-                              {cardCount} thẻ
-                            </span>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Active Sub-set Settings Card */}
-                  {currentSubSet && (
-                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                      <div className="sm:col-span-4">
-                        <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
-                          Tên bộ con #{safeSubIndex + 1}:
-                        </label>
-                        <input
-                          type="text"
-                          value={currentSubSet.title}
-                          onChange={(e) => {
-                            if (setNewSubFlashcardSets && newSubFlashcardSets) {
-                              const updated = [...newSubFlashcardSets];
-                              updated[safeSubIndex] = { ...updated[safeSubIndex], title: e.target.value };
-                              setNewSubFlashcardSets(updated);
-                            }
-                          }}
-                          placeholder="Tên bộ con (VD: Từ vựng Bài 1)"
-                          className="w-full px-3 py-1.5 bg-black/30 border border-white/20 rounded-lg text-xs text-white placeholder-indigo-300/60 font-bold outline-none focus:border-amber-300"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-4">
-                        <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
-                          Mô tả bộ con #{safeSubIndex + 1}:
-                        </label>
-                        <input
-                          type="text"
-                          value={currentSubSet.description || ''}
-                          onChange={(e) => {
-                            if (setNewSubFlashcardSets && newSubFlashcardSets) {
-                              const updated = [...newSubFlashcardSets];
-                              updated[safeSubIndex] = { ...updated[safeSubIndex], description: e.target.value };
-                              setNewSubFlashcardSets(updated);
-                            }
-                          }}
-                          placeholder="Mô tả bộ con (không bắt buộc)"
-                          className="w-full px-3 py-1.5 bg-black/30 border border-white/20 rounded-lg text-xs text-indigo-100 placeholder-indigo-300/60 outline-none focus:border-amber-300"
-                        />
-                      </div>
-
-                      {/* Sub-set Position / Order Controls (Hình 3: Dropdown without '(Đầu tiên)' & '(Cuối cùng)') */}
-                      <div className="sm:col-span-3">
-                        <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
-                          Thứ tự vị trí:
-                        </label>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            disabled={safeSubIndex === 0}
-                            onClick={() => moveSubSet(safeSubIndex, safeSubIndex - 1)}
-                            className="p-1.5 bg-black/30 hover:bg-black/50 disabled:opacity-30 disabled:hover:bg-black/30 text-white rounded-lg border border-white/20 transition-colors"
-                            title="Dời bộ này sang trước (về bên trái)"
-                          >
-                            <ArrowLeft className="w-3.5 h-3.5" />
-                          </button>
-
-                          <select
-                            value={safeSubIndex}
-                            onChange={(e) => moveSubSet(safeSubIndex, Number(e.target.value))}
-                            className="flex-1 px-2.5 py-1.5 bg-black/40 border border-amber-400/40 rounded-lg text-xs text-amber-200 font-extrabold outline-none cursor-pointer"
-                          >
-                            {newSubFlashcardSets.map((_, idx) => (
-                              <option key={idx} value={idx} className="bg-slate-900 text-white">
-                                Vị trí #{idx + 1}
-                              </option>
-                            ))}
-                          </select>
-
-                          <button
-                            type="button"
-                            disabled={safeSubIndex === newSubFlashcardSets.length - 1}
-                            onClick={() => moveSubSet(safeSubIndex, safeSubIndex + 1)}
-                            className="p-1.5 bg-black/30 hover:bg-black/50 disabled:opacity-30 disabled:hover:bg-black/30 text-white rounded-lg border border-white/20 transition-colors"
-                            title="Dời bộ này ra sau (về bên phải)"
-                          >
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-1 flex items-end justify-end pt-1">
-                        {setNewSubFlashcardSets && newSubFlashcardSets.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (window.confirm(`Xóa bộ con "${currentSubSet.title}" khỏi bài học cha này?`)) {
-                                const updated = newSubFlashcardSets.filter((_, idx) => idx !== safeSubIndex);
-                                setNewSubFlashcardSets(updated);
-                                const nextIdx = Math.max(0, safeSubIndex - 1);
-                                setActiveSubIndex(nextIdx);
-                                setNewFlashcards(updated[nextIdx].flashcards || [{ id: Date.now().toString(), front: '', back: '' }]);
-                              }
-                            }}
-                            className="w-full py-1.5 px-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-200 border border-rose-400/30 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
-                            title="Xóa bộ con này"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Xóa
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                <div className="sm:col-span-1 flex items-end justify-end pt-1">
+                  {setNewSubFlashcardSets && newSubFlashcardSets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(`Xóa bộ con "${currentSubSet.title}" khỏi bài học cha này?`)) {
+                          const updated = newSubFlashcardSets.filter((_, idx) => idx !== safeSubIndex);
+                          setNewSubFlashcardSets(updated);
+                          const nextIdx = Math.max(0, safeSubIndex - 1);
+                          setActiveSubIndex(nextIdx);
+                          setNewFlashcards(updated[nextIdx].flashcards || [{ id: Date.now().toString(), front: '', back: '' }]);
+                        }
+                      }}
+                      className="w-full py-1.5 px-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-200 border border-rose-400/30 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                      title="Xóa bộ con này"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Xóa
+                    </button>
                   )}
                 </div>
-              )}
-
-              {/* Sub-set Card Controls Bar (Hình 4: Only icons + Giao bài tập trắc nghiệm) */}
-              {hasSubSets && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm gap-2 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-extrabold bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-lg border border-indigo-200">
-                      📦 #{safeSubIndex + 1} {currentSubSet?.title || 'Bộ con'}
-                    </span>
-                    <span className="text-xs font-extrabold text-slate-700">
-                      ({newFlashcards.length} thẻ ghi nhớ)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    {/* Preview bộ này */}
-                    <button 
-                      type="button"
-                      onClick={() => setShowFlashcardPreview(true)}
-                      className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all active:scale-95 shrink-0 flex items-center justify-center"
-                      title="Preview bộ này (Xem trước bộ thẻ)"
-                      aria-label="Preview bộ này"
-                    >
-                      <Play className="w-4 h-4" />
-                    </button>
-
-                    {/* Ghép ảnh hàng loạt */}
-                    <button
-                      type="button"
-                      onClick={() => setShowBatchModal(true)}
-                      className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
-                      title="Ghép ảnh hàng loạt cho bộ con này"
-                      aria-label="Ghép ảnh hàng loạt"
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                    </button>
-
-                    {/* Giao bài tập trắc nghiệm */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchSubSet(safeSubIndex);
-                        setFlashcardSubStep(2);
-                      }}
-                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
-                      title="Giao bài tập trắc nghiệm / Soạn câu hỏi trắc nghiệm cho bộ con này"
-                      aria-label="Giao bài tập trắc nghiệm"
-                    >
-                      <FileQuestion className="w-4 h-4" />
-                    </button>
-
-                    {/* Xóa tất cả */}
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm("⚠️ Xóa tất cả thẻ ghi nhớ của bộ con này?")) {
-                          updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
-                        }
-                      }}
-                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-colors shrink-0 active:scale-95 flex items-center justify-center"
-                      title="Xóa tất cả thẻ ghi nhớ của bộ con này"
-                      aria-label="Xóa tất cả thẻ"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-
-                    {/* Thêm thẻ mới */}
-                    <button 
-                      type="button" 
-                      onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
-                      className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
-                      title="Thêm thẻ mới"
-                      aria-label="Thêm thẻ mới"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Guidance Banner (Only shown for SINGLE Flashcard sets, HIDDEN for Parent/Combined sets) */}
-              {!hasSubSets && (
-                <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2 shrink-0">
-                  <HelpCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-                  <div className="leading-relaxed">
-                    <span className="font-extrabold text-indigo-900">Mẹo cho Giáo viên:</span> Có thể dùng nút <span className="font-bold text-purple-700">"Ghép ảnh hàng loạt"</span> để tải lên cùng lúc nhiều ảnh mặt trước (Folder 1, 2, 3) và mặt sau (Folder 1, 2, 3), hệ thống sẽ tự động bắt cặp khớp theo số thứ tự hoặc tên cực kỳ nhanh chóng và nhàn hạ!
-                  </div>
-                </div>
-              )}
-
-              {/* Scrolling List of Cards */}
-              <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-4 custom-scrollbar">
-                {newFlashcards.map((card, index) => (
-                  <div key={card.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group hover:border-indigo-200 transition-colors">
-                    <div className="absolute top-3 right-3 flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded-md">Thẻ #{index + 1}</span>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          if (newFlashcards.length > 1) {
-                            updateActiveCards(newFlashcards.filter(c => c.id !== card.id));
-                          } else {
-                            alert('Bộ thẻ cần ít nhất 1 thẻ!');
-                          }
-                        }} 
-                        className="p-1.5 bg-white text-rose-500 rounded-lg hover:bg-rose-50 border border-slate-200 transition-colors shadow-sm"
-                        title="Xóa thẻ"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
-                        <textarea 
-                          value={card.front} 
-                          onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} 
-                          className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
-                          placeholder="Nhập nội dung mặt trước..." 
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 mb-1">Mặt sau (Đáp án / Giải nghĩa)</label>
-                        <textarea 
-                          value={card.back} 
-                          onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} 
-                          className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
-                          placeholder="Nhập nội dung mặt sau..." 
-                        />
-                      </div>
-                    </div>
-
-                    {/* Symmetrical Image Section (Front & Back) */}
-                    <div className="mt-3 pt-3 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Front Image Option */}
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                          <Image className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>Ảnh mặt trước (Không bắt buộc)</span>
-                        </label>
-                        <div className="flex gap-1.5 items-center">
-                          <input
-                            type="text"
-                            value={card.frontImage || card.image || ''}
-                            onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: e.target.value } : c))}
-                            placeholder="Dán URL ảnh mặt trước..."
-                            className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 bg-white font-medium"
-                          />
-                          <label className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 cursor-pointer transition-colors" title="Tải ảnh lên">
-                            <Upload className="w-3.5 h-3.5" />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              hidden
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const base64 = await compressImage(file);
-                                  updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: base64 } : c));
-                                }
-                              }}
-                            />
-                          </label>
-                          {(card.frontImage || card.image) && (
-                            <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center p-0.5 bg-white group/thumb">
-                              <img src={card.frontImage || card.image} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                              <button type="button" onClick={() => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: '', image: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Back Image Option */}
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                          <Image className="w-3.5 h-3.5 text-purple-500" />
-                          <span>Ảnh mặt sau (Không bắt buộc)</span>
-                        </label>
-                        <div className="flex gap-1.5 items-center">
-                          <input
-                            type="text"
-                            value={card.backImage || ''}
-                            onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: e.target.value } : c))}
-                            placeholder="Dán URL ảnh mặt sau..."
-                            className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 bg-white font-medium"
-                          />
-                          <label className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 cursor-pointer transition-colors" title="Tải ảnh lên">
-                            <Upload className="w-3.5 h-3.5" />
-                            <input
-                              type="file"
-                              accept="image/*"
-                              hidden
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const base64 = await compressImage(file);
-                                  updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: base64 } : c));
-                                }
-                              }}
-                            />
-                          </label>
-                          {card.backImage && (
-                            <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center p-0.5 bg-white group/thumb">
-                              <img src={card.backImage} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                              <button type="button" onClick={() => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
               </div>
-            </motion.div>
-          )}
+            )}
+          </div>
+        )}
 
-          {flashcardSubStep === 2 && (
-            <motion.div 
-              key="flashcard-step-2"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="flex-1 min-h-0 flex flex-col space-y-4 w-full"
-            >
-              {/* Sub-Set Indicator & Switcher for Step 2 */}
-              {hasSubSets && (
-                <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border border-indigo-200/80 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm shrink-0">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm text-sm">
-                      📦
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
-                          Bộ con #{safeSubIndex + 1}
-                        </span>
-                        <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
-                          {currentSubSet?.title || `Bộ con ${safeSubIndex + 1}`}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5">
-                        Đang soạn câu hỏi trắc nghiệm riêng cho bộ con này ({currentSubSet?.flashcards?.length || 0} thẻ ghi nhớ)
-                      </p>
+        {/* Sub-set Card Controls Bar */}
+        {hasSubSets && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm gap-2 shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-extrabold bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-lg border border-indigo-200">
+                📦 #{safeSubIndex + 1} {currentSubSet?.title || 'Bộ con'}
+              </span>
+              <span className="text-xs font-extrabold text-slate-700">
+                ({newFlashcards.length} thẻ ghi nhớ)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Preview bộ này */}
+              <button 
+                type="button"
+                onClick={() => setShowFlashcardPreview(true)}
+                className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all active:scale-95 shrink-0 flex items-center justify-center"
+                title="Preview bộ này (Xem trước trải nghiệm lật thẻ)"
+                aria-label="Preview bộ này"
+              >
+                <Play className="w-4 h-4" />
+              </button>
+
+              {/* Ghép ảnh hàng loạt */}
+              <button
+                type="button"
+                onClick={() => setShowBatchModal(true)}
+                className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                title="Ghép ảnh hàng loạt cho bộ con này"
+                aria-label="Ghép ảnh hàng loạt"
+              >
+                <FolderOpen className="w-4 h-4" />
+              </button>
+
+              {/* Cuộn xuống câu hỏi trắc nghiệm */}
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('flashcard-questions-editor-section');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                title="Soạn câu hỏi trắc nghiệm cho bộ con này (Cuộn xuống dưới)"
+                aria-label="Soạn câu hỏi trắc nghiệm"
+              >
+                <FileQuestion className="w-4 h-4" />
+              </button>
+
+              {/* Xóa tất cả */}
+              <button 
+                type="button"
+                onClick={() => {
+                  if (window.confirm("⚠️ Xóa tất cả thẻ ghi nhớ của bộ con này?")) {
+                    updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
+                  }
+                }}
+                className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                title="Xóa tất cả thẻ ghi nhớ của bộ con này"
+                aria-label="Xóa tất cả thẻ"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+
+              {/* Thêm thẻ mới */}
+              <button 
+                type="button" 
+                onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
+                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                title="Thêm thẻ mới"
+                aria-label="Thêm thẻ mới"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Guidance Banner (Only shown for SINGLE Flashcard sets, HIDDEN for Parent/Combined sets) */}
+        {!hasSubSets && (
+          <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2 shrink-0">
+            <HelpCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <span className="font-extrabold text-indigo-900">Mẹo cho Giáo viên:</span> Có thể dùng nút <span className="font-bold text-purple-700">"Ghép ảnh hàng loạt"</span> để tải lên cùng lúc nhiều ảnh mặt trước và mặt sau, hệ thống sẽ tự động bắt cặp khớp theo số thứ tự cực nhanh!
+            </div>
+          </div>
+        )}
+
+        {/* Unified Scrollable Container: Cards List on top, Questions Section directly underneath */}
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pr-1 pb-6 custom-scrollbar">
+          {/* SECTION 1: FLASHCARD ITEMS LIST */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between pb-1">
+              <h5 className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                <span>🗂️</span> Danh sách thẻ ghi nhớ ({newFlashcards.length} thẻ)
+              </h5>
+              <button 
+                type="button" 
+                onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
+                className="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors border border-blue-200 active:scale-95 shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" /> Thêm thẻ
+              </button>
+            </div>
+
+            {newFlashcards.map((card, index) => (
+              <div key={card.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl relative group hover:border-indigo-200 transition-colors shadow-sm">
+                <div className="absolute top-3 right-3 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded-md">Thẻ #{index + 1}</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      if (newFlashcards.length > 1) {
+                        updateActiveCards(newFlashcards.filter(c => c.id !== card.id));
+                      } else {
+                        alert('Bộ thẻ cần ít nhất 1 thẻ!');
+                      }
+                    }} 
+                    className="p-1.5 bg-white text-rose-500 rounded-lg hover:bg-rose-50 border border-slate-200 transition-colors shadow-sm"
+                    title="Xóa thẻ"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
+                    <textarea 
+                      value={card.front} 
+                      onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} 
+                      className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
+                      placeholder="Nhập nội dung mặt trước..." 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">Mặt sau (Đáp án / Giải nghĩa)</label>
+                    <textarea 
+                      value={card.back} 
+                      onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} 
+                      className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
+                      placeholder="Nhập nội dung mặt sau..." 
+                    />
+                  </div>
+                </div>
+
+                {/* Symmetrical Image Section (Front & Back) */}
+                <div className="mt-3 pt-3 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Front Image Option */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                      <Image className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Ảnh mặt trước (Không bắt buộc)</span>
+                    </label>
+                    <div className="flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={card.frontImage || card.image || ''}
+                        onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: e.target.value } : c))}
+                        placeholder="Dán URL ảnh mặt trước..."
+                        className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 bg-white font-medium"
+                      />
+                      <label className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 cursor-pointer transition-colors" title="Tải ảnh lên">
+                        <Upload className="w-3.5 h-3.5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          hidden
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const base64 = await compressImage(file);
+                              updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: base64 } : c));
+                            }
+                          }}
+                        />
+                      </label>
+                      {(card.frontImage || card.image) && (
+                        <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center p-0.5 bg-white group/thumb">
+                          <img src={card.frontImage || card.image} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          <button type="button" onClick={() => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: '', image: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Quick sub-set switcher */}
-                    {newSubFlashcardSets && newSubFlashcardSets.length > 1 && (
-                      <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-sm">
-                        <span className="text-[10px] font-bold text-slate-400">Chuyển:</span>
-                        <select
-                          value={safeSubIndex}
-                          onChange={(e) => switchSubSet(Number(e.target.value))}
-                          className="text-xs font-extrabold text-slate-800 bg-transparent outline-none cursor-pointer"
-                        >
-                          {newSubFlashcardSets.map((s, idx) => (
-                            <option key={s.id || idx} value={idx}>
-                              #{idx + 1} - {s.title || `Bộ con ${idx + 1}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
-                    {/* Return to Step 1 Button */}
-                    <button
-                      type="button"
-                      onClick={() => setFlashcardSubStep(1)}
-                      className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors shadow-sm flex items-center gap-1 active:scale-95"
-                    >
-                      <ArrowLeft className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Quay lại thẻ (Bước 1)</span>
-                    </button>
+                  {/* Back Image Option */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                      <Image className="w-3.5 h-3.5 text-purple-500" />
+                      <span>Ảnh mặt sau (Không bắt buộc)</span>
+                    </label>
+                    <div className="flex gap-1.5 items-center">
+                      <input
+                        type="text"
+                        value={card.backImage || ''}
+                        onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: e.target.value } : c))}
+                        placeholder="Dán URL ảnh mặt sau..."
+                        className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 bg-white font-medium"
+                      />
+                      <label className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 cursor-pointer transition-colors" title="Tải ảnh lên">
+                        <Upload className="w-3.5 h-3.5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          hidden
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const base64 = await compressImage(file);
+                              updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: base64 } : c));
+                            }
+                          }}
+                        />
+                      </label>
+                      {card.backImage && (
+                        <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center p-0.5 bg-white group/thumb">
+                          <img src={card.backImage} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
+                          <button type="button" onClick={() => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
+            ))}
+          </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 mb-1 gap-2 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 2</span>
-                  <span className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-2">
-                    <span>📝</span> {hasSubSets ? `Mã nguồn câu hỏi của #${safeSubIndex + 1} (${currentSubSet?.title || 'Bộ con'})` : 'Mã nguồn câu hỏi kiểm tra Flashcard'}
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                    {rawQuestionCode.split('\n').length} dòng
-                  </span>
+          {/* SECTION 2: MULTIPLE-CHOICE QUESTIONS EDITOR (DISPLAYED DIRECTLY BENEATH THE CARDS) */}
+          <div id="flashcard-questions-editor-section" className="pt-4 border-t-2 border-dashed border-slate-200 space-y-3">
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">
+                      Trắc nghiệm kiểm tra
+                    </span>
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                      {hasSubSets ? `Mã nguồn câu hỏi của #${safeSubIndex + 1} (${currentSubSet?.title || 'Bộ con'})` : 'Mã nguồn câu hỏi kiểm tra Flashcard'}
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
+                      {rawQuestionCode.split('\n').length} dòng
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1">
+                    {hasSubSets 
+                      ? `Soạn câu hỏi kiểm tra riêng cho bộ con #${safeSubIndex + 1} (học sinh sẽ làm sau khi học lật thẻ của bộ con này).`
+                      : 'Soạn câu hỏi trắc nghiệm kiểm tra sau khi học sinh ôn tập các thẻ ghi nhớ ở trên.'}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex items-center gap-2 shrink-0">
                   <button 
                     type="button"
                     onClick={() => handleRawQuestionCodeChange('')}
                     title="Xóa trắng mã nguồn câu hỏi"
-                    className="p-1.5 px-3 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                    className="p-1.5 px-3 text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Xóa trắng</span>
@@ -1061,36 +992,37 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   <button 
                     type="button"
                     onClick={() => setShowFlashcardQuizTest(true)} 
-                    title="Xem trước bài kiểm tra trắc nghiệm flashcard"
-                    className="px-4 sm:px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 border border-indigo-500 transition-all shadow-md shadow-indigo-100 shrink-0"
+                    title="Xem trước bài kiểm tra trắc nghiệm"
+                    className="px-3.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 border border-emerald-500 transition-all shadow-md shadow-emerald-100 shrink-0"
                   >
-                    <Play className="w-3.5 h-3.5" /> Preview
+                    <Play className="w-3.5 h-3.5" /> Preview trắc nghiệm
                   </button>
                 </div>
               </div>
 
-              {/* Text Area */}
-              <div className="flex-1 border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[220px]">
+              {/* Text Area for Raw Questions */}
+              <div className="border border-slate-200 rounded-2xl bg-white overflow-hidden flex shadow-inner min-h-[200px]">
                 <textarea
                   value={rawQuestionCode}
                   onChange={(e) => handleRawQuestionCodeChange(e.target.value)}
-                  placeholder="Nhập nội dung câu hỏi trắc nghiệm kiểm tra sau khi học..."
-                  className="flex-1 w-full p-4 text-[12px] font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium"
+                  placeholder="Nhập nội dung câu hỏi trắc nghiệm kiểm tra sau khi học thẻ..."
+                  className="flex-1 w-full p-3.5 text-xs font-mono text-slate-800 outline-none resize-none leading-relaxed whitespace-pre font-medium min-h-[190px]"
                   spellCheck={false}
                 />
               </div>
 
-              {/* Templates */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 shrink-0">
-                <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu đề thi:</p>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => handleRawQuestionCodeChange(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 1</button>
-                  <button type="button" onClick={() => handleRawQuestionCodeChange(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 py-1 bg-white border border-blue-100 rounded-lg">Mẫu 2</button>
+              {/* Template Buttons */}
+              <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</span>
+                  <button type="button" onClick={() => handleRawQuestionCodeChange(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1 bg-slate-50 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 1 (Trắc nghiệm)</button>
+                  <button type="button" onClick={() => handleRawQuestionCodeChange(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2.5 py-1 bg-slate-50 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 2 (Đúng / Sai)</button>
                 </div>
+                <span className="text-[11px] text-slate-400 italic">Nếu để trống, học sinh chỉ ôn lật thẻ tự do không làm quiz.</span>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* RENDER SMART BATCH PAIRING MODAL */}
