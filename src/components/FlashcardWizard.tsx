@@ -471,7 +471,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
                   title="Chuyển sang chế độ bài học tổng hợp gồm nhiều bộ con"
                 >
-                  <Layers className="w-3.5 h-3.5" /> Gộp thành Bài học tổng hợp
+                  <Layers className="w-3.5 h-3.5" /> 
                 </button>
               )}
 
@@ -481,7 +481,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 className="px-3.5 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm border border-indigo-500 flex items-center gap-1.5 transition-all shadow-md shadow-indigo-100 shrink-0"
                 title="Xem trước trải nghiệm học lật thẻ của học sinh"
               >
-                <Play className="w-3.5 h-3.5" /> Preview bộ thẻ
+                <Play className="w-3.5 h-3.5" /> 
               </button>
               <button 
                 type="button"
@@ -493,7 +493,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 className="px-2.5 sm:px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 shrink-0"
                 title="Xóa nhanh toàn bộ danh sách thẻ"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả
+                <Trash2 className="w-3.5 h-3.5" /> 
               </button>
 
               {/* Smart Batch Upload Button */}
@@ -503,7 +503,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 className="px-3 sm:px-4 py-2 bg-purple-50 text-purple-700 font-extrabold rounded-xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition-colors shrink-0 shadow-sm active:scale-95"
                 title="Ghép hàng loạt ảnh mặt trước và mặt sau cực dễ"
               >
-                <FolderOpen className="w-3.5 h-3.5" /> Ghép ảnh hàng loạt
+                <FolderOpen className="w-3.5 h-3.5" /> 
               </button>
 
               <button 
@@ -511,10 +511,10 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 onClick={handleDownloadSampleFlashcards}
                 className="px-3 sm:px-4 py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors shrink-0"
               >
-                <Download className="w-3.5 h-3.5" /> Tải file mẫu
+                <Download className="w-3.5 h-3.5" /> 
               </button>
               <label className="px-3 sm:px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors shrink-0">
-                <Upload className="w-3.5 h-3.5" /> Nhập file
+                <Upload className="w-3.5 h-3.5" /> 
                 <input type="file" accept=".txt,.csv,.json" hidden onChange={handleImportFlashcards} />
               </label>
               <button 
@@ -522,7 +522,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
                 className="px-3 sm:px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 flex items-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
               >
-                <Plus className="w-3.5 h-3.5" /> Thêm thẻ mới
+                <Plus className="w-3.5 h-3.5" /> 
               </button>
             </div>
           </div>

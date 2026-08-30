@@ -2138,7 +2138,7 @@ export function AssignmentsView({
             className="flex items-center px-5 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl hover:bg-indigo-700 transition-colors shadow-sm"
           >
             <Plus className="w-5 h-5 mr-2" />
-            {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard mới' : 'Giao bài tập mới'}
+            {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard' : 'Giao bài tập mới'}
           </button>
         )}
       </div>
@@ -2580,7 +2580,7 @@ export function AssignmentsView({
                       {isGroupedFlashcard ? (
                         <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
                           <Layers className="w-3 h-3 text-purple-600" />
-                          <span>Bộ gộp ({assignment.subFlashcardSets!.length} Levels)</span>
+                          <span>BỘ FLASHCARD ({assignment.subFlashcardSets!.length} Levels)</span>
                         </span>
                       ) : assignment.type === 'flashcard' ? (
                         <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
@@ -3468,7 +3468,7 @@ export function AssignmentsView({
                               <div className="relative z-10 space-y-4">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/40 backdrop-blur-md rounded-full text-xs font-black text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
-                                    <Layers className="w-3.5 h-3.5 text-purple-300" /> BÀI HỌC TỔNG HỢP (BỘ CHA)
+                                    <Layers className="w-3.5 h-3.5 text-purple-300" /> BỘ FLASHCARD
                                   </span>
                                   <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-slate-200">
                                     📚 {selectedAssignment.subFlashcardSets!.length} Bộ con
@@ -3505,9 +3505,8 @@ export function AssignmentsView({
                             <div className="flex items-center justify-between px-1">
                               <div>
                                 <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                                  <span>📚</span> Các bộ bài học con bên trong:
+                                  <span>📚</span> Các bộ bài học
                                 </h3>
-                                <p className="text-xs text-slate-500 mt-0.5">Mỗi bộ con giữ nguyên đúng dữ liệu câu hỏi & thẻ ghi nhớ ban đầu</p>
                               </div>
                               <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
                                 {selectedAssignment.subFlashcardSets!.length} bộ bài học
@@ -3590,7 +3589,7 @@ export function AssignmentsView({
                                           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
                                         >
                                           <BookOpen className="w-3.5 h-3.5" />
-                                          <span>Học bộ con này</span>
+                                          <span>Học nhé!</span>
                                         </button>
                                       </div>
                                     </div>
@@ -4980,9 +4979,9 @@ export function AssignmentsView({
                           className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
                         >
                           <option value="">-- Chọn Khối --</option>
-                          {Array.from({ length: 12 }, (_, i) => `Khối ${i + 1}`).map(grade => (
-                            <option key={grade} value={grade}>{grade}</option>
-                          ))}
+                          <option value="Khối 10">Khối 10</option>
+                          <option value="Khối 11">Khối 11</option>
+                          <option value="Khối 12">Khối 12</option>
                           <option value="Khác">Khác</option>
                         </select>
                       </div>
