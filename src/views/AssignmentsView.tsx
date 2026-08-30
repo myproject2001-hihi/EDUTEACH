@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -709,9 +709,24 @@ export function AssignmentsView({
     return () => document.removeEventListener('fullscreenchange', handleFSChange);
   }, []);
 
+  const [expandedListGroups, setExpandedListGroups] = useState<Record<string, boolean>>({});
+
+  const toggleListGroup = (assignmentId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedListGroups(prev => ({
+      ...prev,
+      [assignmentId]: !(prev[assignmentId] ?? true)
+    }));
+  };
+
   useEffect(() => {
     if (selectedAssignment?.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0) {
-      setActiveSubSetId('overview');
+      setActiveSubSetId(prev => {
+        if (prev === 'all' || selectedAssignment.subFlashcardSets?.some(s => s.id === prev)) {
+          return prev;
+        }
+        return 'overview';
+      });
     } else {
       setActiveSubSetId('all');
     }
@@ -2342,47 +2357,11 @@ export function AssignmentsView({
             <h3 className="font-bold text-slate-900 text-base">
               {viewMode === 'games' ? 'Danh sách Game' : viewMode === 'flashcards' ? 'Danh sách Flashcard' : 'Danh sách Bài Tập'}
             </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500">
-                {filteredAssignments.length === assignments.length 
-                  ? `${assignments.length} bài` 
-                  : `Tìm thấy ${filteredAssignments.length}/${assignments.length}`}
-              </span>
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLayoutDensity('comfortable');
-                    localStorage.setItem('layout_density', 'comfortable');
-                    window.dispatchEvent(new Event('storage'));
-                  }}
-                  className={`p-1 rounded-lg transition-all ${
-                    layoutDensity === 'comfortable' 
-                      ? 'bg-white text-indigo-600 shadow-sm font-bold' 
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                  title="Dạng Lưới (Comfortable Grid)"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLayoutDensity('compact');
-                    localStorage.setItem('layout_density', 'compact');
-                    window.dispatchEvent(new Event('storage'));
-                  }}
-                  className={`p-1 rounded-lg transition-all ${
-                    layoutDensity === 'compact' 
-                      ? 'bg-white text-indigo-600 shadow-sm font-bold' 
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}
-                  title="Dạng Danh sách (Compact List)"
-                >
-                  <List className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+            <span className="text-xs font-semibold text-slate-500">
+              {filteredAssignments.length === assignments.length 
+                ? `${assignments.length} ${viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'bộ' : 'bài'}` 
+                : `Tìm thấy ${filteredAssignments.length}/${assignments.length}`}
+            </span>
           </div>
 
           {/* SEARCH & FILTERS BOX */}
@@ -2516,7 +2495,7 @@ export function AssignmentsView({
             </div>
           )}
 
-          <div className={layoutDensity === 'compact' ? "space-y-2" : "space-y-3"}>
+          <div className="space-y-3">
             {isLoadingAssignments ? (
               <AssignmentListSkeleton count={4} />
             ) : filteredAssignments.length === 0 ? (
@@ -2531,6 +2510,11 @@ export function AssignmentsView({
               const isPastDue = new Date(assignment.dueDate) < new Date();
               const mySubmission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user.id);
               const totalSubs = submissions.filter(s => s.assignmentId === assignment.id).length;
+              const isGroupedFlashcard = assignment.type === 'flashcard' && Array.isArray(assignment.subFlashcardSets) && assignment.subFlashcardSets.length > 0;
+              const totalCardsCount = isGroupedFlashcard 
+                ? (assignment.flashcards?.length || assignment.subFlashcardSets!.reduce((sum, s) => sum + (s.flashcards?.length || 0), 0))
+                : (assignment.flashcards?.length || 0);
+              const isGroupExpanded = expandedListGroups[assignment.id] ?? true;
 
               return (
                 <div 
@@ -2567,9 +2551,33 @@ export function AssignmentsView({
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start gap-2 mb-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
-                        {assignment.type === 'online_test' ? 'Kiểm tra Online' : assignment.type === 'simulation' ? 'Bài Mô phỏng' : 'Nộp bài'}
-                      </span>
+                      {isGroupedFlashcard ? (
+                        <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
+                          <Layers className="w-3 h-3 text-purple-600" />
+                          <span>Bộ gộp ({assignment.subFlashcardSets!.length} Levels)</span>
+                        </span>
+                      ) : assignment.type === 'flashcard' ? (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
+                          🎴 Flashcard ({totalCardsCount} thẻ)
+                        </span>
+                      ) : assignment.type === 'game' ? (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase">
+                          🎮 Game
+                        </span>
+                      ) : assignment.type === 'online_test' ? (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 uppercase">
+                          📝 Kiểm tra Online
+                        </span>
+                      ) : assignment.type === 'simulation' ? (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                          🔬 Mô phỏng
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
+                          📄 Nộp bài
+                        </span>
+                      )}
+
                       {shouldShowNewBadge(user?.id, assignment) && (
                         <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse uppercase tracking-wider">
                           🔥 MỚI
@@ -2577,25 +2585,38 @@ export function AssignmentsView({
                       )}
                     </div>
                     
-                    {isTeacher ? (
-                      <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-200">
-                        {totalSubs}/3 đã nộp
-                      </span>
-                    ) : (
-                      mySubmission ? (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-200">
-                          Đã nộp
-                        </span>
-                      ) : isPastDue ? (
-                        <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-rose-200">
-                          Quá hạn (Vẫn mở làm)
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isGroupedFlashcard && (
+                        <button
+                          type="button"
+                          onClick={(e) => toggleListGroup(assignment.id, e)}
+                          className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors"
+                          title={isGroupExpanded ? "Thu gọn danh sách level" : "Mở rộng danh sách level"}
+                        >
+                          {isGroupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      )}
+
+                      {isTeacher ? (
+                        <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-200">
+                          {totalSubs}/3 đã nộp
                         </span>
                       ) : (
-                        <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-200">
-                          Chưa nộp
-                        </span>
-                      )
-                    )}
+                        mySubmission ? (
+                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-200">
+                            Đã nộp
+                          </span>
+                        ) : isPastDue ? (
+                          <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-rose-200">
+                            Quá hạn (Vẫn mở làm)
+                          </span>
+                        ) : (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-200">
+                            Chưa nộp
+                          </span>
+                        )
+                      )}
+                    </div>
                   </div>
 
                   <h4 className={`font-bold text-sm sm:text-base ${isSelected ? 'text-indigo-900' : 'text-slate-900'} line-clamp-2 mb-2`}>
@@ -2637,6 +2658,95 @@ export function AssignmentsView({
                     <Clock className="w-3.5 h-3.5 mr-1 text-indigo-500" />
                     Hạn nộp: <span className="font-bold ml-1">{format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })} (24H)</span>
                   </p>
+
+                  {/* Hierarchical Sub-Sets / Level Grouping List */}
+                  {isGroupedFlashcard && isGroupExpanded && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between px-1 text-[10px] text-slate-500 font-bold">
+                        <span className="flex items-center gap-1 uppercase tracking-wider text-slate-500">
+                          <Layers className="w-3 h-3 text-indigo-500" />
+                          <span>Danh sách {assignment.subFlashcardSets!.length} Level / Bộ con:</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAssignment(assignment);
+                            setActiveSubSetId('overview');
+                          }}
+                          className={`px-2 py-0.5 rounded-md font-extrabold transition-all ${
+                            isSelected && activeSubSetId === 'overview'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'text-purple-600 hover:bg-purple-50'
+                          }`}
+                        >
+                          ✨ Xem Tổng Quan
+                        </button>
+                      </div>
+
+                      <div className="space-y-1 pl-2 border-l-2 border-indigo-200 ml-1.5">
+                        {assignment.subFlashcardSets!.map((sub, subIdx) => {
+                          const isSubActive = isSelected && activeSubSetId === sub.id;
+                          const subCards = sub.flashcards?.length || 0;
+                          const subQuiz = sub.questions?.length || 0;
+
+                          return (
+                            <div
+                              key={sub.id || subIdx}
+                              onClick={() => {
+                                setSelectedAssignment(assignment);
+                                setActiveSubSetId(sub.id);
+                                setActiveCardIndex(0);
+                                setFlippedCards(new Set());
+                              }}
+                              className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition-all cursor-pointer border ${
+                                isSubActive
+                                  ? 'bg-indigo-600 text-white font-bold border-indigo-600 shadow-sm'
+                                  : 'bg-slate-50 hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-900 border-slate-200/70'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 ${
+                                    isSubActive
+                                      ? 'bg-white/20 text-white'
+                                      : 'bg-indigo-100 text-indigo-700'
+                                  }`}
+                                >
+                                  Level {subIdx + 1}
+                                </span>
+                                <span className="truncate font-semibold text-xs">
+                                  {sub.title || `Bộ con ${subIdx + 1}`}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded-md font-medium ${
+                                    isSubActive
+                                      ? 'bg-indigo-700 text-indigo-100'
+                                      : 'bg-slate-200/70 text-slate-600'
+                                  }`}
+                                >
+                                  {subCards} thẻ
+                                </span>
+                                {subQuiz > 0 && (
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded-md font-medium ${
+                                      isSubActive
+                                        ? 'bg-emerald-500 text-white'
+                                        : 'bg-emerald-100 text-emerald-700'
+                                    }`}
+                                  >
+                                    {subQuiz} quiz
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {isTeacher && (
                     <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
@@ -3407,8 +3517,8 @@ export function AssignmentsView({
                                     <div className="space-y-2">
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="w-7 h-7 rounded-xl bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
-                                            #{idx + 1}
+                                          <span className="px-2 py-1 rounded-xl bg-purple-100 text-purple-700 font-black text-xs flex items-center justify-center shrink-0">
+                                            Level {idx + 1}
                                           </span>
                                           <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-indigo-600 transition-colors">
                                             {sub.title}

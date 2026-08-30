@@ -3,6 +3,7 @@ import { Volume2, VolumeX, RotateCw, Maximize2, Minimize2, Trophy, Bot, Users } 
 import confetti from 'canvas-confetti';
 import { MarkdownMath } from './MarkdownMath';
 import { ParsedQuestionItem, cleanQuestionText } from '../views/AssignmentsView';
+import tugOfWarTeamsImg from '../assets/images/tug_of_war_teams_1788107383919.jpg';
 
 export interface TugOfWarGameProps {
   questions: ParsedQuestionItem[];
@@ -93,6 +94,7 @@ function shuffleArray<T>(array: T[]): T[] {
 
 export function TugOfWarGame({
   questions,
+  onClose,
   isStudentMode = false,
   onSubmitWork
 }: TugOfWarGameProps) {
@@ -147,6 +149,7 @@ export function TugOfWarGame({
   }, [questions]);
 
   // State
+  const [showModeSelection, setShowModeSelection] = useState<boolean>(true); // Mode selection screen at start
   const [vsBotMode, setVsBotMode] = useState<boolean>(true); // Default Vs Bot mode
   const [scoreBlue, setScoreBlue] = useState<number>(0);
   const [scoreRed, setScoreRed] = useState<number>(0);
@@ -307,7 +310,7 @@ export function TugOfWarGame({
 
   // Timer countdown
   useEffect(() => {
-    if (isGameOver) return;
+    if (isGameOver || showModeSelection) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -321,7 +324,7 @@ export function TugOfWarGame({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isGameOver, scoreBlue, scoreRed, ropeOffset, finishGame]);
+  }, [isGameOver, showModeSelection, scoreBlue, scoreRed, ropeOffset, finishGame]);
 
   // Pull animation trigger
   const triggerPull = (dir: 'left' | 'right') => {
@@ -419,12 +422,12 @@ export function TugOfWarGame({
 
   // Bot Logic (if vsBotMode is enabled)
   useEffect(() => {
-    if (!vsBotMode || isGameOver) return;
+    if (!vsBotMode || isGameOver || showModeSelection) return;
 
     // Bot acts every 3.5 - 5 seconds
     const intervalTime = Math.floor(Math.random() * 1500) + 3500;
     const botTimer = setTimeout(() => {
-      if (isGameOver) return;
+      if (isGameOver || showModeSelection) return;
       const qObj = redDeck[redIdx % redDeck.length];
       if (!qObj) return;
 
@@ -440,7 +443,7 @@ export function TugOfWarGame({
     }, intervalTime);
 
     return () => clearTimeout(botTimer);
-  }, [vsBotMode, isGameOver, redDeck, redIdx, ropeOffset, scoreBlue, scoreRed]);
+  }, [vsBotMode, isGameOver, showModeSelection, redDeck, redIdx, ropeOffset, scoreBlue, scoreRed]);
 
   // Fullscreen toggle
   const toggleFullscreen = () => {
@@ -547,352 +550,382 @@ export function TugOfWarGame({
         }
       `}</style>
 
-      {/* HEADER CONTROL BAR */}
-      <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 px-3 sm:px-5 flex items-center justify-between shrink-0 z-20">
-        {/* Title */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <span className="text-xl sm:text-2xl">🪢</span>
-          <h1 className="text-base sm:text-xl font-black tracking-wide text-amber-400 flex items-center gap-2">
-            <span>Kéo Co Kiến Thức</span>
-            <span className="text-[10px] sm:text-xs text-slate-300 font-bold px-2 py-0.5 bg-slate-800 rounded-full border border-slate-700 hidden md:inline">
-              Thi Đấu
-            </span>
-          </h1>
-        </div>
+      {showModeSelection ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 bg-slate-950 relative overflow-y-auto">
+          {/* Subtle background glow */}
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Center Scores & Timer */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          {/* Blue Score */}
-          <div className="bg-gradient-to-r from-blue-700 to-blue-500 border-2 border-blue-400 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-300 animate-pulse" />
-            <span className="text-xs font-black uppercase text-blue-100 hidden sm:inline">Đội Xanh</span>
-            <span className="text-base sm:text-xl font-black text-white">{scoreBlue}</span>
-          </div>
-
-          {/* Timer */}
-          <div className="bg-slate-900 border-2 border-slate-700 px-3 py-1 sm:px-5 sm:py-1.5 rounded-2xl flex items-center gap-1.5 shadow-md">
-            <span className="text-base sm:text-lg">⏰</span>
-            <span className={`text-base sm:text-xl font-black font-mono tracking-wider ${timeLeft <= 20 ? 'text-rose-400 animate-ping' : 'text-amber-300'}`}>
-              {formatTime(timeLeft)}
-            </span>
-          </div>
-
-          {/* Red Score */}
-          <div className="bg-gradient-to-r from-rose-700 to-rose-500 border-2 border-rose-400 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
-            <span className="text-base sm:text-xl font-black text-white">{scoreRed}</span>
-            <span className="text-xs font-black uppercase text-rose-100 hidden sm:inline">
-              {vsBotMode ? 'Máy (Đỏ)' : 'Đội Đỏ'}
-            </span>
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-300 animate-pulse" />
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Mode Switcher */}
-          <button
-            type="button"
-            onClick={() => setVsBotMode(!vsBotMode)}
-            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
-            title={vsBotMode ? "Chuyển sang Chế độ 2 Người Chơi" : "Chuyển sang Đấu Với Máy"}
-          >
-            {vsBotMode ? <Bot className="w-4 h-4 text-rose-400" /> : <Users className="w-4 h-4 text-emerald-400" />}
-            <span className="hidden lg:inline">{vsBotMode ? 'Đấu Máy' : '2 Người'}</span>
-          </button>
-
-          {/* Sound */}
-          <button
-            type="button"
-            onClick={() => setIsMuted(!isMuted)}
-            className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
-          >
-            {isMuted ? <VolumeX className="w-4 h-4 text-slate-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
-            <span className="hidden xl:inline">Âm thanh</span>
-          </button>
-
-          {/* Fullscreen */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4 text-cyan-400" /> : <Maximize2 className="w-4 h-4 text-cyan-400" />}
-          </button>
-
-          {/* Restart */}
-          <button
-            type="button"
-            onClick={initGame}
-            className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
-            title="Chơi lại"
-          >
-            <RotateCw className="w-4 h-4 text-emerald-400" />
-          </button>
-        </div>
-      </header>
-
-      {/* MAIN ARENA GRID (3 Columns) */}
-      <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 p-2 sm:p-3 md:p-4 gap-3 overflow-hidden relative">
-        
-        {/* ================= LEFT COLUMN: ĐỘI XANH ================= */}
-        <section className="lg:col-span-4 flex flex-col justify-between gap-2.5 h-full">
-          {/* Question Card */}
-          <div className="q-card-blue rounded-2xl p-4 sm:p-5 flex-1 flex flex-col justify-center items-center text-center relative overflow-hidden min-h-[140px]">
-            <div className="absolute top-2.5 left-3 text-[10px] sm:text-xs font-black uppercase text-blue-200 tracking-wider flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-300" /> Đội Xanh - Câu hỏi
+          {/* Title and Badge */}
+          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12 z-10">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-xs font-black uppercase tracking-wider mb-4">
+              <span>🪢 TRÒ CHƠI KỊCH TÍNH</span>
             </div>
-            <div className="text-base sm:text-xl font-black text-white leading-relaxed my-auto pt-4">
-              <MarkdownMath content={currentBlueQ.q} />
-            </div>
-          </div>
-
-          {/* Options Grid (2x2) */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5 h-44 sm:h-48 shrink-0">
-            {currentBlueQ.options.map((optText, i) => {
-              const isCorrectFlash = blueFlash?.idx === i && blueFlash.type === 'correct';
-              const isWrongFlash = blueFlash?.idx === i && blueFlash.type === 'wrong';
-
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleAnswer('blue', i)}
-                  className={`option-btn ${isCorrectFlash ? 'correct-flash' : ''} ${isWrongFlash ? 'wrong-flash' : ''}`}
-                >
-                  <MarkdownMath content={optText} />
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ================= CENTER COLUMN: TUG OF WAR ARENA ================= */}
-        <section className="lg:col-span-4 bg-slate-50 rounded-2xl border-2 border-slate-200 shadow-2xl flex flex-col items-center justify-between p-2 sm:p-3 relative overflow-hidden h-full">
-          {/* Banner */}
-          <div className="w-full flex justify-between items-center px-3 py-1 bg-slate-200/80 rounded-xl text-[10px] sm:text-xs font-black text-slate-700">
-            <span className="text-blue-700">◀ ĐỘI XANH</span>
-            <span className="text-amber-700 font-extrabold">VẠCH GIỮA</span>
-            <span className="text-rose-700">{vsBotMode ? 'MÁY (ĐỎ) ▶' : 'ĐỘI ĐỎ ▶'}</span>
-          </div>
-
-          {/* SVG Tug Arena Graphic */}
-          <div className="w-full flex-1 flex items-center justify-center relative my-auto">
-            <svg
-              viewBox="0 0 600 340"
-              className="w-full h-full max-h-[340px]"
-              preserveAspectRatio="xMidYMid meet"
-            >
-              {/* Background Floor */}
-              <rect x="0" y="260" width="600" height="80" fill="#e2e8f0" rx="10" />
-              <line x1="0" y1="260" x2="600" y2="260" stroke="#cbd5e1" strokeWidth="4" />
-
-              {/* Center Line Marker */}
-              <line x1="300" y1="30" x2="300" y2="300" stroke="#22c55e" strokeWidth="4" strokeDasharray="8 8" />
-
-              {/* TUG OF WAR ASSEMBLY (Group translated by ropeOffset) */}
-              <g
-                className={`tug-assembly ${
-                  pullAnim === 'left' ? 'pull-left-anim' : pullAnim === 'right' ? 'pull-right-anim' : ''
-                }`}
-                transform={`translate(${ropeOffset}, 0)`}
-              >
-                {/* Main Rope */}
-                <line x1="60" y1="185" x2="540" y2="185" stroke="#b45309" strokeWidth="12" strokeLinecap="round" />
-                <line x1="60" y1="185" x2="540" y2="185" stroke="#f59e0b" strokeWidth="6" strokeLinecap="round" strokeDasharray="10 6" />
-
-                {/* Center Red Ribbon Bow on Rope */}
-                <g transform="translate(300, 185)">
-                  <circle cx="0" cy="0" r="10" fill="#dc2626" />
-                  {/* Ribbon Tails */}
-                  <path d="M -2,8 L -12,28 L -4,28 Z" fill="#ef4444" />
-                  <path d="M 2,8 L 12,28 L 4,28 Z" fill="#ef4444" />
-                  {/* Ribbon Wings */}
-                  <path d="M 0,0 C -18,-15 -25,5 -6,5 Z" fill="#ef4444" />
-                  <path d="M 0,0 C 18,-15 25,5 6,5 Z" fill="#ef4444" />
-                </g>
-
-                {/* ================= BLUE TEAM (3 Kids on Left) ================= */}
-                <g id="blue-team-graphics">
-                  {/* Kid 1 (Front Blue) */}
-                  <g transform="translate(130, 115)">
-                    {/* Leaning body / Blue Tracksuit */}
-                    <path d="M 15,40 L 45,45 L 35,90 L 10,85 Z" fill="#2563eb" />
-                    {/* White Side Stripe on Top */}
-                    <path d="M 40,44 L 44,45 L 34,90 L 30,89 Z" fill="#ffffff" opacity="0.9" />
-                    {/* Pants */}
-                    <path d="M 10,85 L 35,90 L 30,130 L 5,125 Z" fill="#1e3a8a" />
-                    <path d="M 31,90 L 35,90 L 30,130 L 26,130 Z" fill="#ffffff" opacity="0.9" />
-                    {/* Head */}
-                    <circle cx="35" cy="22" r="18" fill="#fbcfe8" />
-                    {/* Hair */}
-                    <path d="M 18,20 C 18,5 50,5 50,20 C 45,10 25,10 18,20 Z" fill="#1e293b" />
-                    {/* Red Scarf (Khăn quàng đỏ) */}
-                    <path d="M 28,38 L 40,40 L 36,56 Z" fill="#ef4444" />
-                    {/* Hands holding rope */}
-                    <circle cx="50" cy="70" r="7" fill="#fbcfe8" />
-                  </g>
-
-                  {/* Kid 2 (Girl Middle Blue) */}
-                  <g transform="translate(75, 110)">
-                    <path d="M 15,40 L 45,45 L 35,90 L 10,85 Z" fill="#3b82f6" />
-                    <path d="M 40,44 L 44,45 L 34,90 L 30,89 Z" fill="#ffffff" opacity="0.9" />
-                    {/* Blue Skirt/Pants */}
-                    <path d="M 10,85 L 35,90 L 30,130 L 5,125 Z" fill="#1d4ed8" />
-                    {/* Head with Ponytail */}
-                    <circle cx="32" cy="22" r="17" fill="#fed7aa" />
-                    <path d="M 16,18 C 16,3 48,3 48,18 Z" fill="#475569" />
-                    <path d="M 12,20 C 0,15 5,35 15,30 Z" fill="#475569" /> {/* Ponytail */}
-                    <path d="M 26,38 L 38,40 L 34,56 Z" fill="#ef4444" /> {/* Red Scarf */}
-                    <circle cx="48" cy="75" r="7" fill="#fed7aa" />
-                  </g>
-
-                  {/* Kid 3 (Back Blue) */}
-                  <g transform="translate(20, 105)">
-                    <path d="M 15,40 L 45,45 L 35,90 L 10,85 Z" fill="#2563eb" />
-                    <path d="M 40,44 L 44,45 L 34,90 L 30,89 Z" fill="#ffffff" opacity="0.9" />
-                    <path d="M 10,85 L 35,90 L 30,130 L 5,125 Z" fill="#1e3a8a" />
-                    <circle cx="30" cy="22" r="17" fill="#fbcfe8" />
-                    <path d="M 14,18 C 14,3 46,3 46,18 Z" fill="#0f172a" />
-                    <path d="M 24,38 L 36,40 L 32,56 Z" fill="#ef4444" /> {/* Red Scarf */}
-                    <circle cx="46" cy="80" r="7" fill="#fbcfe8" />
-                  </g>
-                </g>
-
-                {/* ================= RED TEAM (3 Kids on Right) ================= */}
-                <g id="red-team-graphics">
-                  {/* Kid 1 (Front Red) */}
-                  <g transform="translate(390, 115)">
-                    {/* Leaning body / Red Tracksuit */}
-                    <path d="M 35,40 L 5,45 L 15,90 L 40,85 Z" fill="#dc2626" />
-                    {/* White Side Stripe on Top */}
-                    <path d="M 10,44 L 6,45 L 16,90 L 20,89 Z" fill="#ffffff" opacity="0.9" />
-                    {/* Pants */}
-                    <path d="M 40,85 L 15,90 L 20,130 L 45,125 Z" fill="#881337" />
-                    <path d="M 19,90 L 15,90 L 20,130 L 24,130 Z" fill="#ffffff" opacity="0.9" />
-                    {/* Head */}
-                    <circle cx="15" cy="22" r="18" fill="#fbcfe8" />
-                    {/* Hair */}
-                    <path d="M 32,20 C 32,5 0,5 0,20 Z" fill="#1e293b" />
-                    {/* Red Scarf */}
-                    <path d="M 22,38 L 10,40 L 14,56 Z" fill="#991b1b" />
-                    {/* Hands holding rope */}
-                    <circle cx="0" cy="70" r="7" fill="#fbcfe8" />
-                  </g>
-
-                  {/* Kid 2 (Girl Middle Red) */}
-                  <g transform="translate(445, 110)">
-                    <path d="M 35,40 L 5,45 L 15,90 L 40,85 Z" fill="#ef4444" />
-                    <path d="M 10,44 L 6,45 L 16,90 L 20,89 Z" fill="#ffffff" opacity="0.9" />
-                    <path d="M 40,85 L 15,90 L 20,130 L 45,125 Z" fill="#881337" />
-                    <circle cx="18" cy="22" r="17" fill="#fed7aa" />
-                    <path d="M 34,18 C 34,3 2,3 2,18 Z" fill="#334155" />
-                    <path d="M 38,20 C 50,15 45,35 35,30 Z" fill="#334155" /> {/* Ponytail */}
-                    <path d="M 24,38 L 12,40 L 16,56 Z" fill="#991b1b" />
-                    <circle cx="2" cy="75" r="7" fill="#fed7aa" />
-                  </g>
-
-                  {/* Kid 3 (Back Red) */}
-                  <g transform="translate(500, 105)">
-                    <path d="M 35,40 L 5,45 L 15,90 L 40,85 Z" fill="#dc2626" />
-                    <path d="M 10,44 L 6,45 L 16,90 L 20,89 Z" fill="#ffffff" opacity="0.9" />
-                    <path d="M 40,85 L 15,90 L 20,130 L 45,125 Z" fill="#881337" />
-                    <circle cx="20" cy="22" r="17" fill="#fbcfe8" />
-                    <path d="M 36,18 C 36,3 4,3 4,18 Z" fill="#0f172a" />
-                    <path d="M 26,38 L 14,40 L 18,56 Z" fill="#991b1b" />
-                    <circle cx="4" cy="80" r="7" fill="#fbcfe8" />
-                  </g>
-                </g>
-              </g>
-            </svg>
-          </div>
-
-          {/* Status Bar */}
-          <div className="w-full text-center py-1.5 px-3 bg-slate-100 rounded-xl font-black text-xs sm:text-sm text-slate-800 shadow-inner">
-            {ropeOffset < -40 ? (
-              <span className="text-blue-600">🔥 Đội Xanh đang thế thượng phong! Kéo tiếp nào!</span>
-            ) : ropeOffset > 40 ? (
-              <span className="text-rose-600">🔥 Đội Đỏ đang lấn lướt! Nhanh tay lên nào!</span>
-            ) : (
-              <span>⚡ Chọn đáp án đúng để kéo dây về phía đội mình!</span>
-            )}
-          </div>
-        </section>
-
-        {/* ================= RIGHT COLUMN: ĐỘI ĐỎ ================= */}
-        <section className="lg:col-span-4 flex flex-col justify-between gap-2.5 h-full">
-          {/* Question Card */}
-          <div className="q-card-red rounded-2xl p-4 sm:p-5 flex-1 flex flex-col justify-center items-center text-center relative overflow-hidden min-h-[140px]">
-            <div className="absolute top-2.5 right-3 text-[10px] sm:text-xs font-black uppercase text-rose-200 tracking-wider flex items-center gap-1.5">
-              {vsBotMode ? 'Máy (Đỏ) - Câu hỏi' : 'Đội Đỏ - Câu hỏi'} <span className="w-2 h-2 rounded-full bg-rose-300" />
-            </div>
-            <div className="text-base sm:text-xl font-black text-white leading-relaxed my-auto pt-4">
-              <MarkdownMath content={currentRedQ.q} />
-            </div>
-          </div>
-
-          {/* Options Grid (2x2) */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5 h-44 sm:h-48 shrink-0">
-            {currentRedQ.options.map((optText, i) => {
-              const isCorrectFlash = redFlash?.idx === i && redFlash.type === 'correct';
-              const isWrongFlash = redFlash?.idx === i && redFlash.type === 'wrong';
-
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={vsBotMode}
-                  onClick={() => handleAnswer('red', i)}
-                  className={`option-btn ${isCorrectFlash ? 'correct-flash' : ''} ${isWrongFlash ? 'wrong-flash' : ''} ${
-                    vsBotMode ? 'cursor-not-allowed opacity-90' : ''
-                  }`}
-                >
-                  <MarkdownMath content={optText} />
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      </main>
-
-      {/* GAME OVER MODAL OVERLAY */}
-      {modalState.isOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-slate-900 border-4 border-amber-400 p-6 sm:p-8 rounded-3xl text-center max-w-md w-full shadow-2xl relative flex flex-col items-center">
-            <div className="text-5xl sm:text-7xl mb-3 animate-bounce">
-              {modalState.emoji}
-            </div>
-            <h2 className="text-xl sm:text-3xl font-black text-amber-400 mb-2">
-              {modalState.title}
-            </h2>
-            <p className="text-slate-300 font-bold mb-6 text-xs sm:text-sm leading-relaxed">
-              {modalState.desc}
+            <h1 className="text-3xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-amber-300 to-rose-400 drop-shadow-sm uppercase tracking-wide">
+              Kéo Co Kiến Thức
+            </h1>
+            <p className="text-slate-400 mt-3 text-xs sm:text-sm font-bold max-w-md mx-auto leading-relaxed">
+              Dùng trí tuệ và sự nhạy bén để kéo dây thừng về phía đội mình. Hãy chọn một chế độ chơi bên dưới để bắt đầu cuộc đấu trí!
             </p>
+          </div>
 
-            {/* Final Score Board */}
-            <div className="flex justify-center items-center gap-6 bg-slate-800/90 p-4 rounded-2xl mb-6 border border-slate-700 w-full">
-              <div className="text-center flex-1">
-                <div className="text-xs text-blue-400 font-black uppercase">Đội Xanh</div>
-                <div className="text-2xl sm:text-3xl font-black text-white">{scoreBlue}</div>
-              </div>
-              <div className="text-2xl font-black text-slate-500">:</div>
-              <div className="text-center flex-1">
-                <div className="text-xs text-rose-400 font-black uppercase">
-                  {vsBotMode ? 'Máy (Đỏ)' : 'Đội Đỏ'}
-                </div>
-                <div className="text-2xl sm:text-3xl font-black text-white">{scoreRed}</div>
-              </div>
-            </div>
-
+          {/* Main Mode Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full mx-auto z-10 px-2">
+            
+            {/* Mode 1: Vs Machine / Bot */}
             <button
               type="button"
-              onClick={initGame}
-              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3.5 px-6 rounded-2xl shadow-lg text-base sm:text-lg transition transform active:scale-95 flex items-center justify-center gap-2"
+              onClick={() => {
+                setVsBotMode(true);
+                setShowModeSelection(false);
+                initGame();
+              }}
+              className="group relative flex flex-col justify-between bg-gradient-to-b from-slate-900 to-slate-950 hover:from-slate-900 hover:to-slate-900/40 border-2 border-slate-800 hover:border-blue-500 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/15 transform hover:-translate-y-1 active:translate-y-0 active:scale-[0.98]"
             >
-              <RotateCw className="w-5 h-5" />
-              <span>CHƠI LẠI TRẬN MỚI</span>
+              <div className="absolute top-4 right-4 text-[10px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full uppercase tracking-wider group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                ĐƠN HÀNH
+              </div>
+              
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
+                  <Bot className="w-8 h-8 text-white" />
+                </div>
+                
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                    <span>Chơi Với Máy</span>
+                    <span className="text-lg">🤖</span>
+                  </h3>
+                  <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-2 leading-relaxed">
+                    Độc hành đấu trí với Trí Tuệ Nhân Tạo (Robot Máy). Đội Đỏ sẽ tự động trả lời câu hỏi sau vài giây với tỉ lệ chính xác 75%. Thử thách tinh thần thép của bạn trước AI!
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-900/60 flex items-center justify-between text-blue-400 text-xs font-black uppercase tracking-wider">
+                <span>Vào đấu trí với Máy</span>
+                <span className="transform group-hover:translate-x-1.5 transition-transform">▶</span>
+              </div>
             </button>
+
+            {/* Mode 2: Versus / PvP Mode */}
+            <button
+              type="button"
+              onClick={() => {
+                setVsBotMode(false);
+                setShowModeSelection(false);
+                initGame();
+              }}
+              className="group relative flex flex-col justify-between bg-gradient-to-b from-slate-900 to-slate-950 hover:from-slate-900 hover:to-slate-900/40 border-2 border-slate-800 hover:border-rose-500 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-2xl hover:shadow-rose-500/15 transform hover:-translate-y-1 active:translate-y-0 active:scale-[0.98]"
+            >
+              <div className="absolute top-4 right-4 text-[10px] font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-full uppercase tracking-wider group-hover:bg-rose-500 group-hover:text-white transition-colors">
+                SONG HÙNG
+              </div>
+              
+              <div className="space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/30 group-hover:scale-110 transition-transform">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-black text-white group-hover:text-rose-400 transition-colors flex items-center gap-2">
+                    <span>Chơi Đối Kháng</span>
+                    <span className="text-lg">⚔️</span>
+                  </h3>
+                  <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-2 leading-relaxed">
+                    Thách đấu tay đôi trực tiếp trên cùng một màn hình thiết bị! Bên trái là Đội Xanh, bên phải là Đội Đỏ. Hãy cùng thi thố tài năng xem ai nhanh mắt nhanh tay hơn!
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-900/60 flex items-center justify-between text-rose-400 text-xs font-black uppercase tracking-wider">
+                <span>Vào đấu đối kháng PvP</span>
+                <span className="transform group-hover:translate-x-1.5 transition-transform">▶</span>
+              </div>
+            </button>
+
           </div>
+
+          {/* Close / Return Button */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="mt-12 text-slate-500 hover:text-slate-300 text-sm font-bold flex items-center gap-1.5 transition underline decoration-dashed"
+          >
+            <span>Quay lại phòng game</span>
+          </button>
         </div>
+      ) : (
+        <>
+          {/* HEADER CONTROL BAR */}
+          <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 px-3 sm:px-5 flex items-center justify-between shrink-0 z-20">
+            {/* Title */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-xl sm:text-2xl">🪢</span>
+              <h1 className="text-base sm:text-xl font-black tracking-wide text-amber-400 flex items-center gap-2">
+                <span>Kéo Co Kiến Thức</span>
+                <span className="text-[10px] sm:text-xs text-slate-300 font-bold px-2 py-0.5 bg-slate-800 rounded-full border border-slate-700 hidden md:inline">
+                  {vsBotMode ? 'Đấu Máy' : 'Đối Kháng'}
+                </span>
+              </h1>
+            </div>
+
+            {/* Center Scores & Timer */}
+            <div className="flex items-center gap-2 sm:gap-4">
+              {/* Blue Score */}
+              <div className="bg-gradient-to-r from-blue-700 to-blue-500 border-2 border-blue-400 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-300 animate-pulse" />
+                <span className="text-xs font-black uppercase text-blue-100 hidden sm:inline">Đội Xanh</span>
+                <span className="text-base sm:text-xl font-black text-white">{scoreBlue}</span>
+              </div>
+
+              {/* Timer */}
+              <div className="bg-slate-900 border-2 border-slate-700 px-3 py-1 sm:px-5 sm:py-1.5 rounded-2xl flex items-center gap-1.5 shadow-md">
+                <span className="text-base sm:text-lg">⏰</span>
+                <span className={`text-base sm:text-xl font-black font-mono tracking-wider ${timeLeft <= 20 ? 'text-rose-400 animate-ping' : 'text-amber-300'}`}>
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
+
+              {/* Red Score */}
+              <div className="bg-gradient-to-r from-rose-700 to-rose-500 border-2 border-rose-400 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full flex items-center gap-1.5 shadow-md">
+                <span className="text-base sm:text-xl font-black text-white">{scoreRed}</span>
+                <span className="text-xs font-black uppercase text-rose-100 hidden sm:inline">
+                  {vsBotMode ? 'Máy (Đỏ)' : 'Đội Đỏ'}
+                </span>
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-300 animate-pulse" />
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Mode Selection Trigger */}
+              <button
+                type="button"
+                onClick={() => setShowModeSelection(true)}
+                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
+                title="Thay đổi Chế độ chơi"
+              >
+                {vsBotMode ? <Bot className="w-4 h-4 text-rose-400" /> : <Users className="w-4 h-4 text-emerald-400" />}
+                <span className="hidden lg:inline">Đổi Chế Độ</span>
+              </button>
+
+              {/* Sound */}
+              <button
+                type="button"
+                onClick={() => setIsMuted(!isMuted)}
+                className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 text-slate-400" /> : <Volume2 className="w-4 h-4 text-amber-400" />}
+                <span className="hidden xl:inline">Âm thanh</span>
+              </button>
+
+              {/* Fullscreen */}
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4 text-cyan-400" /> : <Maximize2 className="w-4 h-4 text-cyan-400" />}
+              </button>
+
+              {/* Restart */}
+              <button
+                type="button"
+                onClick={initGame}
+                className="p-2 sm:px-3 sm:py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
+                title="Chơi lại"
+              >
+                <RotateCw className="w-4 h-4 text-emerald-400" />
+              </button>
+            </div>
+          </header>
+
+          {/* MAIN ARENA GRID (3 Columns) */}
+          <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 p-2 sm:p-3 md:p-4 gap-3 overflow-hidden relative">
+            
+            {/* ================= LEFT COLUMN: ĐỘI XANH ================= */}
+            <section className="lg:col-span-4 flex flex-col justify-between gap-2.5 h-full">
+              {/* Question Card */}
+              <div className="q-card-blue rounded-2xl p-4 sm:p-5 flex-1 flex flex-col justify-center items-center text-center relative overflow-hidden min-h-[140px]">
+                <div className="absolute top-2.5 left-3 text-[10px] sm:text-xs font-black uppercase text-blue-200 tracking-wider flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-300" /> Đội Xanh - Câu hỏi
+                </div>
+                <div className="text-base sm:text-xl font-black text-white leading-relaxed my-auto pt-4">
+                  <MarkdownMath content={currentBlueQ.q} />
+                </div>
+              </div>
+
+              {/* Options Grid (2x2) */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-2.5 h-44 sm:h-48 shrink-0">
+                {currentBlueQ.options.map((optText, i) => {
+                  const isCorrectFlash = blueFlash?.idx === i && blueFlash.type === 'correct';
+                  const isWrongFlash = blueFlash?.idx === i && blueFlash.type === 'wrong';
+
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleAnswer('blue', i)}
+                      className={`option-btn ${isCorrectFlash ? 'correct-flash' : ''} ${isWrongFlash ? 'wrong-flash' : ''}`}
+                    >
+                      <MarkdownMath content={optText} />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ================= CENTER COLUMN: TUG OF WAR ARENA ================= */}
+            <section className="lg:col-span-4 bg-slate-50 rounded-2xl border-2 border-slate-200 shadow-2xl flex flex-col items-center justify-between p-2 sm:p-3 relative overflow-hidden h-full">
+              {/* Banner */}
+              <div className="w-full flex justify-between items-center px-3 py-1 bg-slate-200/80 rounded-xl text-[10px] sm:text-xs font-black text-slate-700">
+                <span className="text-blue-700">◀ ĐỘI XANH</span>
+                <span className="text-amber-700 font-extrabold">VẠCH GIỮA</span>
+                <span className="text-rose-700">{vsBotMode ? 'MÁY (ĐỎ) ▶' : 'ĐỘI ĐỎ ▶'}</span>
+              </div>
+
+              {/* Tug Arena Graphic with Illustration */}
+              <div className="w-full flex-1 flex flex-col items-center justify-center relative my-auto overflow-hidden min-h-[220px]">
+                {/* Center Line Marker & Win Thresholds */}
+                <div className="absolute inset-y-2 left-1/2 w-0.5 border-l-2 border-dashed border-emerald-500/70 z-10 pointer-events-none flex flex-col items-center justify-between py-1">
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-600/90 text-white px-2 py-0.5 rounded-full shadow-sm">
+                    Vạch Giữa
+                  </span>
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                </div>
+
+                {/* Blue Win Zone Indicator (Left) */}
+                <div className="absolute left-2 inset-y-6 w-1 border-r-2 border-dashed border-blue-400/40 pointer-events-none flex items-center">
+                  <span className="text-[8px] font-black text-blue-500 -rotate-90 origin-left uppercase tracking-tighter">Thắng (Xanh)</span>
+                </div>
+
+                {/* Red Win Zone Indicator (Right) */}
+                <div className="absolute right-2 inset-y-6 w-1 border-l-2 border-dashed border-rose-400/40 pointer-events-none flex items-center justify-end">
+                  <span className="text-[8px] font-black text-rose-500 rotate-90 origin-right uppercase tracking-tighter">Thắng (Đỏ)</span>
+                </div>
+
+                {/* TUG OF WAR ILLUSTRATION (Translated smoothly with ropeOffset) */}
+                <div
+                  className={`tug-assembly w-full flex items-center justify-center transition-transform duration-300 ${
+                    pullAnim === 'left' ? 'pull-left-anim' : pullAnim === 'right' ? 'pull-right-anim' : ''
+                  }`}
+                  style={{
+                    transform: `translateX(${ropeOffset * 1.35}px)`
+                  }}
+                >
+                  <img
+                    src={tugOfWarTeamsImg}
+                    alt="Đội Kéo Co Kiến Thức"
+                    className="w-full max-w-[560px] max-h-[260px] object-contain drop-shadow-lg select-none pointer-events-none"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              </div>
+
+              {/* Status Bar */}
+              <div className="w-full text-center py-1.5 px-3 bg-slate-100 rounded-xl font-black text-xs sm:text-sm text-slate-800 shadow-inner">
+                {ropeOffset < -40 ? (
+                  <span className="text-blue-600">🔥 Đội Xanh đang thế thượng phong! Kéo tiếp nào!</span>
+                ) : ropeOffset > 40 ? (
+                  <span className="text-rose-600">🔥 Đội Đỏ đang lấn lướt! Nhanh tay lên nào!</span>
+                ) : (
+                  <span>⚡ Chọn đáp án đúng để kéo dây về phía đội mình!</span>
+                )}
+              </div>
+            </section>
+
+            {/* ================= RIGHT COLUMN: ĐỘI ĐỎ ================= */}
+            <section className="lg:col-span-4 flex flex-col justify-between gap-2.5 h-full">
+              {/* Question Card */}
+              <div className="q-card-red rounded-2xl p-4 sm:p-5 flex-1 flex flex-col justify-center items-center text-center relative overflow-hidden min-h-[140px]">
+                <div className="absolute top-2.5 right-3 text-[10px] sm:text-xs font-black uppercase text-rose-200 tracking-wider flex items-center gap-1.5">
+                  {vsBotMode ? 'Máy (Đỏ) - Câu hỏi' : 'Đội Đỏ - Câu hỏi'} <span className="w-2 h-2 rounded-full bg-rose-300" />
+                </div>
+                <div className="text-base sm:text-xl font-black text-white leading-relaxed my-auto pt-4">
+                  <MarkdownMath content={currentRedQ.q} />
+                </div>
+              </div>
+
+              {/* Options Grid (2x2) */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-2.5 h-44 sm:h-48 shrink-0">
+                {currentRedQ.options.map((optText, i) => {
+                  const isCorrectFlash = redFlash?.idx === i && redFlash.type === 'correct';
+                  const isWrongFlash = redFlash?.idx === i && redFlash.type === 'wrong';
+
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={vsBotMode}
+                      onClick={() => handleAnswer('red', i)}
+                      className={`option-btn ${isCorrectFlash ? 'correct-flash' : ''} ${isWrongFlash ? 'wrong-flash' : ''} ${
+                        vsBotMode ? 'cursor-not-allowed opacity-90' : ''
+                      }`}
+                    >
+                      <MarkdownMath content={optText} />
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          </main>
+
+          {/* GAME OVER MODAL OVERLAY */}
+          {modalState.isOpen && (
+            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div className="bg-slate-900 border-4 border-amber-400 p-6 sm:p-8 rounded-3xl text-center max-w-md w-full shadow-2xl relative flex flex-col items-center">
+                <div className="text-5xl sm:text-7xl mb-3 animate-bounce">
+                  {modalState.emoji}
+                </div>
+                <h2 className="text-xl sm:text-3xl font-black text-amber-400 mb-2">
+                  {modalState.title}
+                </h2>
+                <p className="text-slate-300 font-bold mb-6 text-xs sm:text-sm leading-relaxed">
+                  {modalState.desc}
+                </p>
+
+                {/* Final Score Board */}
+                <div className="flex justify-center items-center gap-6 bg-slate-800/90 p-4 rounded-2xl mb-6 border border-slate-700 w-full">
+                  <div className="text-center flex-1">
+                    <div className="text-xs text-blue-400 font-black uppercase">Đội Xanh</div>
+                    <div className="text-2xl sm:text-3xl font-black text-white">{scoreBlue}</div>
+                  </div>
+                  <div className="text-2xl font-black text-slate-500">:</div>
+                  <div className="text-center flex-1">
+                    <div className="text-xs text-rose-400 font-black uppercase">
+                      {vsBotMode ? 'Máy (Đỏ)' : 'Đội Đỏ'}
+                    </div>
+                    <div className="text-2xl sm:text-3xl font-black text-white">{scoreRed}</div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2.5 w-full">
+                  <button
+                    type="button"
+                    onClick={initGame}
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3 px-6 rounded-2xl shadow-lg text-sm sm:text-base transition transform active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <RotateCw className="w-5 h-5" />
+                    <span>CHƠI LẠI TRẬN MỚI</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModeSelection(true);
+                      setModalState(prev => ({ ...prev, isOpen: false }));
+                    }}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 px-6 rounded-2xl border border-slate-700 transition transform active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Bot className="w-4 h-4" />
+                    <span>THAY ĐỔI CHẾ ĐỘ CHƠI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

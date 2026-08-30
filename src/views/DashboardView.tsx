@@ -212,6 +212,23 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   });
   const [newNoteText, setNewNoteText] = React.useState('');
 
+  // Categorize assignments by domain type
+  const actualAssignments = React.useMemo(() => {
+    return assignments.filter(a => a.type !== 'flashcard' && a.type !== 'game');
+  }, [assignments]);
+
+  const flashcardAssignments = React.useMemo(() => {
+    return assignments.filter(a => a.type === 'flashcard');
+  }, [assignments]);
+
+  const gameAssignments = React.useMemo(() => {
+    return assignments.filter(a => a.type === 'game');
+  }, [assignments]);
+
+  const simulationAssignments = React.useMemo(() => {
+    return assignments.filter(a => a.type === 'simulation');
+  }, [assignments]);
+
   // Stats calculation
   const mySubmissions = submissions.filter(s => s.studentId === user.id);
   const nextClass = classes.find(c => new Date(c.endTime) >= new Date()) || classes[0];
@@ -269,7 +286,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
 
   const studentsInClass = usersList.filter(u => u.role === 'student' && (!u.className || u.className === className));
   const effectiveTotalStudents = studentsInClass.length;
-  const recentAssignment = assignments[0];
+  const recentAssignment = actualAssignments[0] || assignments[0];
   const submittedStudentIds = submissions.filter(s => s.assignmentId === recentAssignment?.id).map(s => s.studentId);
   const submittedCountForRecent = submittedStudentIds.length;
   const unsubmittedStudents = studentsInClass.length > 0 
@@ -368,33 +385,35 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
           {/* Left / Middle: Classroom Stats and Reports */}
           <div className="lg:col-span-2 space-y-6">
             {/* Stats Cards Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+              <div className="bg-white p-4.5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
                 <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Sĩ số lớp</span>
                 <p className="text-2xl font-black text-slate-900">{effectiveTotalStudents} HS</p>
                 <div className="text-[10px] text-slate-500 font-bold">Mã lớp: {className}</div>
               </div>
 
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2">
+              <div className="bg-white p-4.5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
                 <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Số bài tập</span>
-                <p className="text-2xl font-black text-slate-900">{assignments.length} bài</p>
+                <p className="text-2xl font-black text-slate-900">{actualAssignments.length} bài</p>
                 <div className="text-[10px] text-indigo-600 font-black cursor-pointer hover:underline" onClick={() => onNavigate('assignments')}>Quản lý bài tập &gt;</div>
               </div>
 
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2">
+              <div className="bg-white p-4.5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
+                <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Bộ Flashcard</span>
+                <p className="text-2xl font-black text-slate-900">{flashcardAssignments.length} bộ</p>
+                <div className="text-[10px] text-indigo-600 font-black cursor-pointer hover:underline" onClick={() => onNavigate('flashcards')}>Quản lý flashcard &gt;</div>
+              </div>
+
+              <div className="bg-white p-4.5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
+                <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Trò chơi</span>
+                <p className="text-2xl font-black text-slate-900">{gameAssignments.length} game</p>
+                <div className="text-[10px] text-indigo-600 font-black cursor-pointer hover:underline" onClick={() => onNavigate('games')}>Kho trò chơi &gt;</div>
+              </div>
+
+              <div className="bg-white p-4.5 rounded-3xl border border-slate-200 shadow-sm space-y-1.5">
                 <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Buổi học live</span>
                 <p className="text-2xl font-black text-slate-900">{classes.length} buổi</p>
                 <div className="text-[10px] text-indigo-600 font-black cursor-pointer hover:underline" onClick={() => onNavigate('schedule')}>Quản lý lịch học &gt;</div>
-              </div>
-
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm space-y-2">
-                <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Tỷ lệ nộp bài</span>
-                <p className="text-2xl font-black text-slate-900">
-                  {recentAssignment && effectiveTotalStudents > 0
-                    ? `${Math.round((submittedCountForRecent / effectiveTotalStudents) * 100)}%`
-                    : 'N/A'}
-                </p>
-                <div className="text-[10px] text-slate-500 font-bold truncate">Bài gần nhất: {recentAssignment?.title || 'Chưa giao'}</div>
               </div>
             </div>
 
@@ -655,16 +674,16 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                   <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider block">Tỷ Lệ Hoàn Thành</span>
                   <div className="flex items-baseline gap-1.5">
                     <span className="text-3xl font-black text-slate-900">
-                      {assignments.length > 0 
-                        ? `${Math.round((mySubmissions.length / assignments.length) * 100)}%` 
-                        : '0%'}
+                      {actualAssignments.length > 0 
+                        ? `${Math.round((mySubmissions.filter(s => actualAssignments.some(a => a.id === s.assignmentId)).length / actualAssignments.length) * 100)}%` 
+                        : '100%'}
                     </span>
-                    <span className="text-xs text-slate-400 font-bold">({mySubmissions.length}/{assignments.length} bài)</span>
+                    <span className="text-xs text-slate-400 font-bold">({mySubmissions.filter(s => actualAssignments.some(a => a.id === s.assignmentId)).length}/{actualAssignments.length} bài)</span>
                   </div>
                 </div>
                 <div className="text-[10px] text-slate-500 font-bold">
-                  {assignments.length > mySubmissions.length 
-                    ? `Cần làm thêm ${assignments.length - mySubmissions.length} bài nữa` 
+                  {actualAssignments.length > mySubmissions.filter(s => actualAssignments.some(a => a.id === s.assignmentId)).length 
+                    ? `Cần làm thêm ${actualAssignments.length - mySubmissions.filter(s => actualAssignments.some(a => a.id === s.assignmentId)).length} bài nữa` 
                     : 'Xuất sắc! Đã hoàn thành mọi bài tập!'}
                 </div>
               </div>
