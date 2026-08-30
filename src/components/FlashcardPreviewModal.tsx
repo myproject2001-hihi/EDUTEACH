@@ -96,23 +96,23 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
   }, [currentIndex, displayCards.length, isShuffled, shuffledOrder]);
 
   return (
-    <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-2 sm:p-6">
-      <div className="bg-slate-900 text-slate-100 w-full max-w-4xl h-full max-h-[92vh] sm:max-h-[88vh] rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
+    <div className="fixed inset-0 z-[10000] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-1 sm:p-4 md:p-6">
+      <div className="bg-slate-900 text-slate-100 w-full max-w-5xl h-full max-h-[98vh] sm:max-h-[92vh] rounded-xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative border border-slate-700">
         
         {/* Top Header */}
-        <div className="h-14 bg-slate-950 flex items-center justify-between px-4 sm:px-6 shrink-0 border-b border-slate-800">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex gap-1.5 shrink-0">
+        <div className="h-11 sm:h-14 bg-slate-950 flex items-center justify-between px-3 sm:px-6 shrink-0 border-b border-slate-800">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="hidden xs:flex gap-1.5 shrink-0">
               <div className="w-3 h-3 rounded-full bg-rose-500" />
               <div className="w-3 h-3 rounded-full bg-amber-500" />
               <div className="w-3 h-3 rounded-full bg-emerald-500" />
             </div>
-            <div className="flex items-center gap-2 min-w-0 ml-2 sm:ml-4">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
               <Eye className="w-4 h-4 text-indigo-400 shrink-0" />
               <h3 className="font-extrabold text-xs sm:text-sm text-slate-200 uppercase tracking-wider truncate">
                 {title}
               </h3>
-              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[11px] font-bold rounded-full border border-indigo-500/30 shrink-0">
+              <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] sm:text-[11px] font-bold rounded-full border border-indigo-500/30 shrink-0">
                 {displayCards.length} thẻ
               </span>
             </div>
@@ -136,21 +136,21 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
         <div className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
           
           {/* Progress & Quick Actions Bar */}
-          <div className="px-4 sm:px-6 pt-3 pb-2 flex items-center justify-between gap-3 shrink-0 border-b border-slate-800/60 bg-slate-900/50">
+          <div className="px-3 sm:px-6 py-2 flex items-center justify-between gap-2 shrink-0 border-b border-slate-800/60 bg-slate-900/50">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-300">
                 Thẻ {currentIndex + 1} / {displayCards.length || 1}
               </span>
               <button
                 onClick={handleToggleShuffle}
-                className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                className={`px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-xl text-[11px] sm:text-xs font-bold border transition-all flex items-center gap-1 sm:gap-1.5 ${
                   isShuffled 
                     ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-500/20' 
                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-slate-200'
                 }`}
                 title="Xáo trộn thứ tự thẻ"
               >
-                <Shuffle className="w-3.5 h-3.5" />
+                <Shuffle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 <span>{isShuffled ? 'Đã xáo' : 'Xáo trộn'}</span>
               </button>
             </div>
@@ -163,7 +163,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
               />
             </div>
 
-            <span className="text-[11px] text-slate-400 font-medium">
+            <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium">
               {isFlipped ? '🔄 Đang xem mặt sau' : '👆 Nhấn thẻ để lật'}
             </span>
           </div>
@@ -182,12 +182,12 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
               </div>
             </div>
           ) : (
-            <div className="flex-1 min-h-0 px-3 sm:px-6 py-2 sm:py-4 flex items-center justify-center overflow-y-auto custom-scrollbar">
+            <div className="flex-1 min-h-0 p-1.5 sm:p-4 md:p-6 flex items-center justify-center overflow-hidden w-full h-full">
               <motion.div 
                 onClick={handleToggleFlip}
-                className="w-full max-w-2xl h-[240px] xs:h-[280px] sm:h-[340px] md:h-[380px] perspective-1000 cursor-pointer group relative my-auto"
-                whileHover={{ scale: 1.015 }}
-                whileTap={{ scale: 0.985 }}
+                className="w-full max-w-3xl h-full max-h-[580px] perspective-1000 cursor-pointer group relative my-auto flex-1 flex flex-col justify-center"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
                 transition={{ type: "spring", stiffness: 350, damping: 25 }}
               >
                 <motion.div 
@@ -196,31 +196,28 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                   className="relative w-full h-full transform-style-3d"
                 >
                   {/* FRONT SIDE */}
-                  <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-indigo-500/40 group-hover:border-indigo-500 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col justify-between p-4 sm:p-7 transition-colors overflow-hidden">
-                    {/* Top Tag */}
-                    <div className="flex items-center justify-between border-b border-slate-700/60 pb-2.5">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
-                        <Sparkles className="w-3.5 h-3.5" /> Mặt trước
-                      </span>
-                      <span className="text-xs font-mono text-slate-400 font-semibold">
-                        #{activeIndex + 1}
+                  <div className="absolute inset-0 w-full h-full backface-hidden bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-indigo-500/40 group-hover:border-indigo-500 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col p-2 sm:p-4 transition-colors overflow-hidden">
+                    {/* Floating Top Tag (does not take flex height) */}
+                    <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 pointer-events-none opacity-85 group-hover:opacity-100 transition-opacity">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-950/80 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow backdrop-blur-sm">
+                        <Sparkles className="w-3 h-3 text-indigo-400" /> Mặt trước #{activeIndex + 1}
                       </span>
                     </div>
 
-                    {/* Card Front Content */}
-                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full gap-3">
+                    {/* Card Front Content - Maximize Space */}
+                    <div className="flex-1 min-h-0 w-full h-full flex flex-col items-center justify-center text-center p-1 sm:p-2 overflow-hidden gap-2">
                       {(activeCard.frontImage || activeCard.image) && (
-                        <div className="flex-1 min-h-0 w-full shrink-1 rounded-xl overflow-hidden shadow-md bg-slate-950/40 p-1 flex items-center justify-center">
+                        <div className="flex-1 min-h-0 w-full h-full rounded-xl overflow-hidden shadow-sm bg-slate-950/40 p-1 flex items-center justify-center">
                           <img 
                             src={activeCard.frontImage || activeCard.image} 
                             alt="Front Illustration" 
                             referrerPolicy="no-referrer"
-                            className="w-full h-full object-contain rounded-lg"
+                            className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg"
                           />
                         </div>
                       )}
                       {activeCard.front && (
-                        <div className="shrink-0 text-xl sm:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm">
+                        <div className="shrink-0 text-base sm:text-2xl md:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm px-2">
                           <MarkdownMath 
                             content={activeCard.front} 
                             className="text-white text-center font-extrabold"
@@ -228,45 +225,36 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                         </div>
                       )}
                       {!activeCard.front && !(activeCard.frontImage || activeCard.image) && (
-                        <div className="shrink-0 text-xl sm:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm opacity-50">
+                        <div className="shrink-0 text-base sm:text-2xl font-extrabold text-white leading-relaxed drop-shadow-sm opacity-50">
                           (Chưa nhập nội dung mặt trước)
                         </div>
                       )}
                     </div>
-
-                    {/* Bottom Hint */}
-                    <div className="pt-2.5 border-t border-slate-700/80 text-center flex items-center justify-center gap-2 text-xs font-semibold text-indigo-300 group-hover:text-indigo-200">
-                      <RotateCw className="w-3.5 h-3.5" />
-                      <span>Nhấp để xem mặt sau</span>
-                    </div>
                   </div>
 
                   {/* BACK SIDE */}
-                  <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-900 border-2 border-purple-500/60 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col justify-between p-4 sm:p-7 rotate-y-180 overflow-hidden">
-                    {/* Top Tag */}
-                    <div className="flex items-center justify-between border-b border-purple-500/20 pb-2.5">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-500/20 text-purple-300 border border-purple-500/40 rounded-full text-xs font-bold uppercase tracking-wider">
-                        ✨ Mặt sau
-                      </span>
-                      <span className="text-xs font-mono text-purple-300/60 font-semibold">
-                        #{activeIndex + 1}
+                  <div className="absolute inset-0 w-full h-full backface-hidden bg-gradient-to-b from-indigo-950 via-slate-900 to-slate-900 border-2 border-purple-500/60 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col p-2 sm:p-4 rotate-y-180 overflow-hidden">
+                    {/* Floating Top Tag (does not take flex height) */}
+                    <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 pointer-events-none opacity-85 group-hover:opacity-100 transition-opacity">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-950/80 text-purple-300 border border-purple-500/40 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow backdrop-blur-sm">
+                        ✨ Mặt sau #{activeIndex + 1}
                       </span>
                     </div>
 
-                    {/* Card Back Content */}
-                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full gap-3">
+                    {/* Card Back Content - Maximize Space */}
+                    <div className="flex-1 min-h-0 w-full h-full flex flex-col items-center justify-center text-center p-1 sm:p-2 overflow-hidden gap-2">
                       {(activeCard.backImage || activeCard.image) && (
-                        <div className="flex-1 min-h-0 w-full shrink-1 rounded-xl overflow-hidden shadow-md bg-indigo-950/40 p-1 flex items-center justify-center">
+                        <div className="flex-1 min-h-0 w-full h-full rounded-xl overflow-hidden shadow-sm bg-indigo-950/40 p-1 flex items-center justify-center">
                           <img 
                             src={activeCard.backImage || activeCard.image} 
                             alt="Back Illustration" 
                             referrerPolicy="no-referrer"
-                            className="w-full h-full object-contain rounded-lg"
+                            className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg"
                           />
                         </div>
                       )}
                       {activeCard.back && (
-                        <div className="shrink-0 text-lg sm:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm">
+                        <div className="shrink-0 text-base sm:text-xl md:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm px-2">
                           <MarkdownMath 
                             content={activeCard.back} 
                             className="text-amber-200 text-center font-bold"
@@ -274,16 +262,10 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                         </div>
                       )}
                       {!activeCard.back && !(activeCard.backImage || activeCard.image) && (
-                        <div className="shrink-0 text-lg sm:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm opacity-50">
+                        <div className="shrink-0 text-base sm:text-xl font-bold text-amber-200 leading-relaxed drop-shadow-sm opacity-50">
                           (Chưa nhập nội dung mặt sau)
                         </div>
                       )}
-                    </div>
-
-                    {/* Bottom Hint */}
-                    <div className="pt-2.5 border-t border-purple-500/20 text-center flex items-center justify-center gap-2 text-xs font-semibold text-purple-300/80">
-                      <RotateCw className="w-3.5 h-3.5" />
-                      <span>Nhấp để quay lại mặt trước</span>
                     </div>
                   </div>
                 </motion.div>
@@ -292,13 +274,13 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
           )}
 
           {/* Fixed Bottom Footer: Controls Bar & Pagination */}
-          <div className="shrink-0 bg-slate-950 border-t border-slate-800 px-3 sm:px-6 py-3 space-y-2.5">
+          <div className="shrink-0 bg-slate-950 border-t border-slate-800 px-3 sm:px-6 py-2 sm:py-3 space-y-2">
             {/* Controls Bar */}
             <div className="flex items-center justify-between gap-2 sm:gap-4 max-w-2xl mx-auto">
               <button
                 onClick={handlePrev}
                 disabled={currentIndex === 0}
-                className="px-3 sm:px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-2xl font-bold text-xs sm:text-sm border border-slate-700 flex items-center gap-1 sm:gap-2 transition-all shadow shrink-0 active:scale-95 min-h-[42px]"
+                className="px-3 sm:px-5 py-2 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm border border-slate-700 flex items-center gap-1 sm:gap-2 transition-all shadow shrink-0 active:scale-95 min-h-[40px] sm:min-h-[42px]"
               >
                 <ChevronLeft className="w-4 h-4 shrink-0" />
                 <span className="hidden xs:inline">Thẻ trước</span>
@@ -307,7 +289,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
 
               <button
                 onClick={handleToggleFlip}
-                className="flex-1 max-w-[220px] py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg shadow-indigo-600/30 border border-indigo-400/30 flex items-center justify-center gap-2 active:scale-95 transition-all min-h-[42px]"
+                className="flex-1 max-w-[220px] py-2 sm:py-2.5 px-3 sm:px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg shadow-indigo-600/30 border border-indigo-400/30 flex items-center justify-center gap-1.5 sm:gap-2 active:scale-95 transition-all min-h-[40px] sm:min-h-[42px]"
               >
                 <RotateCw className={`w-4 h-4 transition-transform duration-300 shrink-0 ${isFlipped ? 'rotate-180' : ''}`} />
                 <span>{isFlipped ? 'Mặt Trước' : 'Lật Thẻ'}</span>
@@ -316,7 +298,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
               <button
                 onClick={handleNext}
                 disabled={currentIndex === displayCards.length - 1}
-                className="px-3 sm:px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-2xl font-bold text-xs sm:text-sm border border-slate-700 flex items-center gap-1 sm:gap-2 transition-all shadow shrink-0 active:scale-95 min-h-[42px]"
+                className="px-3 sm:px-5 py-2 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-30 disabled:cursor-not-allowed rounded-xl sm:rounded-2xl font-bold text-xs sm:text-sm border border-slate-700 flex items-center gap-1 sm:gap-2 transition-all shadow shrink-0 active:scale-95 min-h-[40px] sm:min-h-[42px]"
               >
                 <span className="hidden xs:inline">Thẻ tiếp</span>
                 <span className="xs:hidden">Tiếp</span>
