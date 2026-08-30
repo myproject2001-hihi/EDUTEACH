@@ -29,11 +29,21 @@ import {
   Sparkles, 
   Play, 
   Info,
-  Calendar
+  Calendar,
+  Volume2,
+  RotateCw,
+  Trophy,
+  Award,
+  HelpCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { db } from '../firebase';
 import { Assignment, User as UserType, ClassSession } from '../types';
 import confetti from 'canvas-confetti';
+import { GamePreview } from '../components/GamePreview';
+import { FlashcardQuizGame } from '../components/FlashcardQuizGame';
+import { MarkdownMath } from '../components/MarkdownMath';
 
 interface ResourcesRepositoryViewProps {
   user: UserType;
@@ -80,6 +90,25 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
 
+  // Interactive Sandbox states
+  const [sandboxTab, setSandboxTab] = useState<'student' | 'teacher'>('student');
+  const [sandboxQuizAnswers, setSandboxQuizAnswers] = useState<Record<string, number>>({});
+  const [sandboxSubmitted, setSandboxSubmitted] = useState(false);
+  const [sandboxScore, setSandboxScore] = useState(0);
+  const [sandboxCorrectCount, setSandboxCorrectCount] = useState(0);
+  const [flashcardSubMode, setFlashcardSubMode] = useState<'study' | 'quiz'>('study');
+
+  // Text-To-Speech Pronunciation Audio Reader
+  const handleSpeakText = (text: string, lang: string = 'vi-VN') => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang;
+      utterance.rate = 0.95;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   // Load classes
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'class_sessions'), (snapshot) => {
@@ -105,6 +134,20 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
     });
     return () => unsub();
   }, []);
+
+  // Reset sandbox states when previewing assignment changes
+  useEffect(() => {
+    if (previewingAssignment) {
+      setSandboxQuizAnswers({});
+      setSandboxSubmitted(false);
+      setSandboxScore(0);
+      setSandboxCorrectCount(0);
+      setActiveCardIndex(0);
+      setIsCardFlipped(false);
+      setSandboxTab('student');
+      setFlashcardSubMode('study');
+    }
+  }, [previewingAssignment]);
 
   // Filter lists
   const myClasses = React.useMemo(() => {
@@ -770,7 +813,11 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
       {/* PREVIEW MODAL: TEST / CHẠY THỬ */}
       {previewingAssignment && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className={`bg-white rounded-3xl w-full border border-slate-200 overflow-hidden shadow-2xl flex flex-col max-h-[90vh] transition-all duration-300 ${
+            previewingAssignment.type === 'game' || previewingAssignment.type === 'online_test' || (previewingAssignment.type === 'flashcard' && flashcardSubMode === 'quiz')
+              ? 'max-w-4xl' 
+              : 'max-w-2xl'
+          }`}>
             {/* Header */}
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
               <div>
@@ -791,141 +838,521 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
               </button>
             </div>
 
+            {/* View Mode Switcher Tab Bar */}
+            <div className="px-6 py-2 border-b border-slate-100 bg-slate-50/55 flex items-center justify-between shrink-0">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSandboxTab('student')}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    sandboxTab === 'student'
+                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-100'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Trải nghiệm Học sinh</span>
+                </button>
+                {(previewingAssignment.type === 'online_test' || previewingAssignment.type === 'game' || previewingAssignment.type === 'flashcard') && (
+                  <button
+                    type="button"
+                    onClick={() => setSandboxTab('teacher')}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      sandboxTab === 'teacher'
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-100'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>Xem bộ đề & đáp án</span>
+                  </button>
+                )}
+              </div>
+              <span className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider hidden sm:inline-block">
+                🟢 Chạy thử trực quan
+              </span>
+            </div>
+
             {/* Sandbox content */}
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
-              {/* If game or simulation URL */}
-              {previewingAssignment.type === 'simulation' && (
-                <div className="space-y-3">
-                  <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-800 font-semibold flex items-center gap-2">
-                    <Microscope className="w-4 h-4 text-teal-600" />
-                    <span>Học liệu mô phỏng khoa học tương tác!</span>
-                  </div>
-                  {previewingAssignment.simulationUrl ? (
-                    <div className="border border-slate-200 rounded-2xl overflow-hidden aspect-video bg-slate-950">
-                      <iframe 
-                        src={previewingAssignment.simulationUrl} 
-                        className="w-full h-full border-none" 
-                        title="Simulation Play"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">Không có liên kết mô phỏng hợp lệ.</p>
-                  )}
-                </div>
-              )}
-
-              {/* If flashcards */}
-              {previewingAssignment.type === 'flashcard' && (
-                <div className="space-y-5">
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold flex items-center gap-2">
-                    <Library className="w-4 h-4 text-rose-600" />
-                    <span>Xem thử Flashcard tương tác</span>
-                  </div>
-
-                  {previewingAssignment.flashcards && previewingAssignment.flashcards.length > 0 ? (
-                    <div className="space-y-4">
-                      {/* Interactive Flip Card */}
-                      <div 
-                        onClick={() => setIsCardFlipped(!isCardFlipped)}
-                        className="relative w-full h-56 rounded-2xl border-2 border-slate-200 cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-lg flex items-center justify-center p-6 bg-slate-50"
-                      >
-                        <div className="text-center">
-                          <p className="text-[10px] text-slate-400 font-black tracking-widest uppercase mb-2">
-                            {isCardFlipped ? 'MẶT SAU (Ý NGHĨA)' : 'MẶT TRƯỚC (THUẬT NGỮ)'}
-                          </p>
-                          <p className="text-base sm:text-lg font-extrabold text-slate-800">
-                            {isCardFlipped 
-                              ? previewingAssignment.flashcards[activeCardIndex]?.back 
-                              : previewingAssignment.flashcards[activeCardIndex]?.front}
-                          </p>
-                          <p className="text-[10px] text-indigo-500 font-semibold mt-4">
-                            (Bấm vào thẻ để lật)
-                          </p>
+              
+              {sandboxTab === 'student' ? (
+                /* --- STUDENT INTERACTIVE VIEW --- */
+                <div>
+                  {/* If simulation URL */}
+                  {previewingAssignment.type === 'simulation' && (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-teal-50 border border-teal-200 rounded-2xl text-xs text-teal-800 font-semibold flex items-center gap-2">
+                        <Microscope className="w-4 h-4 text-teal-600" />
+                        <span>Học liệu mô phỏng khoa học tương tác!</span>
+                      </div>
+                      {previewingAssignment.simulationUrl ? (
+                        <div className="border border-slate-200 rounded-2xl overflow-hidden aspect-video bg-slate-950">
+                          <iframe 
+                            src={previewingAssignment.simulationUrl} 
+                            className="w-full h-full border-none" 
+                            title="Simulation Play"
+                          />
                         </div>
-                      </div>
-
-                      {/* Pagination */}
-                      <div className="flex items-center justify-between px-2">
-                        <button
-                          disabled={activeCardIndex === 0}
-                          onClick={() => {
-                            setActiveCardIndex(prev => prev - 1);
-                            setIsCardFlipped(false);
-                          }}
-                          className="px-3.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-50"
-                        >
-                          Trước đó
-                        </button>
-                        <span className="text-xs font-extrabold text-slate-600">
-                          Thẻ {activeCardIndex + 1} / {previewingAssignment.flashcards.length}
-                        </span>
-                        <button
-                          disabled={activeCardIndex === previewingAssignment.flashcards.length - 1}
-                          onClick={() => {
-                            setActiveCardIndex(prev => prev + 1);
-                            setIsCardFlipped(false);
-                          }}
-                          className="px-3.5 py-1.5 text-xs font-bold border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-50"
-                        >
-                          Kế tiếp
-                        </button>
-                      </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">Không có liên kết mô phỏng hợp lệ.</p>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">Bộ flashcard này không chứa thẻ nào.</p>
                   )}
-                </div>
-              )}
 
-              {/* If online test */}
-              {(previewingAssignment.type === 'online_test' || previewingAssignment.type === 'game') && (
-                <div className="space-y-4">
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-800 font-semibold flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-blue-600" />
-                    <span>Danh sách câu hỏi trắc nghiệm ({previewingAssignment.questions?.length || 0} câu)</span>
-                  </div>
+                  {/* If Online Test (Quiz Exam) */}
+                  {previewingAssignment.type === 'online_test' && (
+                    <div>
+                      {!sandboxSubmitted ? (
+                        <div className="space-y-6">
+                          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center justify-between">
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-emerald-950">BÀI THI THỬ TRẮC NGHIỆM</p>
+                              <p className="text-[10px] text-emerald-700">Hãy làm bài như học sinh. Click Nộp bài Sandbox để xem điểm số & lời giải chi tiết.</p>
+                            </div>
+                            <div className="bg-white border border-emerald-200 text-xs text-emerald-800 font-mono font-bold px-3 py-1.5 rounded-xl shrink-0">
+                              Câu đã chọn: {Object.keys(sandboxQuizAnswers).length} / {previewingAssignment.questions?.length || 0}
+                            </div>
+                          </div>
 
-                  {previewingAssignment.questions && previewingAssignment.questions.length > 0 ? (
-                    <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
-                      {previewingAssignment.questions.map((q, idx) => (
-                        <div key={q.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                          <p className="text-xs font-black text-slate-800">
-                            Câu {idx + 1}: {q.question}
-                          </p>
-                          {q.options && q.options.length > 0 && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2">
-                              {q.options.map((opt, oIdx) => (
-                                <div 
-                                  key={oIdx} 
-                                  className={`p-2.5 rounded-xl text-xs font-semibold border flex items-center justify-between ${
-                                    q.correctAnswer === oIdx 
-                                      ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold' 
-                                      : 'bg-white border-slate-200 text-slate-600'
-                                  }`}
-                                >
-                                  <span>{['A', 'B', 'C', 'D'][oIdx]}. {opt}</span>
-                                  {q.correctAnswer === oIdx && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                          <div className="space-y-5">
+                            {previewingAssignment.questions && previewingAssignment.questions.length > 0 ? (
+                              previewingAssignment.questions.map((q, idx) => (
+                                <div key={q.id || idx} className="p-5 bg-slate-50 border border-slate-200 rounded-3xl space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
+                                      Câu Hỏi {idx + 1} ({q.points || 2}đ)
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="text-sm font-semibold text-slate-850 leading-relaxed pl-1">
+                                    <MarkdownMath content={q.question} />
+                                  </div>
+
+                                  {q.options && q.options.length > 0 && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-1 pt-1">
+                                      {q.options.map((opt, oIdx) => {
+                                        const ansKey = q.id || `q_${idx}`;
+                                        const isSelected = sandboxQuizAnswers[ansKey] === oIdx;
+                                        return (
+                                          <button
+                                            key={oIdx}
+                                            type="button"
+                                            onClick={() => {
+                                              setSandboxQuizAnswers({
+                                                ...sandboxQuizAnswers,
+                                                [ansKey]: oIdx
+                                              });
+                                            }}
+                                            className={`p-3.5 rounded-xl text-xs font-bold border text-left flex items-center justify-between transition-all duration-200 active:scale-[0.98] ${
+                                              isSelected
+                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100'
+                                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300'
+                                            }`}
+                                          >
+                                            <span>{['A', 'B', 'C', 'D'][oIdx]}. {opt}</span>
+                                            {isSelected && <Check className="w-4 h-4 text-white shrink-0" />}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                          {q.solutionText && (
-                            <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[11px] text-indigo-700 italic">
-                              <strong>Lời giải:</strong> {q.solutionText}
+                              ))
+                            ) : (
+                              <p className="text-xs text-slate-500 italic py-4 text-center">Đề kiểm tra này chưa được thiết lập câu hỏi.</p>
+                            )}
+                          </div>
+
+                          {previewingAssignment.questions && previewingAssignment.questions.length > 0 && (
+                            <div className="pt-4 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  let correct = 0;
+                                  const total = previewingAssignment.questions?.length || 0;
+                                  previewingAssignment.questions?.forEach((q, idx) => {
+                                    const ansKey = q.id || `q_${idx}`;
+                                    if (sandboxQuizAnswers[ansKey] === q.correctAnswer) {
+                                      correct++;
+                                    }
+                                  });
+                                  const calculatedScore = total > 0 ? Math.round((correct / total) * 10) : 0;
+                                  setSandboxScore(calculatedScore);
+                                  setSandboxCorrectCount(correct);
+                                  setSandboxSubmitted(true);
+                                  confetti({
+                                    particleCount: 100,
+                                    spread: 70,
+                                    origin: { y: 0.7 }
+                                  });
+                                }}
+                                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all uppercase tracking-wider flex items-center gap-1.5"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                <span>Nộp bài & Xem kết quả</span>
+                              </button>
                             </div>
                           )}
                         </div>
-                      ))}
+                      ) : (
+                        /* Submission Results */
+                        <div className="space-y-6">
+                          <div className="max-w-md mx-auto bg-gradient-to-b from-indigo-50/70 to-white border border-indigo-100 rounded-3xl p-6 shadow-sm space-y-4 text-center">
+                            <div className="w-14 h-14 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto">
+                              <Trophy className="w-7 h-7 text-indigo-600 animate-bounce" />
+                            </div>
+                            <div className="space-y-1">
+                              <h4 className="text-lg font-black text-indigo-950">BÀI LÀM ĐÃ HOÀN THÀNH</h4>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Hệ thống đã tự động chấm điểm thử nghiệm</p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                              <div className="bg-white border border-slate-200/80 p-3.5 rounded-2xl">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Điểm Số</p>
+                                <p className="text-2xl font-black text-indigo-600 mt-1">{sandboxScore} / 10</p>
+                              </div>
+                              <div className="bg-white border border-slate-200/80 p-3.5 rounded-2xl">
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Câu đúng</p>
+                                <p className="text-2xl font-black text-emerald-600 mt-1">{sandboxCorrectCount} / {previewingAssignment.questions?.length || 0}</p>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSandboxSubmitted(false);
+                                setSandboxQuizAnswers({});
+                                setSandboxScore(0);
+                                setSandboxCorrectCount(0);
+                              }}
+                              className="w-full py-2.5 border border-indigo-250 hover:bg-indigo-50 text-indigo-600 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 uppercase tracking-wider"
+                            >
+                              <RotateCw className="w-3.5 h-3.5" />
+                              <span>Làm lại thử nghiệm</span>
+                            </button>
+                          </div>
+
+                          <div className="text-left space-y-4 pt-4 border-t border-slate-100">
+                            <h4 className="text-xs font-black text-slate-500 uppercase tracking-wider">Chi tiết câu trả lời & đáp án:</h4>
+                            <div className="space-y-4">
+                              {previewingAssignment.questions?.map((q, idx) => {
+                                const ansKey = q.id || `q_${idx}`;
+                                const stuAns = sandboxQuizAnswers[ansKey];
+                                const isCorrect = stuAns === q.correctAnswer;
+                                return (
+                                  <div key={q.id || idx} className={`p-5 rounded-3xl border ${isCorrect ? 'bg-emerald-50/40 border-emerald-200' : 'bg-rose-50/40 border-rose-200'} space-y-3`}>
+                                    <div className="flex justify-between items-start">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-xs font-black text-white w-6 h-6 rounded-full flex items-center justify-center ${isCorrect ? 'bg-emerald-600' : 'bg-rose-500'}`}>
+                                          {idx + 1}
+                                        </span>
+                                        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                                          Câu hỏi {idx + 1}
+                                        </span>
+                                      </div>
+                                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                        isCorrect ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                      }`}>
+                                        {isCorrect ? 'Đúng' : 'Sai'}
+                                      </span>
+                                    </div>
+
+                                    <div className="text-sm font-semibold text-slate-800 pl-1">
+                                      <MarkdownMath content={q.question} />
+                                    </div>
+
+                                    {q.options && q.options.length > 0 && (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-1">
+                                        {q.options.map((opt, oIdx) => {
+                                          const isStuSelected = stuAns === oIdx;
+                                          const isCorrectOpt = q.correctAnswer === oIdx;
+                                          return (
+                                            <div
+                                              key={oIdx}
+                                              className={`p-3 rounded-xl text-xs font-semibold border flex items-center justify-between ${
+                                                isCorrectOpt
+                                                  ? 'bg-emerald-100/90 border-emerald-300 text-emerald-800 font-bold'
+                                                  : isStuSelected
+                                                  ? 'bg-rose-100/90 border-rose-300 text-rose-850 font-bold'
+                                                  : 'bg-white border-slate-200 text-slate-505'
+                                              }`}
+                                            >
+                                              <span>{['A', 'B', 'C', 'D'][oIdx]}. {opt}</span>
+                                              {isCorrectOpt && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+
+                                    {q.solutionText && (
+                                      <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[11px] text-indigo-700 italic leading-relaxed">
+                                        <strong>Giải thích:</strong> {q.solutionText}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">Bài tập trắc nghiệm này chưa tạo câu hỏi.</p>
+                  )}
+
+                  {/* If Game (Interactive Game Playing Mode) */}
+                  {previewingAssignment.type === 'game' && (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-indigo-50 border border-indigo-150 rounded-2xl text-xs text-indigo-800 font-semibold flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Gamepad2 className="w-4 h-4 text-indigo-600" />
+                          <span>Chơi thử trò chơi học tập như Học sinh!</span>
+                        </div>
+                        <span className="text-[10px] bg-indigo-200/60 px-2 py-0.5 rounded font-black text-indigo-900 uppercase">
+                          Game: {previewingAssignment.gameType || 'do_min'}
+                        </span>
+                      </div>
+
+                      <div className="w-full h-[540px] bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
+                        <GamePreview
+                          gameType={previewingAssignment.gameType || 'do_min'}
+                          questions={previewingAssignment.questions && previewingAssignment.questions.length > 0 ? previewingAssignment.questions : []}
+                          isStudentMode={true}
+                          onClose={() => {
+                            setPreviewingAssignment(null);
+                          }}
+                          onSubmitWork={(finalScore, correctCount, answers) => {
+                            setSandboxScore(finalScore);
+                            setSandboxCorrectCount(correctCount);
+                            setSandboxSubmitted(true);
+                            confetti({
+                              particleCount: 100,
+                              spread: 70,
+                              origin: { y: 0.7 }
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If Flashcard (Study / Quiz Selectable Player) */}
+                  {previewingAssignment.type === 'flashcard' && (
+                    <div className="space-y-4">
+                      {/* Submode togglers */}
+                      <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl max-w-xs shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setFlashcardSubMode('study')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            flashcardSubMode === 'study'
+                              ? 'bg-white text-slate-900 shadow-sm'
+                              : 'text-slate-650 hover:bg-slate-50'
+                          }`}
+                        >
+                          🎴 Thẻ lật học tập
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFlashcardSubMode('quiz')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                            flashcardSubMode === 'quiz'
+                              ? 'bg-white text-slate-900 shadow-sm'
+                              : 'text-slate-650 hover:bg-slate-50'
+                          }`}
+                        >
+                          📝 Đề thi kiểm tra
+                        </button>
+                      </div>
+
+                      {flashcardSubMode === 'study' ? (
+                        <div className="space-y-5">
+                          {previewingAssignment.flashcards && previewingAssignment.flashcards.length > 0 ? (
+                            <div className="space-y-4">
+                              {/* Interactive Flip Card */}
+                              <div 
+                                onClick={() => setIsCardFlipped(!isCardFlipped)}
+                                className="relative w-full h-64 rounded-3xl cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-slate-300 border-2 border-slate-200 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-slate-50 to-slate-100 shadow-md group"
+                              >
+                                <div className="absolute top-4 right-4 flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const activeCard = previewingAssignment.flashcards![activeCardIndex];
+                                      const textToSpeak = isCardFlipped ? activeCard.back : activeCard.front;
+                                      handleSpeakText(textToSpeak, 'vi-VN');
+                                    }}
+                                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 rounded-full shadow-sm transition-all active:scale-95"
+                                    title="Phát âm tiếng"
+                                  >
+                                    <Volume2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                <div className="text-center space-y-4 max-w-md">
+                                  <span className={`inline-block px-2.5 py-1 text-[9px] font-black tracking-wider uppercase rounded-full ${
+                                    isCardFlipped ? 'bg-indigo-100 text-indigo-800' : 'bg-rose-100 text-rose-800'
+                                  }`}>
+                                    {isCardFlipped ? 'Mặt Sau (Ý nghĩa / Giải nghĩa)' : 'Mặt Trước (Từ vựng / Khái niệm)'}
+                                  </span>
+                                  <p className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight leading-normal">
+                                    {isCardFlipped 
+                                      ? previewingAssignment.flashcards[activeCardIndex]?.back 
+                                      : previewingAssignment.flashcards[activeCardIndex]?.front}
+                                  </p>
+                                  <p className="text-[10px] text-slate-450 italic">
+                                    (Bấm vào bất cứ đâu trên thẻ để lật ngược)
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Pagination */}
+                              <div className="flex items-center justify-between px-2">
+                                <button
+                                  disabled={activeCardIndex === 0}
+                                  onClick={() => {
+                                    setActiveCardIndex(prev => prev - 1);
+                                    setIsCardFlipped(false);
+                                  }}
+                                  className="px-4 py-2 text-xs font-black border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-50 transition-all flex items-center gap-1"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                  Trước đó
+                                </button>
+                                <span className="text-xs font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">
+                                  Thẻ {activeCardIndex + 1} / {previewingAssignment.flashcards.length}
+                                </span>
+                                <button
+                                  disabled={activeCardIndex === previewingAssignment.flashcards.length - 1}
+                                  onClick={() => {
+                                    setActiveCardIndex(prev => prev + 1);
+                                    setIsCardFlipped(false);
+                                  }}
+                                  className="px-4 py-2 text-xs font-black border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-50 transition-all flex items-center gap-1"
+                                >
+                                  Kế tiếp
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-400 italic">Bộ flashcard này không chứa thẻ nào.</p>
+                          )}
+                        </div>
+                      ) : (
+                        /* Flashcard Quiz Game (Test) */
+                        <div className="w-full h-[520px] bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
+                          <FlashcardQuizGame
+                            assignmentTitle={previewingAssignment.title}
+                            flashcards={previewingAssignment.flashcards || []}
+                            questions={previewingAssignment.questions || []}
+                            studentName={user.name}
+                            onFinish={(score, correctCount, answersMap) => {
+                              setSandboxScore(score);
+                              setSandboxCorrectCount(correctCount);
+                              setSandboxSubmitted(true);
+                              confetti({
+                                particleCount: 100,
+                                spread: 70,
+                                origin: { y: 0.7 }
+                              });
+                            }}
+                            onExit={() => setFlashcardSubMode('study')}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* --- TEACHER STATIC OVERVIEW AND SOLUTIONS VIEW --- */
+                <div className="space-y-6">
+                  {/* For flashcards */}
+                  {previewingAssignment.type === 'flashcard' && (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold flex items-center gap-2">
+                        <Library className="w-4 h-4 text-rose-600" />
+                        <span>Danh sách thẻ học tập ({previewingAssignment.flashcards?.length || 0} thẻ)</span>
+                      </div>
+
+                      {previewingAssignment.flashcards && previewingAssignment.flashcards.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-1">
+                          {previewingAssignment.flashcards.map((card, idx) => (
+                            <div key={card.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Thẻ {idx + 1}</p>
+                              <div>
+                                <p className="text-xs text-slate-500 font-bold">Mặt trước (Thuật ngữ):</p>
+                                <p className="text-sm font-semibold text-slate-800">{card.front}</p>
+                              </div>
+                              <div className="pt-2 border-t border-slate-200/50">
+                                <p className="text-xs text-slate-500 font-bold">Mặt sau (Giải thích):</p>
+                                <p className="text-sm font-medium text-slate-750">{card.back}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">Bộ flashcard này không chứa thẻ nào.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* For online tests or games */}
+                  {(previewingAssignment.type === 'online_test' || previewingAssignment.type === 'game') && (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-800 font-semibold flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-blue-600" />
+                        <span>Danh sách câu hỏi & đáp án ({previewingAssignment.questions?.length || 0} câu)</span>
+                      </div>
+
+                      {previewingAssignment.questions && previewingAssignment.questions.length > 0 ? (
+                        <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                          {previewingAssignment.questions.map((q, idx) => (
+                            <div key={q.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                              <p className="text-xs font-black text-slate-800">
+                                Câu {idx + 1}: {q.question}
+                              </p>
+                              {q.options && q.options.length > 0 && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2">
+                                  {q.options.map((opt, oIdx) => (
+                                    <div 
+                                      key={oIdx} 
+                                      className={`p-2.5 rounded-xl text-xs font-semibold border flex items-center justify-between ${
+                                        q.correctAnswer === oIdx 
+                                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold' 
+                                          : 'bg-white border-slate-200 text-slate-600'
+                                      }`}
+                                    >
+                                      <span>{['A', 'B', 'C', 'D'][oIdx]}. {opt}</span>
+                                      {q.correctAnswer === oIdx && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              {q.solutionText && (
+                                <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[11px] text-indigo-750 italic leading-relaxed">
+                                  <strong>Lời giải:</strong> {q.solutionText}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic">Học liệu này chưa được thiết lập câu hỏi.</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
 
               {/* PDF Document Viewer if any */}
               {previewingAssignment.pdfUrl && (
-                <div className="space-y-3 pt-4 border-t border-slate-100">
+                <div className="space-y-3 pt-4 border-t border-slate-100 shrink-0">
                   <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest">Tài liệu PDF đi kèm:</h4>
                   <a 
                     href={previewingAssignment.pdfUrl} 
@@ -948,7 +1375,7 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                   setActiveCardIndex(0);
                   setIsCardFlipped(false);
                 }}
-                className="w-full py-2.5 text-xs font-black bg-slate-800 hover:bg-slate-900 text-white rounded-xl shadow-sm"
+                className="w-full py-2.5 text-xs font-black bg-slate-800 hover:bg-slate-900 text-white rounded-xl shadow-sm transition-all"
               >
                 Đóng Sandbox
               </button>

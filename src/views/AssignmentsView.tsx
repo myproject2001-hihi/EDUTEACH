@@ -620,7 +620,7 @@ export function AssignmentsView({
     });
   }, [assignments, searchQuery, filterType, filterDueDate]);
 
-  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(filteredAssignments[0] || assignments[0] || null);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
   const [layoutDensity, setLayoutDensity] = useState<'comfortable' | 'compact'>(() => {
     return (localStorage.getItem('layout_density') as 'comfortable' | 'compact') || 'comfortable';

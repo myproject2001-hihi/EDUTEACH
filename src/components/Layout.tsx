@@ -383,10 +383,10 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       { id: 'students', label: 'Học sinh', icon: Users },
       { id: 'notifications-manager', label: 'Quản lý thông báo', icon: BellRing }
     ] : []),
+    { id: 'schedule', label: 'Lịch học', icon: Calendar },
     { id: 'flashcards', label: 'Flashcard', icon: Library },
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
     { id: 'games', label: 'Chơi và học', icon: Gamepad2 },
-    { id: 'schedule', label: 'Lịch học', icon: Calendar },
     { id: 'simulations', label: 'Mô phỏng', icon: Microscope },
   ];
 
