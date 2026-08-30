@@ -1505,14 +1505,17 @@ export function AssignmentsView({
     setShowCreateModal(true);
   };
 
-  const handleBulkToggleOnAir = async (publishStatus: boolean) => {
+  const handleBulkToggleOnAir = async (explicitStatus?: boolean) => {
     if (selectedIdsForDeletion.length === 0) return;
+    const selectedAssignments = filteredAssignments.filter(a => selectedIdsForDeletion.includes(a.id));
+    const areAllOnAir = selectedAssignments.length > 0 && selectedAssignments.every(a => a.isPublished !== false);
+    const targetStatus = explicitStatus !== undefined ? explicitStatus : !areAllOnAir;
+
     try {
       const promises = selectedIdsForDeletion.map(id => 
-        setDoc(doc(db, 'assignments', id), { isPublished: publishStatus }, { merge: true })
+        setDoc(doc(db, 'assignments', id), { isPublished: targetStatus }, { merge: true })
       );
       await Promise.all(promises);
-      alert(`Đã ${publishStatus ? 'bật ON AIR (Phát hành)' : 'tắt ON AIR'} cho ${selectedIdsForDeletion.length} mục đã chọn!`);
     } catch (err) {
       alert("Có lỗi xảy ra khi cập nhật trạng thái On Air!");
     }
@@ -2269,35 +2272,42 @@ export function AssignmentsView({
                 <span>Chọn tất cả ({selectedIdsForDeletion.length}/{filteredAssignments.length})</span>
               </div>
               <div className="flex items-center gap-2">
-                {selectedIdsForDeletion.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => handleBulkToggleOnAir(true)}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-                    title="Bật ON AIR (Phát hành) cho các mục đã chọn"
-                  >
-                    <Radio className="w-3.5 h-3.5 animate-pulse text-white" />
-                    On Air ({selectedIdsForDeletion.length})
-                  </button>
-                )}
+                {selectedIdsForDeletion.length > 0 && (() => {
+                  const selAss = filteredAssignments.filter(a => selectedIdsForDeletion.includes(a.id));
+                  const areAllOnAir = selAss.length > 0 && selAss.every(a => a.isPublished !== false);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleOnAir()}
+                      className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center border shadow-sm ${
+                        areAllOnAir
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
+                          : 'bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border-slate-300 hover:border-rose-300'
+                      }`}
+                      title={areAllOnAir ? `Đang ON AIR. Bấm để TẮT cho ${selectedIdsForDeletion.length} mục` : `Bấm để BẬT ON AIR cho ${selectedIdsForDeletion.length} mục`}
+                    >
+                      <Radio className={`w-4 h-4 ${areAllOnAir ? 'animate-pulse text-white' : 'text-slate-500'}`} />
+                    </button>
+                  );
+                })()}
                 {selectedIdsForDeletion.length > 0 && viewMode === 'flashcards' && (
                   <button
                     type="button"
                     onClick={handleCombineFlashcards}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                    className="p-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center justify-center"
+                    title={`Gộp ${selectedIdsForDeletion.length} bộ flashcard`}
                   >
-                    <Layers className="w-3.5 h-3.5" />
-                    Gộp {selectedIdsForDeletion.length} bộ
+                    <Layers className="w-4 h-4 text-white" />
                   </button>
                 )}
                 {selectedIdsForDeletion.length > 0 && (
                   <button
                     type="button"
                     onClick={() => setShowBulkDeleteConfirm(true)}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                    className="p-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center justify-center"
+                    title={`Xóa ${selectedIdsForDeletion.length} mục đã chọn`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Xóa {selectedIdsForDeletion.length} mục
+                    <Trash2 className="w-4 h-4 text-white" />
                   </button>
                 )}
               </div>
