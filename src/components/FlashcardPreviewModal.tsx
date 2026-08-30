@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, RotateCw, Eye, Shuffle, Sparkles, AlertCircle } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
+import { motion } from 'motion/react';
 
 interface Flashcard {
   id: string;
@@ -182,14 +183,17 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
             </div>
           ) : (
             <div className="flex-1 min-h-0 px-3 sm:px-6 py-2 sm:py-4 flex items-center justify-center overflow-y-auto custom-scrollbar">
-              <div 
+              <motion.div 
                 onClick={handleToggleFlip}
                 className="w-full max-w-2xl h-[240px] xs:h-[280px] sm:h-[340px] md:h-[380px] perspective-1000 cursor-pointer group relative my-auto"
+                whileHover={{ scale: 1.015 }}
+                whileTap={{ scale: 0.985 }}
+                transition={{ type: "spring", stiffness: 350, damping: 25 }}
               >
-                <div 
-                  className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${
-                    isFlipped ? 'rotate-y-180' : ''
-                  }`}
+                <motion.div 
+                  animate={{ rotateY: isFlipped ? 180 : 0 }}
+                  transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+                  className="relative w-full h-full transform-style-3d"
                 >
                   {/* FRONT SIDE */}
                   <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-indigo-500/40 group-hover:border-indigo-500 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col justify-between p-4 sm:p-7 transition-colors overflow-hidden">
@@ -268,8 +272,8 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                       <span>Nhấp để quay lại mặt trước</span>
                     </div>
                   </div>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             </div>
           )}
 

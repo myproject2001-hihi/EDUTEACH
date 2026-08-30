@@ -2931,7 +2931,7 @@ export function AssignmentsView({
                           </p>
                           
                           {activeCard && (
-                            <div 
+                            <motion.div 
                               onClick={() => {
                                 setFlippedCards(prev => {
                                   const next = new Set(prev);
@@ -2944,8 +2944,15 @@ export function AssignmentsView({
                                 });
                               }}
                               className="w-full h-64 sm:h-80 md:h-96 perspective-1000 cursor-pointer group my-2"
+                              whileHover={{ scale: 1.015 }}
+                              whileTap={{ scale: 0.985 }}
+                              transition={{ type: "spring", stiffness: 350, damping: 25 }}
                             >
-                              <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${flippedCards.has(activeCard.id) ? 'rotate-y-180' : ''}`}>
+                              <motion.div 
+                                animate={{ rotateY: flippedCards.has(activeCard.id) ? 180 : 0 }}
+                                transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+                                className="relative w-full h-full transform-style-3d"
+                              >
                                 {/* Front */}
                                 <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-lg flex flex-col justify-between p-5 sm:p-8 transition-colors overflow-hidden">
                                   <div className="flex justify-between items-center border-b border-indigo-50 pb-2">
@@ -2980,8 +2987,8 @@ export function AssignmentsView({
                                     <RotateCw className="w-3.5 h-3.5" /> Chạm để quay lại mặt trước
                                   </div>
                                 </div>
-                              </div>
-                            </div>
+                              </motion.div>
+                            </motion.div>
                           )}
 
                           <div className="flex justify-between items-center px-4">

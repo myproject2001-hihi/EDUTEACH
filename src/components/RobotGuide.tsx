@@ -473,8 +473,18 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: cont
                         <p className="text-[11px] text-slate-500 font-bold">Nhấn chiếc thẻ dưới đây để học từ vựng:</p>
                         
                         {/* 3D Flipping Card Container */}
-                        <div className="perspective-1000 w-full max-w-[240px] h-32 mx-auto cursor-pointer" onClick={handleFlippedCard}>
-                          <div className={`relative w-full h-full transform-style-3d transition-transform duration-500 ${fcFlipped ? 'rotate-y-180' : ''}`}>
+                        <motion.div 
+                          className="perspective-1000 w-full max-w-[240px] h-32 mx-auto cursor-pointer" 
+                          onClick={handleFlippedCard}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                        >
+                          <motion.div 
+                            animate={{ rotateY: fcFlipped ? 180 : 0 }}
+                            transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+                            className="relative w-full h-full transform-style-3d"
+                          >
                             {/* FRONT SIDE */}
                             <div className="absolute inset-0 backface-hidden bg-white border-2 border-indigo-100 rounded-2xl shadow-sm p-4 flex flex-col items-center justify-center gap-1.5">
                               <Layers className="w-6 h-6 text-indigo-500" />
@@ -490,8 +500,8 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: cont
                                 Quá trình quang hợp: Cây xanh hấp thụ ánh sáng mặt trời tạo oxi & dinh dưỡng.
                               </p>
                             </div>
-                          </div>
-                        </div>
+                          </motion.div>
+                        </motion.div>
 
                         <div className="flex items-center justify-center gap-2 pt-2">
                           <button
