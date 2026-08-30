@@ -1295,6 +1295,79 @@ export function AssignmentsView({
     setShowCreateModal(true);
   };
 
+  const optimizeAssignmentImagesForFirestore = async (data: any): Promise<any> => {
+    try {
+      const payloadStr = JSON.stringify(data);
+      if (payloadStr.length < 700000) return data;
+
+      const cloned = JSON.parse(payloadStr);
+      const resizeBase64 = (base64Str: string, maxDim = 640, quality = 0.65): Promise<string> => {
+        if (!base64Str || typeof base64Str !== 'string' || !base64Str.startsWith('data:image')) {
+          return Promise.resolve(base64Str);
+        }
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+              if (width > maxDim) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              }
+            } else {
+              if (height > maxDim) {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              resolve(canvas.toDataURL('image/jpeg', quality));
+            } else {
+              resolve(base64Str);
+            }
+          };
+          img.onerror = () => resolve(base64Str);
+          img.src = base64Str;
+        });
+      };
+
+      if (Array.isArray(cloned.flashcards)) {
+        for (let i = 0; i < cloned.flashcards.length; i++) {
+          const card = cloned.flashcards[i];
+          if (card.frontImage && card.frontImage.length > 20000) {
+            card.frontImage = await resizeBase64(card.frontImage, 640, 0.65);
+          }
+          if (card.backImage && card.backImage.length > 20000) {
+            card.backImage = await resizeBase64(card.backImage, 640, 0.65);
+          }
+          if (card.image && card.image.length > 20000) {
+            card.image = await resizeBase64(card.image, 640, 0.65);
+          }
+        }
+      }
+
+      if (Array.isArray(cloned.questions)) {
+        for (let i = 0; i < cloned.questions.length; i++) {
+          const q = cloned.questions[i];
+          if (q.image && q.image.length > 20000) {
+            q.image = await resizeBase64(q.image, 640, 0.65);
+          }
+        }
+      }
+
+      return cloned;
+    } catch (err) {
+      console.error("Error optimizing assignment payload:", err);
+      return data;
+    }
+  };
+
   const handleSaveAssignment = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
     if (isSavingAssignment) return;
@@ -1338,10 +1411,13 @@ export function AssignmentsView({
     };
 
     // Remove explicit undefined fields which crashes Firestore v9
-    const assignmentData = JSON.parse(JSON.stringify(rawAssignmentData));
+    let assignmentData = JSON.parse(JSON.stringify(rawAssignmentData));
 
     setIsSavingAssignment(true);
     try {
+      // Auto-compress base64 images if total payload is large to prevent Firestore 1MB document limit errors
+      assignmentData = await optimizeAssignmentImagesForFirestore(assignmentData);
+
       if (editingAssignment) {
         const updatedAssignment: Assignment = {
           ...editingAssignment,

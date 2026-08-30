@@ -132,8 +132,8 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setIsDraggingBack(false);
   };
 
-  // Compress and read image as Base64 to ensure size is manageable for Firestore but retain sharpness for large images
-  const compressImage = (file: File, maxWidth = 1280, maxHeight = 1280, quality = 0.85): Promise<string> => {
+  // Compress and read image as Base64 to ensure size is lightweight for Firestore (< 40KB per image) while keeping sharp text
+  const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.70): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (event) => {
