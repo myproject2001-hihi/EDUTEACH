@@ -1341,11 +1341,17 @@ export function AssignmentsView({
 
   const optimizeAssignmentImagesForFirestore = async (data: any): Promise<any> => {
     try {
-      const payloadStr = JSON.stringify(data);
-      if (payloadStr.length < 700000) return data;
+      let payloadStr = JSON.stringify(data);
+      let cloned = JSON.parse(payloadStr);
 
-      const cloned = JSON.parse(payloadStr);
-      const resizeBase64 = (base64Str: string, maxDim = 640, quality = 0.65): Promise<string> => {
+      // If subFlashcardSets exists and is non-empty, remove redundant top-level flashcards array to cut payload in half
+      if (Array.isArray(cloned.subFlashcardSets) && cloned.subFlashcardSets.length > 0) {
+        delete cloned.flashcards;
+      }
+
+      payloadStr = JSON.stringify(cloned);
+
+      const resizeBase64 = (base64Str: string, maxDim = 500, quality = 0.55): Promise<string> => {
         if (!base64Str || typeof base64Str !== 'string' || !base64Str.startsWith('data:image')) {
           return Promise.resolve(base64Str);
         }
@@ -1381,26 +1387,86 @@ export function AssignmentsView({
         });
       };
 
-      if (Array.isArray(cloned.flashcards)) {
-        for (let i = 0; i < cloned.flashcards.length; i++) {
-          const card = cloned.flashcards[i];
-          if (card.frontImage && card.frontImage.length > 20000) {
-            card.frontImage = await resizeBase64(card.frontImage, 640, 0.65);
+      const processCards = async (cards: any[], maxDim: number, quality: number) => {
+        if (!Array.isArray(cards)) return;
+        for (let i = 0; i < cards.length; i++) {
+          const card = cards[i];
+          if (card.frontImage && card.frontImage.length > 5000) {
+            card.frontImage = await resizeBase64(card.frontImage, maxDim, quality);
           }
-          if (card.backImage && card.backImage.length > 20000) {
-            card.backImage = await resizeBase64(card.backImage, 640, 0.65);
+          if (card.backImage && card.backImage.length > 5000) {
+            card.backImage = await resizeBase64(card.backImage, maxDim, quality);
           }
-          if (card.image && card.image.length > 20000) {
-            card.image = await resizeBase64(card.image, 640, 0.65);
+          if (card.image && card.image.length > 5000) {
+            card.image = await resizeBase64(card.image, maxDim, quality);
+          }
+        }
+      };
+
+      // PASS 1: Moderate compression if payload > 250KB
+      if (payloadStr.length > 250000) {
+        if (Array.isArray(cloned.flashcards)) {
+          await processCards(cloned.flashcards, 500, 0.55);
+        }
+        if (Array.isArray(cloned.subFlashcardSets)) {
+          for (const subSet of cloned.subFlashcardSets) {
+            if (Array.isArray(subSet.flashcards)) {
+              await processCards(subSet.flashcards, 500, 0.55);
+            }
+          }
+        }
+        if (Array.isArray(cloned.questions)) {
+          for (let i = 0; i < cloned.questions.length; i++) {
+            const q = cloned.questions[i];
+            if (q.image && q.image.length > 5000) {
+              q.image = await resizeBase64(q.image, 500, 0.55);
+            }
           }
         }
       }
 
-      if (Array.isArray(cloned.questions)) {
-        for (let i = 0; i < cloned.questions.length; i++) {
-          const q = cloned.questions[i];
-          if (q.image && q.image.length > 20000) {
-            q.image = await resizeBase64(q.image, 640, 0.65);
+      // PASS 2: Aggressive compression if still > 600KB
+      payloadStr = JSON.stringify(cloned);
+      if (payloadStr.length > 600000) {
+        if (Array.isArray(cloned.flashcards)) {
+          await processCards(cloned.flashcards, 360, 0.45);
+        }
+        if (Array.isArray(cloned.subFlashcardSets)) {
+          for (const subSet of cloned.subFlashcardSets) {
+            if (Array.isArray(subSet.flashcards)) {
+              await processCards(subSet.flashcards, 360, 0.45);
+            }
+          }
+        }
+        if (Array.isArray(cloned.questions)) {
+          for (let i = 0; i < cloned.questions.length; i++) {
+            const q = cloned.questions[i];
+            if (q.image && q.image.length > 5000) {
+              q.image = await resizeBase64(q.image, 360, 0.45);
+            }
+          }
+        }
+      }
+
+      // PASS 3: Maximum compression if still > 850KB
+      payloadStr = JSON.stringify(cloned);
+      if (payloadStr.length > 850000) {
+        if (Array.isArray(cloned.flashcards)) {
+          await processCards(cloned.flashcards, 250, 0.35);
+        }
+        if (Array.isArray(cloned.subFlashcardSets)) {
+          for (const subSet of cloned.subFlashcardSets) {
+            if (Array.isArray(subSet.flashcards)) {
+              await processCards(subSet.flashcards, 250, 0.35);
+            }
+          }
+        }
+        if (Array.isArray(cloned.questions)) {
+          for (let i = 0; i < cloned.questions.length; i++) {
+            const q = cloned.questions[i];
+            if (q.image && q.image.length > 5000) {
+              q.image = await resizeBase64(q.image, 250, 0.35);
+            }
           }
         }
       }
@@ -3415,7 +3481,7 @@ export function AssignmentsView({
                                       : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
                                   }`}
                                 >
-                                  Sparkles Tất cả bộ ({selectedAssignment.flashcards?.length || 0} thẻ)
+                                  Sparkles Tất cả bộ ({selectedAssignment.flashcards?.length || selectedAssignment.subFlashcardSets?.reduce((acc, s) => acc + (s.flashcards?.length || 0), 0) || 0} thẻ)
                                 </button>
 
                                 {selectedAssignment.subFlashcardSets!.map((sub, idx) => (

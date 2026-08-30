@@ -325,7 +325,15 @@ function StudentSubmissionDetailModalInner({
   const curTypeMeta = typeMeta[assignment.type] || typeMeta.file_upload;
   const TypeIcon = curTypeMeta.icon;
 
-  const hasFlashcards = assignment.type === 'flashcard' && assignment.flashcards && assignment.flashcards.length > 0;
+  const allFlashcards = useMemo(() => {
+    if (assignment.flashcards && assignment.flashcards.length > 0) return assignment.flashcards;
+    if (assignment.subFlashcardSets && assignment.subFlashcardSets.length > 0) {
+      return assignment.subFlashcardSets.flatMap(s => s.flashcards || []);
+    }
+    return [];
+  }, [assignment]);
+
+  const hasFlashcards = assignment.type === 'flashcard' && allFlashcards.length > 0;
   const hasFile = Boolean(submission.fileUrl || assignment.type === 'lesson_check' || assignment.type === 'file_upload');
   const hasQuiz = displayQuestions.length > 0;
 
@@ -495,7 +503,7 @@ function StudentSubmissionDetailModalInner({
                     }`}
                   >
                     <Layers className="w-3.5 h-3.5" />
-                    <span>Bộ thẻ Flashcard ({assignment.flashcards!.length})</span>
+                    <span>Bộ thẻ Flashcard ({allFlashcards.length})</span>
                   </button>
                 )}
 
@@ -742,7 +750,7 @@ function StudentSubmissionDetailModalInner({
                     <div>
                       <h4 className="font-extrabold text-sm sm:text-base">Bộ thẻ ghi nhớ Flashcard</h4>
                       <p className="text-xs text-purple-100 mt-0.5">
-                        Tổng số: {assignment.flashcards!.length} thẻ học tập đã giao
+                        Tổng số: {allFlashcards.length} thẻ học tập đã giao
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -760,7 +768,7 @@ function StudentSubmissionDetailModalInner({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {assignment.flashcards!.map((card, idx) => (
+                    {allFlashcards.map((card, idx) => (
                       <div key={card.id || idx} className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-2 text-xs">
                           <span className="font-extrabold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">

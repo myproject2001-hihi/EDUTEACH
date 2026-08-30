@@ -500,7 +500,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           pdfUrl: a.pdfUrl,
           simulationUrl: a.simulationUrl,
           gameType: a.gameType,
-          flashcardsCount: a.flashcards?.length || 0,
+          flashcardsCount: a.flashcards?.length || a.subFlashcardSets?.reduce((acc, s) => acc + (s.flashcards?.length || 0), 0) || 0,
           isMandatory: a.isMandatory
         },
         rawObj: a

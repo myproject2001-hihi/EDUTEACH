@@ -53,6 +53,27 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   const [isDraggingFront, setIsDraggingFront] = useState(false);
   const [isDraggingBack, setIsDraggingBack] = useState(false);
 
+  // Active Sub-Set state when editing a parent / combined lesson
+  const [activeSubIndex, setActiveSubIndex] = useState<number>(0);
+
+  const hasSubSets = Boolean(newSubFlashcardSets && newSubFlashcardSets.length > 0);
+  const safeSubIndex = hasSubSets ? Math.min(activeSubIndex, (newSubFlashcardSets?.length || 1) - 1) : 0;
+  const currentSubSet = hasSubSets && newSubFlashcardSets ? newSubFlashcardSets[safeSubIndex] : null;
+
+  const updateActiveCards = (updatedCards: Flashcard[]) => {
+    setNewFlashcards(updatedCards);
+    if (hasSubSets && setNewSubFlashcardSets && newSubFlashcardSets) {
+      const updated = [...newSubFlashcardSets];
+      if (updated[safeSubIndex]) {
+        updated[safeSubIndex] = {
+          ...updated[safeSubIndex],
+          flashcards: updatedCards
+        };
+        setNewSubFlashcardSets(updated);
+      }
+    }
+  };
+
   const processFiles = async (files: FileList | File[], setFilesState: React.Dispatch<React.SetStateAction<{ name: string; base64: string; key: string }[]>>) => {
     if (!files || files.length === 0) return;
     
@@ -328,7 +349,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
       };
     });
 
-    setNewFlashcards(importedCards);
+    updateActiveCards(importedCards);
     setShowBatchModal(false);
     setFrontFiles([]);
     setBackFiles([]);
@@ -392,7 +413,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     type="button"
                     onClick={() => {
                       if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ thẻ ghi nhớ hiện tại không? Tất cả ảnh và nội dung đã thiết lập sẽ bị mất.")) {
-                        setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
+                        updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
                       }
                     }}
                     className="px-2.5 sm:px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 shrink-0"
@@ -424,7 +445,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   </label>
                   <button 
                     type="button" 
-                    onClick={() => setNewFlashcards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
+                    onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
                     className="px-3 sm:px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 flex items-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
                   >
                     <Plus className="w-3.5 h-3.5" /> Thêm thẻ mới
@@ -432,20 +453,22 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 </div>
               </div>
 
-              {/* Hierarchical Sub-Sets Management Banner (When editing/creating a parent lesson) */}
-              {newSubFlashcardSets && newSubFlashcardSets.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-2xl p-4 text-white space-y-3 shadow-md border border-purple-500/30 shrink-0">
+              {/* Hierarchical Sub-Sets Management Tabs & Active Sub-Set Config */}
+              {hasSubSets && newSubFlashcardSets && (
+                <div className="bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 rounded-2xl p-4 text-white space-y-3 shadow-md border border-indigo-500/30 shrink-0">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="p-1.5 bg-purple-500/30 rounded-lg text-purple-200">📦</span>
+                      <span className="p-2 bg-indigo-500/30 rounded-xl text-indigo-200">📦</span>
                       <div>
                         <h5 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
-                          <span>BÀI HỌC TỔNG HỢP / BỘ CHA</span>
-                          <span className="text-[10px] px-2 py-0.5 bg-purple-500/40 rounded-md font-bold text-purple-200">
+                          <span>BÀI HỌC TỔNG HỢP (BỘ CHA)</span>
+                          <span className="text-[10px] px-2.5 py-0.5 bg-indigo-500/40 rounded-md font-bold text-indigo-200 border border-indigo-400/30">
                             {newSubFlashcardSets.length} bộ con
                           </span>
                         </h5>
-                        <p className="text-[11px] text-purple-200/80">Bài học này quản lý nhiều bộ con độc lập. Bạn có thể chỉnh sửa tên & mô tả từng bộ bên dưới.</p>
+                        <p className="text-[11px] text-indigo-200/80 mt-0.5">
+                          Nhấp chọn từng bộ con bên dưới để xem & chỉnh sửa thẻ ghi nhớ của riêng bộ con đó.
+                        </p>
                       </div>
                     </div>
 
@@ -460,73 +483,114 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                             flashcards: [{ id: Date.now().toString(), front: '', back: '' }],
                             questions: []
                           };
-                          setNewSubFlashcardSets([...newSubFlashcardSets, newSub]);
+                          const updated = [...newSubFlashcardSets, newSub];
+                          setNewSubFlashcardSets(updated);
+                          const newIdx = updated.length - 1;
+                          setActiveSubIndex(newIdx);
+                          setNewFlashcards(newSub.flashcards);
                         }}
-                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition-all active:scale-95 flex items-center gap-1 shrink-0"
+                        className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold border border-white/20 transition-all active:scale-95 flex items-center gap-1.5 shrink-0 shadow-sm"
                       >
                         <Plus className="w-3.5 h-3.5" /> Thêm bộ con mới
                       </button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 max-h-48 overflow-y-auto custom-scrollbar">
-                    {newSubFlashcardSets.map((sub, sIdx) => (
-                      <div key={sub.id || sIdx} className="bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-3 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500/40 rounded-md text-purple-100 uppercase">
-                            Bộ #{sIdx + 1}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-purple-200 font-medium">
-                              {sub.flashcards?.length || 0} thẻ
-                            </span>
-                            {setNewSubFlashcardSets && newSubFlashcardSets.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (window.confirm(`Xóa bộ con "${sub.title}" khỏi bài học cha này?`)) {
-                                    setNewSubFlashcardSets(newSubFlashcardSets.filter(s => s.id !== sub.id));
-                                  }
-                                }}
-                                className="p-1 hover:bg-rose-500/40 text-rose-200 rounded-lg transition-colors"
-                                title="Xóa bộ con này"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                  {/* Sub-Set Horizontal Navigation Tabs */}
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 custom-scrollbar">
+                    {newSubFlashcardSets.map((sub, sIdx) => {
+                      const isActive = sIdx === safeSubIndex;
+                      const cardCount = sub.flashcards?.length || 0;
 
+                      return (
+                        <button
+                          key={sub.id || sIdx}
+                          type="button"
+                          onClick={() => {
+                            setActiveSubIndex(sIdx);
+                            const targetCards = sub.flashcards || [];
+                            setNewFlashcards(targetCards.length > 0 ? targetCards : [{ id: Date.now().toString(), front: '', back: '' }]);
+                          }}
+                          className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 shrink-0 border ${
+                            isActive
+                              ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
+                              : 'bg-white/10 hover:bg-white/20 text-indigo-100 border-white/15'
+                          }`}
+                        >
+                          <span>📦 #{sIdx + 1} {sub.title || 'Bộ con'}</span>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
+                            isActive ? 'bg-black/20 text-slate-900' : 'bg-black/30 text-indigo-200'
+                          }`}>
+                            {cardCount} thẻ
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active Sub-set Settings Card */}
+                  {currentSubSet && (
+                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                      <div className="sm:col-span-5">
+                        <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
+                          Tên bộ con #{safeSubIndex + 1}:
+                        </label>
                         <input
                           type="text"
-                          value={sub.title}
+                          value={currentSubSet.title}
                           onChange={(e) => {
-                            if (setNewSubFlashcardSets) {
+                            if (setNewSubFlashcardSets && newSubFlashcardSets) {
                               const updated = [...newSubFlashcardSets];
-                              updated[sIdx] = { ...updated[sIdx], title: e.target.value };
+                              updated[safeSubIndex] = { ...updated[safeSubIndex], title: e.target.value };
                               setNewSubFlashcardSets(updated);
                             }
                           }}
                           placeholder="Tên bộ con (VD: Từ vựng Bài 1)"
-                          className="w-full px-2.5 py-1.5 bg-black/20 border border-white/20 rounded-lg text-xs text-white placeholder-purple-300/60 font-bold outline-none focus:border-purple-300"
+                          className="w-full px-3 py-1.5 bg-black/30 border border-white/20 rounded-lg text-xs text-white placeholder-indigo-300/60 font-bold outline-none focus:border-amber-300"
                         />
+                      </div>
 
+                      <div className="sm:col-span-5">
+                        <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
+                          Mô tả bộ con #{safeSubIndex + 1}:
+                        </label>
                         <input
                           type="text"
-                          value={sub.description || ''}
+                          value={currentSubSet.description || ''}
                           onChange={(e) => {
-                            if (setNewSubFlashcardSets) {
+                            if (setNewSubFlashcardSets && newSubFlashcardSets) {
                               const updated = [...newSubFlashcardSets];
-                              updated[sIdx] = { ...updated[sIdx], description: e.target.value };
+                              updated[safeSubIndex] = { ...updated[safeSubIndex], description: e.target.value };
                               setNewSubFlashcardSets(updated);
                             }
                           }}
                           placeholder="Mô tả bộ con (không bắt buộc)"
-                          className="w-full px-2.5 py-1.5 bg-black/20 border border-white/20 rounded-lg text-[11px] text-purple-100 placeholder-purple-300/60 outline-none focus:border-purple-300"
+                          className="w-full px-3 py-1.5 bg-black/30 border border-white/20 rounded-lg text-xs text-indigo-100 placeholder-indigo-300/60 outline-none focus:border-amber-300"
                         />
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="sm:col-span-2 flex items-end justify-end pt-2 sm:pt-4">
+                        {setNewSubFlashcardSets && newSubFlashcardSets.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Xóa bộ con "${currentSubSet.title}" khỏi bài học cha này?`)) {
+                                const updated = newSubFlashcardSets.filter((_, idx) => idx !== safeSubIndex);
+                                setNewSubFlashcardSets(updated);
+                                const nextIdx = Math.max(0, safeSubIndex - 1);
+                                setActiveSubIndex(nextIdx);
+                                setNewFlashcards(updated[nextIdx].flashcards || [{ id: Date.now().toString(), front: '', back: '' }]);
+                              }
+                            }}
+                            className="w-full py-1.5 px-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-200 border border-rose-400/30 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
+                            title="Xóa bộ con này"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Xóa bộ
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -548,7 +612,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         type="button"
                         onClick={() => {
                           if (newFlashcards.length > 1) {
-                            setNewFlashcards(newFlashcards.filter(c => c.id !== card.id));
+                            updateActiveCards(newFlashcards.filter(c => c.id !== card.id));
                           } else {
                             alert('Bộ thẻ cần ít nhất 1 thẻ!');
                           }
@@ -565,7 +629,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
                         <textarea 
                           value={card.front} 
-                          onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} 
+                          onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} 
                           className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
                           placeholder="Nhập nội dung mặt trước..." 
                         />
@@ -574,7 +638,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         <label className="block text-xs font-bold text-slate-500 mb-1">Mặt sau (Đáp án / Giải nghĩa)</label>
                         <textarea 
                           value={card.back} 
-                          onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} 
+                          onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} 
                           className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
                           placeholder="Nhập nội dung mặt sau..." 
                         />
@@ -593,7 +657,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           <input
                             type="text"
                             value={card.frontImage || card.image || ''}
-                            onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: e.target.value } : c))}
+                            onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: e.target.value } : c))}
                             placeholder="Dán URL ảnh mặt trước..."
                             className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 bg-white font-medium"
                           />
@@ -607,7 +671,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                                 const file = e.target.files?.[0];
                                 if (file) {
                                   const base64 = await compressImage(file);
-                                  setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: base64 } : c));
+                                  updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: base64 } : c));
                                 }
                               }}
                             />
@@ -615,7 +679,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           {(card.frontImage || card.image) && (
                             <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center p-0.5 bg-white group/thumb">
                               <img src={card.frontImage || card.image} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                              <button type="button" onClick={() => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: '', image: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                              <button type="button" onClick={() => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: '', image: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
                                 <X className="w-3 h-3" />
                               </button>
                             </div>
@@ -633,7 +697,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           <input
                             type="text"
                             value={card.backImage || ''}
-                            onChange={(e) => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: e.target.value } : c))}
+                            onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: e.target.value } : c))}
                             placeholder="Dán URL ảnh mặt sau..."
                             className="flex-1 px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 bg-white font-medium"
                           />
@@ -647,7 +711,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                                 const file = e.target.files?.[0];
                                 if (file) {
                                   const base64 = await compressImage(file);
-                                  setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: base64 } : c));
+                                  updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: base64 } : c));
                                 }
                               }}
                             />
@@ -655,7 +719,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           {card.backImage && (
                             <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 shrink-0 flex items-center justify-center p-0.5 bg-white group/thumb">
                               <img src={card.backImage} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" />
-                              <button type="button" onClick={() => setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
+                              <button type="button" onClick={() => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: '' } : c))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity">
                                 <X className="w-3 h-3" />
                               </button>
                             </div>
