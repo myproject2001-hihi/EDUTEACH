@@ -32,6 +32,13 @@ export interface QuizQuestion {
   matchingPairs?: { left: string; right: string }[];
 }
 
+export interface SubFlashcardSet {
+  id: string;
+  title: string;
+  description?: string;
+  flashcards: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
+}
+
 export interface Assignment {
   id: string;
   title: string;
@@ -48,6 +55,7 @@ export interface Assignment {
   isMandatory?: boolean; // Nút bắt buộc
   maxAttempts?: number; // 0 hoặc undefined = Vĩnh viễn (Không giới hạn), 1 = 1 lần, 2, 3, 5, 10
   flashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
+  subFlashcardSets?: SubFlashcardSet[]; // Các bộ thẻ con khi gộp thành bộ lớn (Bộ cha)
   rawCode?: string; // Lưu giữ 100% nguyên vẹn mã nguồn đề thi người dùng nhập
   createdAt: string;
   teacherId?: string;

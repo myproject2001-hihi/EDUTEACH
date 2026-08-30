@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Settings, CheckCircle, AlertCircle, Sparkles, HelpCircle, Camera } from 'lucide-react';
+import { Save, Settings, CheckCircle, AlertCircle, Sparkles, HelpCircle, Camera, LayoutGrid, List } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { User } from '../types';
@@ -12,6 +12,9 @@ interface SettingsViewProps {
 export function SettingsView({ user }: SettingsViewProps) {
   const [academicYear, setAcademicYear] = useState(() => {
     return localStorage.getItem('academic_year') || 'Khóa 2024 - 2025';
+  });
+  const [layoutDensity, setLayoutDensity] = useState<'comfortable' | 'compact'>(() => {
+    return (localStorage.getItem('layout_density') as 'comfortable' | 'compact') || 'comfortable';
   });
   const [className, setClassName] = useState('');
   const [connectionCode, setConnectionCode] = useState('');
@@ -30,6 +33,7 @@ export function SettingsView({ user }: SettingsViewProps) {
             const uData = userDocSnap.data();
             if (uData.connectionCode) setConnectionCode(uData.connectionCode);
             if (uData.className) setClassName(uData.className);
+            if (uData.layoutDensity) setLayoutDensity(uData.layoutDensity);
           } else {
             if (user.connectionCode) setConnectionCode(user.connectionCode);
             if (user.className) setClassName(user.className);
@@ -64,13 +68,15 @@ export function SettingsView({ user }: SettingsViewProps) {
     setNotification(null);
     try {
       localStorage.setItem('academic_year', academicYear);
-      // Dispatch storage event to update layout instantly
+      localStorage.setItem('layout_density', layoutDensity);
+      // Dispatch storage event to update layout instantly across views
       window.dispatchEvent(new Event('storage'));
 
       if (user.role === 'teacher' || user.role === 'admin') {
         await updateDoc(doc(db, 'users', user.id), {
           connectionCode: connectionCode || user.id.substring(0, 6).toUpperCase(),
-          className: className
+          className: className,
+          layoutDensity: layoutDensity
         });
       }
 
@@ -166,7 +172,9 @@ export function SettingsView({ user }: SettingsViewProps) {
           </div>
 
           <div className="space-y-4 pt-4 border-t border-slate-100">
-            <h3 className="text-lg font-bold text-slate-900 border-b pb-2">2. Thông tin chung</h3>
+            <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center justify-between">
+              <span>2. Thông tin chung & Mật độ hiển thị</span>
+            </h3>
             
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Niên khóa học tập</label>
@@ -178,6 +186,67 @@ export function SettingsView({ user }: SettingsViewProps) {
                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
               />
               <p className="mt-1 text-[11px] text-slate-500">Hiển thị trên tiêu đề bảng điều khiển của giáo viên và học sinh.</p>
+            </div>
+
+            <div className="pt-3">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mật độ hiển thị Bài tập & Flashcards (Density Toggle)</label>
+              <p className="text-xs text-slate-500 mb-3">Tùy chỉnh chế độ hiển thị danh sách bài tập và thẻ Flashcard phù hợp với kích thước màn hình thiết bị.</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Option 1: Comfortable / Grid View */}
+                <div 
+                  onClick={() => {
+                    setLayoutDensity('comfortable');
+                    localStorage.setItem('layout_density', 'comfortable');
+                    window.dispatchEvent(new Event('storage'));
+                  }}
+                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
+                    layoutDensity === 'comfortable'
+                      ? 'bg-indigo-50/80 border-indigo-600 ring-2 ring-indigo-600/20 shadow-sm'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-xl shrink-0 ${layoutDensity === 'comfortable' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    <LayoutGrid className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-sm text-slate-900">Xem dạng Lưới (Grid / Comfortable)</h4>
+                      {layoutDensity === 'comfortable' && <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">Đang bật</span>}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Hiển thị dạng ô thẻ rộng rãi với khoảng cách thông thoáng, tối ưu cho màn hình Desktop & Tablet.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Option 2: Compact / List View */}
+                <div 
+                  onClick={() => {
+                    setLayoutDensity('compact');
+                    localStorage.setItem('layout_density', 'compact');
+                    window.dispatchEvent(new Event('storage'));
+                  }}
+                  className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-start gap-3.5 ${
+                    layoutDensity === 'compact'
+                      ? 'bg-indigo-50/80 border-indigo-600 ring-2 ring-indigo-600/20 shadow-sm'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`p-2.5 rounded-xl shrink-0 ${layoutDensity === 'compact' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    <List className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-extrabold text-sm text-slate-900">Xem dạng Danh sách (List / Compact)</h4>
+                      {layoutDensity === 'compact' && <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">Đang bật</span>}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Hiển thị dạng dòng thu gọn cô đọng, tiết kiệm không gian, phù hợp quét nhanh trên thiết bị nhỏ.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

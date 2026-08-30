@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../types';
+import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcardSet } from '../types';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -622,6 +622,21 @@ export function AssignmentsView({
 
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(filteredAssignments[0] || assignments[0] || null);
 
+  const [layoutDensity, setLayoutDensity] = useState<'comfortable' | 'compact'>(() => {
+    return (localStorage.getItem('layout_density') as 'comfortable' | 'compact') || 'comfortable';
+  });
+
+  useEffect(() => {
+    const handleStorage = () => {
+      const saved = localStorage.getItem('layout_density');
+      if (saved === 'comfortable' || saved === 'compact') {
+        setLayoutDensity(saved);
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
   // Unsubmitted students modal state
   const [usersList, setUsersList] = useState<User[]>([]);
   const [unsubmittedModalAssignment, setUnsubmittedModalAssignment] = useState<Assignment | null>(null);
@@ -645,7 +660,7 @@ export function AssignmentsView({
   const [newTitle, setNewTitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
-  const [newSessionTitle, setNewSessionTitle] = useState('Đại số 10 - Tiết 23');
+  const [newSessionTitle, setNewSessionTitle] = useState('');
   const [newPdfUrl, setNewPdfUrl] = useState('');
   const [newSimUrl, setNewSimUrl] = useState('');
   const [selectedSimId, setSelectedSimId] = useState<string>('');
@@ -656,6 +671,27 @@ export function AssignmentsView({
   const [gameSearchQuery, setGameSearchQuery] = useState<string>('');
   const [newGameFormats, setNewGameFormats] = useState<string[]>(['multiple_choice', 'true_false']);
   const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string, image?: string, frontImage?: string, backImage?: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
+  const [newSubFlashcardSets, setNewSubFlashcardSets] = useState<SubFlashcardSet[]>([]);
+  const [activeSubSetId, setActiveSubSetId] = useState<string>('all');
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  useEffect(() => {
+    setActiveSubSetId('all');
+  }, [selectedAssignment?.id]);
+
+  const displayFlashcards = useMemo(() => {
+    if (!selectedAssignment || selectedAssignment.type !== 'flashcard') return [];
+    if (selectedAssignment.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0) {
+      if (activeSubSetId === 'all') {
+        return selectedAssignment.flashcards && selectedAssignment.flashcards.length > 0
+          ? selectedAssignment.flashcards
+          : selectedAssignment.subFlashcardSets.flatMap(s => s.flashcards || []);
+      }
+      const found = selectedAssignment.subFlashcardSets.find(s => s.id === activeSubSetId);
+      return found ? (found.flashcards || []) : (selectedAssignment.flashcards || []);
+    }
+    return selectedAssignment.flashcards || [];
+  }, [selectedAssignment, activeSubSetId]);
   const [showGamePreview, setShowGamePreview] = useState(false);
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
@@ -1217,7 +1253,8 @@ export function AssignmentsView({
 
   const handleOpenCreateModal = (
     targetType?: 'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard' | 'lesson_check',
-    initialFlashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string; }[]
+    initialFlashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string; }[],
+    initialSubFlashcardSets?: SubFlashcardSet[]
   ) => {
     const finalType = targetType || (viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
     setEditingAssignment(null);
@@ -1225,7 +1262,7 @@ export function AssignmentsView({
     setNewTitle('');
     setNewDescription('');
     setNewDueDate('');
-    setNewSessionTitle('Đại số 10 - Tiết 23');
+    setNewSessionTitle('');
     setNewPdfUrl('');
     setNewSimUrl('');
     setSelectedSimId('');
@@ -1243,6 +1280,7 @@ export function AssignmentsView({
     } else {
       setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
     }
+    setNewSubFlashcardSets(initialSubFlashcardSets || []);
     setRawQuestionCode(SAMPLE_TEMPLATES.mau2);
     setQuestions([
       {
@@ -1273,7 +1311,7 @@ export function AssignmentsView({
     setNewTitle(assignment.title || '');
     setNewDescription(assignment.description || '');
     setNewDueDate(formatForDateTimeInput(assignment.dueDate));
-    setNewSessionTitle(assignment.classSessionTitle || 'Đại số 10 - Tiết 23');
+    setNewSessionTitle(assignment.classSessionTitle || '');
     setNewPdfUrl(assignment.pdfUrl || '');
     setNewSimUrl(assignment.simulationUrl || '');
     setNewGameType(assignment.gameType || 'quiz_nghieng_dau');
@@ -1282,6 +1320,7 @@ export function AssignmentsView({
     setNewIsPublished(assignment.isPublished !== false);
     setNewMaxAttempts(assignment.maxAttempts !== undefined ? assignment.maxAttempts : 0);
     setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
+    setNewSubFlashcardSets(assignment.subFlashcardSets || []);
     
     if (assignment.rawCode) {
       setRawQuestionCode(assignment.rawCode);
@@ -1406,6 +1445,7 @@ export function AssignmentsView({
       isPublished: newIsPublished,
       maxAttempts: newMaxAttempts,
       flashcards: newType === 'flashcard' ? newFlashcards : undefined,
+      subFlashcardSets: newType === 'flashcard' && newSubFlashcardSets.length > 0 ? newSubFlashcardSets : undefined,
       rawCode: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? rawQuestionCode : undefined,
       questions: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? finalQuestions : undefined,
     };
@@ -1473,26 +1513,39 @@ export function AssignmentsView({
   };
 
   const handleCombineFlashcards = () => {
-    const selectedAssignments = assignments.filter(a => selectedIdsForDeletion.includes(a.id) && a.type === 'flashcard' && a.flashcards);
+    const selectedAssignments = assignments.filter(a => selectedIdsForDeletion.includes(a.id) && a.type === 'flashcard');
     
     if (selectedAssignments.length < 1) {
       alert("Vui lòng chọn ít nhất 1 bộ thẻ để gộp.");
       return;
     }
 
+    const subSets: SubFlashcardSet[] = [];
     let combinedCards: {id: string, front: string, back: string, image?: string, frontImage?: string, backImage?: string}[] = [];
+
     selectedAssignments.forEach((a, aIdx) => {
-      if (a.flashcards) {
-        a.flashcards.forEach((c, cIdx) => {
-          combinedCards.push({
-            id: `fc_combined_${Date.now()}_${aIdx}_${cIdx}_${Math.random().toString(36).substring(7)}`,
-            front: c.front,
-            back: c.back,
-            image: c.image,
-            frontImage: (c as any).frontImage,
-            backImage: (c as any).backImage
+      // If assignment a already has subFlashcardSets, preserve them!
+      if (a.subFlashcardSets && a.subFlashcardSets.length > 0) {
+        a.subFlashcardSets.forEach(s => {
+          subSets.push({
+            id: s.id || `sub_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            title: s.title,
+            description: s.description || '',
+            flashcards: s.flashcards || []
           });
+          if (s.flashcards) {
+            combinedCards.push(...s.flashcards);
+          }
         });
+      } else {
+        const cards = a.flashcards || [];
+        subSets.push({
+          id: a.id || `sub_${Date.now()}_${aIdx}`,
+          title: a.title || `Bộ thẻ ${aIdx + 1}`,
+          description: a.description || '',
+          flashcards: cards
+        });
+        combinedCards.push(...cards);
       }
     });
 
@@ -1500,7 +1553,12 @@ export function AssignmentsView({
       combinedCards = [{ id: Date.now().toString(), front: '', back: '' }];
     }
 
-    handleOpenCreateModal('flashcard', combinedCards);
+    const parentTitle = `BỘ LỚN: ${selectedAssignments.map(a => a.title).join(' + ')}`;
+    const parentDesc = `Bộ thẻ tổng hợp bao gồm ${subSets.length} bộ con (${selectedAssignments.map(a => a.title).join(', ')})`;
+
+    handleOpenCreateModal('flashcard', combinedCards, subSets);
+    setNewTitle(parentTitle);
+    setNewDescription(parentDesc);
     setSelectedIdsForDeletion([]);
     setShowCreateModal(true);
   };
@@ -1916,7 +1974,7 @@ export function AssignmentsView({
               ? 'Bộ Thẻ Ghi Nhớ (Flashcard)' 
               : 'Bài Tập Sau Buổi Học'}
           </h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 mt-0.5 hidden sm:block">
             {viewMode === 'games'
               ? (isTeacher ? 'Nơi tạo và giao các trò chơi tương tác ôn tập kiến thức cho học sinh' : 'Luyện tập kiến thức vui nhộn qua các trò chơi tương tác')
               : viewMode === 'flashcards'
@@ -2171,16 +2229,52 @@ export function AssignmentsView({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Column: Assignments List */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className={`lg:col-span-1 space-y-4 ${selectedAssignment ? 'hidden lg:block' : 'block'}`}>
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold text-slate-900 text-base">
               {viewMode === 'games' ? 'Danh sách Game' : viewMode === 'flashcards' ? 'Danh sách Flashcard' : 'Danh sách Bài Tập'}
             </h3>
-            <span className="text-xs font-semibold text-slate-500">
-              {filteredAssignments.length === assignments.length 
-                ? `${assignments.length} bài` 
-                : `Tìm thấy ${filteredAssignments.length}/${assignments.length}`}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500">
+                {filteredAssignments.length === assignments.length 
+                  ? `${assignments.length} bài` 
+                  : `Tìm thấy ${filteredAssignments.length}/${assignments.length}`}
+              </span>
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLayoutDensity('comfortable');
+                    localStorage.setItem('layout_density', 'comfortable');
+                    window.dispatchEvent(new Event('storage'));
+                  }}
+                  className={`p-1 rounded-lg transition-all ${
+                    layoutDensity === 'comfortable' 
+                      ? 'bg-white text-indigo-600 shadow-sm font-bold' 
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                  title="Dạng Lưới (Comfortable Grid)"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLayoutDensity('compact');
+                    localStorage.setItem('layout_density', 'compact');
+                    window.dispatchEvent(new Event('storage'));
+                  }}
+                  className={`p-1 rounded-lg transition-all ${
+                    layoutDensity === 'compact' 
+                      ? 'bg-white text-indigo-600 shadow-sm font-bold' 
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                  title="Dạng Danh sách (Compact List)"
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* SEARCH & FILTERS BOX */}
@@ -2314,7 +2408,7 @@ export function AssignmentsView({
             </div>
           )}
 
-          <div className="space-y-3">
+          <div className={layoutDensity === 'compact' ? "space-y-2" : "space-y-3"}>
             {isLoadingAssignments ? (
               <AssignmentListSkeleton count={4} />
             ) : filteredAssignments.length === 0 ? (
@@ -2334,7 +2428,9 @@ export function AssignmentsView({
                 <div 
                   key={assignment.id}
                   onClick={() => setSelectedAssignment(assignment)}
-                  className={`p-5 rounded-3xl cursor-pointer transition-all border ${
+                  className={`cursor-pointer transition-all border ${
+                    layoutDensity === 'compact' ? 'p-3 rounded-2xl' : 'p-5 rounded-3xl'
+                  } ${
                     isSelected 
                       ? 'bg-indigo-50/80 border-indigo-300 shadow-sm ring-1 ring-indigo-300' 
                       : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
@@ -2498,7 +2594,20 @@ export function AssignmentsView({
         {/* Right Column: Selected Assignment Details & Actions */}
         <div className="lg:col-span-2">
           {selectedAssignment ? (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:p-8 space-y-6">
+            <div className="space-y-4">
+              {/* Mobile Back to List Button */}
+              <div className="lg:hidden flex items-center justify-between">
+                <button 
+                  type="button"
+                  onClick={() => setSelectedAssignment(null)}
+                  className="inline-flex items-center gap-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-2xl text-xs font-bold border border-indigo-200 shadow-sm transition-all active:scale-95"
+                >
+                  <ArrowLeft className="w-4 h-4 shrink-0" />
+                  <span>Quay lại danh sách {viewMode === 'flashcards' ? 'flashcard' : viewMode === 'games' ? 'game' : 'bài tập'}</span>
+                </button>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 lg:p-8 space-y-6">
               
               {/* Header Details */}
               <div>
@@ -3114,14 +3223,80 @@ export function AssignmentsView({
 
                     // --- FLASHCARD TYPE: LANDING SCREEN ---
                     if (selectedAssignment.type === 'flashcard' && !isExamStarted) {
-                      const allFlipped = selectedAssignment.flashcards && flippedCards.size === selectedAssignment.flashcards.length;
-                      const activeCard = selectedAssignment.flashcards?.[activeCardIndex];
+                      const hasSubSets = selectedAssignment.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0;
+                      const allFlipped = displayFlashcards.length > 0 && flippedCards.size >= displayFlashcards.length;
+                      const activeCard = displayFlashcards[activeCardIndex];
 
                       return (
-                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-6 text-center max-w-xl mx-auto flex flex-col">
-                          <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">{selectedAssignment.title}</h3>
+                        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 text-center max-w-2xl mx-auto flex flex-col shadow-sm">
+                          <div className="space-y-1">
+                            <h3 className="font-extrabold text-slate-900 text-base sm:text-xl flex items-center justify-center gap-2">
+                              {hasSubSets && <Layers className="w-5 h-5 text-purple-600 shrink-0" />}
+                              <span>{selectedAssignment.title}</span>
+                            </h3>
+                            {hasSubSets && (
+                              <span className="inline-block mt-1 text-[11px] font-extrabold text-purple-700 bg-purple-100/80 px-3 py-1 rounded-full border border-purple-200 shadow-sm">
+                                📦 Bộ lớn (Gồm {selectedAssignment.subFlashcardSets!.length} bộ con)
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Sub-set Selector Grid / Horizontal Scroll Tabs on Mobile */}
+                          {hasSubSets && (
+                            <div className="bg-white border border-slate-200 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-sm">
+                              <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                                <span>Danh sách bộ thẻ con:</span>
+                                <span className="text-purple-600 lowercase font-normal">Chạm để chọn học</span>
+                              </label>
+                              <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar sm:grid sm:grid-cols-2 max-h-48 sm:overflow-y-auto p-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSubSetId('all');
+                                    setActiveCardIndex(0);
+                                    setFlippedCards(new Set());
+                                  }}
+                                  className={`p-2.5 rounded-xl text-xs font-bold transition-all text-left flex items-center justify-between gap-2 border shrink-0 sm:shrink ${
+                                    activeSubSetId === 'all'
+                                      ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                      : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-1.5 font-bold whitespace-nowrap">
+                                    <Sparkles className="w-4 h-4 shrink-0" /> Tất cả bộ con
+                                  </span>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded-md ${activeSubSetId === 'all' ? 'bg-purple-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                    {selectedAssignment.flashcards?.length || 0} thẻ
+                                  </span>
+                                </button>
+
+                                {selectedAssignment.subFlashcardSets!.map((sub, idx) => (
+                                  <button
+                                    key={sub.id || idx}
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveSubSetId(sub.id);
+                                      setActiveCardIndex(0);
+                                      setFlippedCards(new Set());
+                                    }}
+                                    className={`p-2.5 rounded-xl text-xs font-bold transition-all text-left flex items-center justify-between gap-2 border shrink-0 sm:shrink ${
+                                      activeSubSetId === sub.id
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
+                                    }`}
+                                  >
+                                    <span className="truncate pr-1 whitespace-nowrap">📚 {sub.title}</span>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-md shrink-0 ${activeSubSetId === sub.id ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                                      {sub.flashcards?.length || 0} thẻ
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           <p className="text-xs text-slate-500">
-                            Bạn cần lật qua tất cả thẻ ghi nhớ để mở khóa bài kiểm tra.
+                            Lật tất cả thẻ ({displayFlashcards.length} thẻ) để mở khóa bài kiểm tra.
                           </p>
                           
                           {activeCard && (
@@ -3137,9 +3312,27 @@ export function AssignmentsView({
                                   return next;
                                 });
                               }}
-                              className="w-full h-64 sm:h-80 md:h-96 perspective-1000 cursor-pointer group my-2"
-                              whileHover={{ scale: 1.015 }}
-                              whileTap={{ scale: 0.985 }}
+                              onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
+                              onTouchEnd={(e) => {
+                                if (touchStartX === null) return;
+                                const touchEndX = e.changedTouches[0].clientX;
+                                const diff = touchStartX - touchEndX;
+                                if (Math.abs(diff) > 40) {
+                                  if (diff > 0) {
+                                    if (activeCardIndex < (displayFlashcards.length || 1) - 1) {
+                                      setActiveCardIndex(i => i + 1);
+                                    }
+                                  } else {
+                                    if (activeCardIndex > 0) {
+                                      setActiveCardIndex(i => i - 1);
+                                    }
+                                  }
+                                }
+                                setTouchStartX(null);
+                              }}
+                              className="w-full h-[350px] sm:h-[380px] md:h-[420px] perspective-1000 cursor-pointer group my-1 sm:my-3 select-none"
+                              whileHover={{ scale: 1.01 }}
+                              whileTap={{ scale: 0.99 }}
                               transition={{ type: "spring", stiffness: 350, damping: 25 }}
                             >
                               <motion.div 
@@ -3148,14 +3341,14 @@ export function AssignmentsView({
                                 className="relative w-full h-full transform-style-3d"
                               >
                                 {/* Front */}
-                                <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-lg flex flex-col justify-between p-5 sm:p-8 transition-colors overflow-hidden">
+                                <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-lg flex flex-col justify-between p-4 sm:p-7 transition-colors overflow-hidden">
                                   <div className="flex justify-between items-center border-b border-indigo-50 pb-2">
-                                    <span className="text-indigo-500 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
+                                    <span className="text-indigo-600 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
                                       ✨ Mặt trước
                                     </span>
-                                    <span className="text-xs font-mono text-slate-400">#{activeCardIndex + 1}</span>
+                                    <span className="text-xs font-mono text-slate-400 font-bold">#{activeCardIndex + 1}</span>
                                   </div>
-                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
                                     {(activeCard.frontImage || activeCard.image) && (
                                       <div className="max-h-36 sm:max-h-48 md:max-h-56 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
                                         <img src={activeCard.frontImage || activeCard.image} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
@@ -3165,19 +3358,19 @@ export function AssignmentsView({
                                       <MarkdownMath content={activeCard.front || '(Trống)'} />
                                     </div>
                                   </div>
-                                  <div className="pt-2 border-t border-indigo-50 text-center text-xs font-semibold text-indigo-400 flex items-center justify-center gap-1">
-                                    <RotateCw className="w-3.5 h-3.5" /> Chạm để lật mặt sau
+                                  <div className="pt-2 border-t border-indigo-50 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">
+                                    <RotateCw className="w-3.5 h-3.5" /> Chạm lật mặt sau
                                   </div>
                                 </div>
                                 {/* Back */}
-                                <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col justify-between p-5 sm:p-8 rotate-y-180 overflow-hidden">
+                                <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col justify-between p-4 sm:p-7 rotate-y-180 overflow-hidden">
                                   <div className="flex justify-between items-center border-b border-indigo-100 pb-2">
                                     <span className="text-indigo-600 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
                                       🎯 Mặt sau
                                     </span>
-                                    <span className="text-xs font-mono text-indigo-400">#{activeCardIndex + 1}</span>
+                                    <span className="text-xs font-mono text-indigo-400 font-bold">#{activeCardIndex + 1}</span>
                                   </div>
-                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
                                     {activeCard.backImage && (
                                       <div className="max-h-36 sm:max-h-48 md:max-h-56 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
                                         <img src={activeCard.backImage} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
@@ -3188,50 +3381,57 @@ export function AssignmentsView({
                                     </div>
                                   </div>
                                   <div className="pt-2 border-t border-indigo-100 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">
-                                    <RotateCw className="w-3.5 h-3.5" /> Chạm để quay lại mặt trước
+                                    <RotateCw className="w-3.5 h-3.5" /> Chạm quay lại mặt trước
                                   </div>
                                 </div>
                               </motion.div>
                             </motion.div>
                           )}
 
-                          <div className="flex justify-between items-center px-4">
+                          <div className="flex justify-between items-center px-1 sm:px-4 gap-2">
                             <button 
                               disabled={activeCardIndex === 0}
                               onClick={() => setActiveCardIndex(i => i - 1)}
-                              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50"
+                              className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-700 disabled:opacity-40 active:scale-95 shadow-sm flex items-center gap-1 min-h-[44px]"
                             >
-                              Lùi thẻ
+                              <ChevronLeft className="w-4 h-4" />
+                              <span>Thẻ trước</span>
                             </button>
-                            <span className="text-sm font-bold text-slate-500">
-                              {activeCardIndex + 1} / {selectedAssignment.flashcards?.length || 0}
-                            </span>
+
+                            <div className="flex flex-col items-center">
+                              <span className="text-xs sm:text-sm font-extrabold text-slate-700 font-mono">
+                                {activeCardIndex + 1} / {displayFlashcards.length || 0}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">Vuốt sang trái/phải</span>
+                            </div>
+
                             <button 
-                              disabled={activeCardIndex === (selectedAssignment.flashcards?.length || 1) - 1}
+                              disabled={activeCardIndex === (displayFlashcards.length || 1) - 1}
                               onClick={() => setActiveCardIndex(i => i + 1)}
-                              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 disabled:opacity-50"
+                              className="px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-700 disabled:opacity-40 active:scale-95 shadow-sm flex items-center gap-1 min-h-[44px]"
                             >
-                              Tiếp tục
+                              <span>Thẻ sau</span>
+                              <ChevronRight className="w-4 h-4" />
                             </button>
                           </div>
 
-                          <div className="pt-4 border-t border-slate-200">
+                          <div className="pt-3 border-t border-slate-200">
                             {allFlipped ? (
                               <button
                                 type="button"
                                 onClick={() => {
                                   setShowFlashcardQuizTest(true);
                                 }}
-                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm rounded-2xl shadow-lg shadow-emerald-100 transition-all uppercase tracking-wider flex items-center justify-center gap-2"
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-100 transition-all uppercase tracking-wider flex items-center justify-center gap-2"
                               >
                                 <Sparkles className="w-4 h-4" /> Bắt đầu bài kiểm tra Flashcard
                               </button>
                             ) : (
                               <button
                                 disabled
-                                className="w-full py-3.5 bg-slate-200 text-slate-400 font-bold text-sm rounded-2xl uppercase tracking-wider cursor-not-allowed"
+                                className="w-full py-3.5 bg-slate-200 text-slate-400 font-bold text-xs sm:text-sm rounded-2xl uppercase tracking-wider cursor-not-allowed"
                               >
-                                Lật hết thẻ để làm bài (Đã lật {flippedCards.size}/{selectedAssignment.flashcards?.length || 0})
+                                Lật hết thẻ để làm bài (Đã lật {flippedCards.size}/{displayFlashcards.length || 0})
                               </button>
                             )}
                           </div>
@@ -3798,6 +3998,7 @@ export function AssignmentsView({
               })()}
 
             </div>
+            </div>
           ) : isLoadingAssignments ? (
             <AssignmentDetailSkeleton />
           ) : (
@@ -3829,7 +4030,7 @@ export function AssignmentsView({
       {showFlashcardQuizTest && (
         <FlashcardQuizGame
           assignmentTitle={showCreateModal ? (newTitle || 'Xem trước bài kiểm tra Flashcard') : (selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard')}
-          flashcards={showCreateModal ? (newFlashcards.length > 0 ? newFlashcards : (selectedAssignment?.flashcards || [])) : (selectedAssignment ? selectedAssignment.flashcards : newFlashcards)}
+          flashcards={showCreateModal ? (newFlashcards.length > 0 ? newFlashcards : (selectedAssignment?.flashcards || [])) : (displayFlashcards.length > 0 ? displayFlashcards : (selectedAssignment?.flashcards || newFlashcards))}
           questions={
             showCreateModal
               ? (parsedQuestionsData.parsedQuestions.length > 0 ? parsedQuestionsData.parsedQuestions : (selectedAssignment?.questions || []))
@@ -4312,12 +4513,11 @@ export function AssignmentsView({
                     <div>
                       <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Thuộc buổi học / Khóa học:</label>
                       <input 
-                        required 
                         type="text"
                         value={newSessionTitle} 
                         onChange={e => setNewSessionTitle(e.target.value)}
-                        className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
-                        placeholder="VD: Đại số 10 - Tiết 23..." 
+                        className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow placeholder:text-slate-400 font-normal"
+                        placeholder="VD: Đại số 10 - Tiết 23" 
                       />
                     </div>
 
