@@ -69,7 +69,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const base64 = await readFileAsBase64(file);
+      const base64 = await compressImage(file);
       loaded.push({
         name: file.name,
         base64,
@@ -91,7 +91,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const base64 = await readFileAsBase64(file);
+      const base64 = await compressImage(file);
       loaded.push({
         name: file.name,
         base64,
@@ -103,41 +103,171 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setIsReadingFiles(false);
   };
 
-  // Promise helper to read files as Base64
-  const readFileAsBase64 = (file: File): Promise<string> => {
+  // Compress and read image as Base64 to ensure size is extremely lightweight for Firestore (< 20KB per image)
+  const compressImage = (file: File, maxWidth = 400, maxHeight = 400, quality = 0.45): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        resolve(reader.result as string);
+      reader.onload = (event) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions to maintain aspect ratio
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Convert to JPEG to minimize size
+            const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            resolve(compressedBase64);
+          } else {
+            resolve(event.target?.result as string);
+          }
+        };
+        img.onerror = () => {
+          resolve(event.target?.result as string);
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = () => {
+        resolve('');
       };
       reader.readAsDataURL(file);
     });
   };
 
-  // Compute paired items preview
+  // Compute paired items preview with intelligent multi-level matching and fallback alignment
   const pairedItems = React.useMemo(() => {
-    const allKeys = Array.from(new Set([
-      ...frontFiles.map(f => f.key),
-      ...backFiles.map(b => b.key)
-    ])).sort((a, b) => {
-      const numA = parseInt(a, 10);
-      const numB = parseInt(b, 10);
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
+    if (frontFiles.length === 0 && backFiles.length === 0) return [];
+
+    // Helper to normalize name for comparison:
+    // lowercase, removes common extensions, and removes indicators like front, back, truoc, sau, t, s, ans, answer, question
+    const cleanFilename = (name: string): string => {
+      const base = name.substring(0, name.lastIndexOf('.')) || name;
+      return base
+        .toLowerCase()
+        .replace(/(_|-|\s)+(front|back|truoc|sau|t|s|ans|answer|question|debai|dapan|image|img|pic|mat_truoc|mat_sau|mattruoc|matsau)/gi, '')
+        .replace(/[^a-z0-9]/g, '');
+    };
+
+    // Helper to get the last sequence of numbers (e.g. "image_10_1" -> "1", "toan10_bai2" -> "2")
+    const getLastNumber = (name: string): string | null => {
+      const base = name.substring(0, name.lastIndexOf('.')) || name;
+      const matches = base.match(/\d+/g);
+      if (matches && matches.length > 0) {
+        // Return the last number sequence
+        return parseInt(matches[matches.length - 1], 10).toString();
       }
-      return a.localeCompare(b);
+      return null;
+    };
+
+    // Create copies of the file lists so we can track which ones are already matched
+    let unmatchedFront = [...frontFiles].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+    let unmatchedBack = [...backFiles].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+    const matchedPairs: {
+      key: string;
+      front?: typeof frontFiles[0];
+      back?: typeof backFiles[0];
+      status: 'matched' | 'only_front' | 'only_back';
+    }[] = [];
+
+    // --- LEVEL 1: EXACT NORMALIZED NAME MATCH ---
+    // (e.g. "apple_front.png" and "apple_back.png" both normalize to "apple")
+    for (let i = unmatchedFront.length - 1; i >= 0; i--) {
+      const f = unmatchedFront[i];
+      const fNorm = cleanFilename(f.name);
+      if (!fNorm) continue;
+      
+      // Look for a back file that has the exact same normalized name
+      const bIdx = unmatchedBack.findIndex(b => cleanFilename(b.name) === fNorm);
+      if (bIdx !== -1) {
+        const b = unmatchedBack[bIdx];
+        matchedPairs.push({
+          key: fNorm,
+          front: f,
+          back: b,
+          status: 'matched'
+        });
+        unmatchedFront.splice(i, 1);
+        unmatchedBack.splice(bIdx, 1);
+      }
+    }
+
+    // --- LEVEL 2: LAST NUMBER SEQUENCE MATCH ---
+    // (e.g. "front_1.png" and "back_1.png" both have last number "1")
+    for (let i = unmatchedFront.length - 1; i >= 0; i--) {
+      const f = unmatchedFront[i];
+      const fNum = getLastNumber(f.name);
+      if (fNum !== null) {
+        // Look for a back file with the same last number
+        const bIdx = unmatchedBack.findIndex(b => getLastNumber(b.name) === fNum);
+        if (bIdx !== -1) {
+          const b = unmatchedBack[bIdx];
+          matchedPairs.push({
+            key: fNum,
+            front: f,
+            back: b,
+            status: 'matched'
+          });
+          unmatchedFront.splice(i, 1);
+          unmatchedBack.splice(bIdx, 1);
+        }
+      }
+    }
+
+    // --- LEVEL 3: FALLBACK INDEX-BASED MATCHING ---
+    // If we still have unmatched front and back files, they might have arbitrary names (e.g. "a.jpg", "b.jpg", "c.jpg" vs "x.jpg", "y.jpg", "z.jpg")
+    // Let's pair them up in their sorted order! This guarantees they match 1-to-1 without losing any files.
+    const fallbackCount = Math.min(unmatchedFront.length, unmatchedBack.length);
+    for (let i = 0; i < fallbackCount; i++) {
+      const f = unmatchedFront[i];
+      const b = unmatchedBack[i];
+      matchedPairs.push({
+        key: `ghep_${i + 1}`,
+        front: f,
+        back: b,
+        status: 'matched'
+      });
+    }
+
+    // Remove the paired files from Level 3
+    unmatchedFront = unmatchedFront.slice(fallbackCount);
+    unmatchedBack = unmatchedBack.slice(fallbackCount);
+
+    // --- LEVEL 4: REMAINING UNPAIRED FILES ---
+    unmatchedFront.forEach((f, idx) => {
+      matchedPairs.push({
+        key: `truoc_${idx + 1}`,
+        front: f,
+        status: 'only_front'
+      });
     });
 
-    return allKeys.map(key => {
-      const front = frontFiles.find(f => f.key === key);
-      const back = backFiles.find(b => b.key === key);
-      return {
-        key,
-        front,
-        back,
-        status: front && back ? 'matched' : front ? 'only_front' : 'only_back'
-      };
+    unmatchedBack.forEach((b, idx) => {
+      matchedPairs.push({
+        key: `sau_${idx + 1}`,
+        back: b,
+        status: 'only_back'
+      });
     });
+
+    return matchedPairs;
   }, [frontFiles, backFiles]);
 
   // Execute import of matched cards
@@ -228,7 +358,11 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   </button>
                   <button 
                     type="button"
-                    onClick={() => setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }])}
+                    onClick={() => {
+                      if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ thẻ ghi nhớ hiện tại không? Tất cả ảnh và nội dung đã thiết lập sẽ bị mất.")) {
+                        setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
+                      }
+                    }}
                     className="px-2.5 sm:px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 shrink-0"
                     title="Xóa nhanh toàn bộ danh sách thẻ"
                   >
@@ -339,14 +473,11 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                               type="file"
                               accept="image/*"
                               hidden
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: reader.result as string } : c));
-                                  };
-                                  reader.readAsDataURL(file);
+                                  const base64 = await compressImage(file);
+                                  setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, frontImage: base64 } : c));
                                 }
                               }}
                             />
@@ -382,14 +513,11 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                               type="file"
                               accept="image/*"
                               hidden
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
-                                    setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: reader.result as string } : c));
-                                  };
-                                  reader.readAsDataURL(file);
+                                  const base64 = await compressImage(file);
+                                  setNewFlashcards(newFlashcards.map(c => c.id === card.id ? { ...c, backImage: base64 } : c));
                                 }
                               }}
                             />

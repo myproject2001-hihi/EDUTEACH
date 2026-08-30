@@ -106,3 +106,26 @@ html, body {
   }
 }
 
+/* KaTeX Math block and inline layout wrapping optimizations */
+.katex {
+  white-space: nowrap !important;
+  display: inline-block !important;
+}
+
+/* Correctly reset displays inside block equations */
+.katex-display {
+  display: block !important;
+  margin: 1em 0 !important;
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: normal !important;
+}
+
+.katex-display > .katex {
+  display: block !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+

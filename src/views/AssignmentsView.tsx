@@ -28,7 +28,7 @@ interface AssignmentsProps {
   submissions: Submission[];
   isLoadingAssignments?: boolean;
   isLoadingSubmissions?: boolean;
-  onAddAssignment: (assignment: Omit<Assignment, 'id' | 'createdAt'>) => void;
+  onAddAssignment: (assignment: Omit<Assignment, 'id' | 'createdAt'>) => Promise<void>;
   onSubmitWork: (submission: Omit<Submission, 'id' | 'submittedAt'>) => void;
   onGrade: (submissionId: string, grade: number, feedback: string) => void;
   initialSelectedAssignmentId?: string | null;
@@ -652,13 +652,14 @@ export function AssignmentsView({
   const [selectedGameCategory, setSelectedGameCategory] = useState<string>('all');
   const [gameSearchQuery, setGameSearchQuery] = useState<string>('');
   const [newGameFormats, setNewGameFormats] = useState<string[]>(['multiple_choice', 'true_false']);
-  const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string, image?: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
+  const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string, image?: string, frontImage?: string, backImage?: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
   const [showGamePreview, setShowGamePreview] = useState(false);
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
   const [newMaxAttempts, setNewMaxAttempts] = useState<number>(0); // 0 = vĩnh viễn (không giới hạn)
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
+  const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
 
   // Online test raw code input (Azota style)
@@ -1290,6 +1291,7 @@ export function AssignmentsView({
 
   const handleSaveAssignment = async (e?: React.FormEvent | React.MouseEvent) => {
     if (e) e.preventDefault();
+    if (isSavingAssignment) return;
     
     let finalQuestions = questions;
     if (newType === 'online_test' || newType === 'game' || newType === 'flashcard') {
@@ -1331,36 +1333,44 @@ export function AssignmentsView({
     // Remove explicit undefined fields which crashes Firestore v9
     const assignmentData = JSON.parse(JSON.stringify(rawAssignmentData));
 
-    if (editingAssignment) {
-      const updatedAssignment: Assignment = {
-        ...editingAssignment,
-        ...assignmentData,
-      };
-      try {
+    setIsSavingAssignment(true);
+    try {
+      if (editingAssignment) {
+        const updatedAssignment: Assignment = {
+          ...editingAssignment,
+          ...assignmentData,
+        };
         await setDoc(doc(db, 'assignments', editingAssignment.id), updatedAssignment, { merge: true });
         if (selectedAssignment?.id === editingAssignment.id) {
           setSelectedAssignment(updatedAssignment);
         }
-      } catch (err) {
-        console.error("Error updating assignment:", err);
-        alert("Có lỗi xảy ra khi cập nhật bài tập!");
+      } else {
+        await onAddAssignment(assignmentData);
       }
-    } else {
-      onAddAssignment(assignmentData);
-    }
 
-    setShowCreateModal(false);
-    setEditingAssignment(null);
-    setCreateStep(1);
-    // Reset
-    setNewTitle('');
-    setNewDescription('');
-    setNewDueDate('');
-    setNewIsMandatory(false);
-    setNewGameType('quiz_nghieng_dau');
-    setGameSubStep(1);
-    setFlashcardSubStep(1);
-    setNewGameFormats(['multiple_choice', 'true_false']);
+      setShowCreateModal(false);
+      setEditingAssignment(null);
+      setCreateStep(1);
+      // Reset
+      setNewTitle('');
+      setNewDescription('');
+      setNewDueDate('');
+      setNewIsMandatory(false);
+      setNewGameType('quiz_nghieng_dau');
+      setGameSubStep(1);
+      setFlashcardSubStep(1);
+      setNewGameFormats(['multiple_choice', 'true_false']);
+    } catch (err) {
+      console.error("Error saving assignment:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('exceeds') || errMsg.includes('size') || errMsg.includes('limit')) {
+        alert("⚠️ LỖI LƯU TRỮ: Dung lượng bộ thẻ quá lớn do chứa ảnh chất lượng cao. Hệ thống đã tự động nén ảnh nhưng tổng số lượng thẻ và kích thước vẫn vượt giới hạn Firestore. Vui lòng giảm bớt số lượng thẻ hoặc sử dụng ảnh nhỏ hơn để lưu thành công!");
+      } else {
+        alert("❌ Có lỗi xảy ra khi lưu bài học! Vui lòng thử lại. Chi tiết: " + errMsg);
+      }
+    } finally {
+      setIsSavingAssignment(false);
+    }
   };
 
   const handleDeleteAssignment = async (assignmentId: string) => {
@@ -2386,29 +2396,6 @@ export function AssignmentsView({
                         <Copy className="w-4 h-4 text-indigo-600" />
                         Sao chép tóm tắt
                       </button>
-                      <button 
-                        type="button"
-                        onClick={() => handleSendViaZalo(selectedAssignment)}
-                        disabled={zaloSendStatus[selectedAssignment.id] === 'sending'}
-                        className={`flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50 text-white ${
-                          zaloSendStatus[selectedAssignment.id] === 'success'
-                            ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
-                            : zaloSendStatus[selectedAssignment.id] === 'error'
-                            ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-100'
-                            : 'bg-[#0068ff] hover:bg-[#0051d4] shadow-blue-100'
-                        }`}
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        <span>
-                          {zaloSendStatus[selectedAssignment.id] === 'sending' 
-                            ? 'Đang gửi Zalo...' 
-                            : zaloSendStatus[selectedAssignment.id] === 'success' 
-                            ? 'Đã gửi ✓' 
-                            : zaloSendStatus[selectedAssignment.id] === 'error' 
-                            ? 'Lỗi gửi tin ✕' 
-                            : 'Gửi qua Zalo Bot'}
-                        </span>
-                      </button>
                     </div>
                   )}
                   {!isTeacher && !isAdmin && (
@@ -2961,7 +2948,12 @@ export function AssignmentsView({
                                     </span>
                                     <span className="text-xs font-mono text-slate-400">#{activeCardIndex + 1}</span>
                                   </div>
-                                  <div className="flex-1 flex items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                    {(activeCard.frontImage || activeCard.image) && (
+                                      <div className="max-h-36 sm:max-h-48 md:max-h-56 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
+                                        <img src={activeCard.frontImage || activeCard.image} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                      </div>
+                                    )}
                                     <div className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
                                       <MarkdownMath content={activeCard.front || '(Trống)'} />
                                     </div>
@@ -2978,7 +2970,12 @@ export function AssignmentsView({
                                     </span>
                                     <span className="text-xs font-mono text-indigo-400">#{activeCardIndex + 1}</span>
                                   </div>
-                                  <div className="flex-1 flex items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-4 px-2 overflow-y-auto custom-scrollbar">
+                                    {activeCard.backImage && (
+                                      <div className="max-h-36 sm:max-h-48 md:max-h-56 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
+                                        <img src={activeCard.backImage} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                      </div>
+                                    )}
                                     <div className="text-base sm:text-xl font-medium text-slate-800 leading-relaxed">
                                       <MarkdownMath content={activeCard.back || '(Trống)'} />
                                     </div>
@@ -4221,11 +4218,12 @@ export function AssignmentsView({
                 ) : (
                   <button 
                     type="button"
+                    disabled={isSavingAssignment}
                     onClick={handleSaveAssignment}
-                    className="px-5 sm:px-8 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 uppercase tracking-wider"
+                    className="px-5 sm:px-8 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 uppercase tracking-wider disabled:opacity-50"
                   >
-                    <span>{editingAssignment ? 'Lưu thay đổi' : 'Tạo & Giao bài ngay'}</span>
-                    <span>✓</span>
+                    <span>{isSavingAssignment ? 'Đang lưu bài học...' : (editingAssignment ? 'Lưu thay đổi' : 'Tạo & Giao bài ngay')}</span>
+                    <span>{isSavingAssignment ? '⏳' : '✓'}</span>
                   </button>
                 )}
               </div>

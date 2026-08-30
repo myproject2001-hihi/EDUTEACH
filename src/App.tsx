@@ -446,18 +446,22 @@ export default function App() {
         });
       }
 
-      // Automatically publish system notification for new assignment
-      const notifId = `auto_assign_pub_${Date.now()}`;
-      const newNotif: SystemNotification = {
-        id: notifId,
-        title: 'Bài tập mới được giao',
-        content: `Giáo viên vừa giao bài tập mới: "${assignment.title}". Hạn nộp: ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleString('vi-VN') : 'Không giới hạn'}.`,
-        type: 'class_reminder',
-        badge: '📚 Bài mới',
-        badgeColor: 'indigo',
-        createdAt: new Date().toISOString()
-      };
-      await setDoc(doc(db, 'system_notifications', notifId), newNotif);
+      // Automatically publish system notification for new assignment - wrapped in try/catch to prevent failing the assignment creation
+      try {
+        const notifId = `auto_assign_pub_${Date.now()}`;
+        const newNotif: SystemNotification = {
+          id: notifId,
+          title: 'Bài tập mới được giao',
+          content: `Giáo viên vừa giao bài tập mới: "${assignment.title}". Hạn nộp: ${assignment.dueDate ? new Date(assignment.dueDate).toLocaleString('vi-VN') : 'Không giới hạn'}.`,
+          type: 'class_reminder',
+          badge: '📚 Bài mới',
+          badgeColor: 'indigo',
+          createdAt: new Date().toISOString()
+        };
+        await setDoc(doc(db, 'system_notifications', notifId), newNotif);
+      } catch (notifErr) {
+        console.warn("Could not publish automatic system notification:", notifErr);
+      }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `assignments/${id}`);
     }
