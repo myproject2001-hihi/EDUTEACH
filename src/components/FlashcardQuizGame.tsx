@@ -10,12 +10,16 @@ export interface FlashcardQuizItem {
   correctAnswer: number;
   points: number;
   solutionText?: string;
+  image?: string;
 }
 
 interface Flashcard {
   id: string;
   front: string;
   back: string;
+  image?: string;
+  frontImage?: string;
+  backImage?: string;
 }
 
 interface Props {
@@ -144,7 +148,8 @@ export function FlashcardQuizGame({
         options: randomizedOptions,
         correctAnswer: correctIdx >= 0 ? correctIdx : 0,
         points: 10 / validCards.length,
-        solutionText: ''
+        solutionText: '',
+        image: card.frontImage || card.image
       };
     });
   });
@@ -303,13 +308,23 @@ export function FlashcardQuizGame({
         <div className="flex-1 p-4 sm:p-7 overflow-y-auto custom-scrollbar flex flex-col justify-between space-y-4 sm:space-y-6">
           
           {/* Question Box */}
-          <div className="bg-gradient-to-br from-indigo-50/60 via-slate-50 to-purple-50/40 border-2 border-indigo-100/80 rounded-2xl p-5 sm:p-7 text-center space-y-2">
+          <div className="bg-gradient-to-br from-indigo-50/60 via-slate-50 to-purple-50/40 border-2 border-indigo-100/80 rounded-2xl p-5 sm:p-7 text-center space-y-3">
             <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
               Câu hỏi {currentIndex + 1}
             </span>
             <div className="text-base sm:text-xl font-normal text-slate-800 leading-relaxed pt-1">
               <MarkdownMath content={currentQ.question} className="font-normal text-slate-800" />
             </div>
+            {currentQ.image && (
+              <div className="max-h-36 sm:max-h-48 mt-2.5 mx-auto overflow-hidden rounded-xl border border-slate-200/80 shadow-sm bg-white p-1 flex items-center justify-center max-w-[280px] sm:max-w-[360px]">
+                <img 
+                  src={currentQ.image} 
+                  alt="Câu hỏi" 
+                  referrerPolicy="no-referrer"
+                  className="max-h-[134px] sm:max-h-[180px] w-auto object-contain rounded-lg"
+                />
+              </div>
+            )}
           </div>
 
           {/* Options Grid */}

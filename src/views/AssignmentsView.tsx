@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -652,7 +652,7 @@ export function AssignmentsView({
   const [selectedGameCategory, setSelectedGameCategory] = useState<string>('all');
   const [gameSearchQuery, setGameSearchQuery] = useState<string>('');
   const [newGameFormats, setNewGameFormats] = useState<string[]>(['multiple_choice', 'true_false']);
-  const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
+  const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string, image?: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
   const [showGamePreview, setShowGamePreview] = useState(false);
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
@@ -1115,6 +1115,37 @@ export function AssignmentsView({
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
+      
+      try {
+        // If file is JSON
+        if (file.name.toLowerCase().endsWith('.json')) {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {
+            const newCards = parsed.map((item: any, index: number) => {
+              return {
+                id: item.id ? String(item.id) : `fc_${Date.now()}_${index}`,
+                front: String(item.front || item.question || '').trim(),
+                back: String(item.back || item.answer || '').trim(),
+                image: item.image ? String(item.image).trim() : undefined
+              };
+            }).filter(c => c.front.length > 0 || c.back.length > 0);
+            
+            if (newCards.length > 0) {
+              setNewFlashcards(newCards);
+              alert(`Nhập thành công ${newCards.length} thẻ ghi nhớ từ file JSON!`);
+            } else {
+              alert('File JSON không chứa thẻ hợp lệ.');
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Lỗi parse JSON:", err);
+        alert('File JSON có định dạng không hợp lệ. Vui lòng kiểm tra lại cấu trúc.');
+        return;
+      }
+
+      // Default TXT/CSV fallback
       const lines = text.split('\n').filter(l => l.trim().length > 0);
       const newCards = lines.map((line, index) => {
         // Handle common delimiters: tab, or dash, or comma
@@ -1134,6 +1165,7 @@ export function AssignmentsView({
       });
       if (newCards.length > 0) {
         setNewFlashcards(newCards);
+        alert(`Nhập thành công ${newCards.length} thẻ ghi nhớ từ file văn bản!`);
       }
     };
     reader.readAsText(file);
@@ -1141,23 +1173,47 @@ export function AssignmentsView({
   };
 
   const handleDownloadSampleFlashcards = () => {
-    const sampleContent = `Apple - Quả táo
-Banana - Quả chuối
-Cat - Con mèo
-Dog - Con chó
-Elephant - Con voi
-1 + 1 = ? - Bằng 2
-Thành phố thủ đô của Việt Nam? - Hà Nội`;
-    const blob = new Blob([sampleContent], { type: 'text/plain;charset=utf-8' });
+    const sampleJSON = [
+      {
+        "front": "Apple",
+        "back": "Quả táo",
+        "image": "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=200"
+      },
+      {
+        "front": "Banana",
+        "back": "Quả chuối",
+        "image": "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=200"
+      },
+      {
+        "front": "Cat",
+        "back": "Con mèo",
+        "image": "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=200"
+      },
+      {
+        "front": "Dog",
+        "back": "Con chó",
+        "image": "https://images.unsplash.com/photo-1543466835-00a7907e9de1?w=200"
+      },
+      {
+        "front": "1 + 1 = ?",
+        "back": "Bằng 2",
+        "image": ""
+      }
+    ];
+    
+    const blob = new Blob([JSON.stringify(sampleJSON, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'mau_nhap_flashcard.txt';
+    a.download = 'mau_kho_flashcard.json';
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const handleOpenCreateModal = (targetType?: 'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard' | 'lesson_check') => {
+  const handleOpenCreateModal = (
+    targetType?: 'file_upload' | 'online_test' | 'simulation' | 'game' | 'flashcard' | 'lesson_check',
+    initialFlashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string; }[]
+  ) => {
     const finalType = targetType || (viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'flashcard' : 'file_upload');
     setEditingAssignment(null);
     setNewType(finalType);
@@ -1176,7 +1232,11 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
     setFlashcardSubStep(1);
     setCreateStep(1);
     // Complete reset of flashcards and raw question code
-    setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
+    if (initialFlashcards && initialFlashcards.length > 0) {
+      setNewFlashcards(initialFlashcards);
+    } else {
+      setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
+    }
     setRawQuestionCode(SAMPLE_TEMPLATES.mau2);
     setQuestions([
       {
@@ -1317,6 +1377,39 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
       console.error("Error deleting assignment:", err);
       alert("Có lỗi xảy ra khi xóa bài tập!");
     }
+  };
+
+  const handleCombineFlashcards = () => {
+    const selectedAssignments = assignments.filter(a => selectedIdsForDeletion.includes(a.id) && a.type === 'flashcard' && a.flashcards);
+    
+    if (selectedAssignments.length < 1) {
+      alert("Vui lòng chọn ít nhất 1 bộ thẻ để gộp.");
+      return;
+    }
+
+    let combinedCards: {id: string, front: string, back: string, image?: string, frontImage?: string, backImage?: string}[] = [];
+    selectedAssignments.forEach((a, aIdx) => {
+      if (a.flashcards) {
+        a.flashcards.forEach((c, cIdx) => {
+          combinedCards.push({
+            id: `fc_combined_${Date.now()}_${aIdx}_${cIdx}_${Math.random().toString(36).substring(7)}`,
+            front: c.front,
+            back: c.back,
+            image: c.image,
+            frontImage: (c as any).frontImage,
+            backImage: (c as any).backImage
+          });
+        });
+      }
+    });
+
+    if (combinedCards.length === 0) {
+      combinedCards = [{ id: Date.now().toString(), front: '', back: '' }];
+    }
+
+    handleOpenCreateModal('flashcard', combinedCards);
+    setSelectedIdsForDeletion([]);
+    setShowCreateModal(true);
   };
 
   const handleBulkDeleteAssignments = async () => {
@@ -2069,16 +2162,28 @@ Thành phố thủ đô của Việt Nam? - Hà Nội`;
                 />
                 <span>Chọn tất cả ({selectedIdsForDeletion.length}/{filteredAssignments.length})</span>
               </div>
-              {selectedIdsForDeletion.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowBulkDeleteConfirm(true)}
-                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Xóa {selectedIdsForDeletion.length} mục
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {selectedIdsForDeletion.length > 0 && viewMode === 'flashcards' && (
+                  <button
+                    type="button"
+                    onClick={handleCombineFlashcards}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Gộp {selectedIdsForDeletion.length} bộ
+                  </button>
+                )}
+                {selectedIdsForDeletion.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Xóa {selectedIdsForDeletion.length} mục
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

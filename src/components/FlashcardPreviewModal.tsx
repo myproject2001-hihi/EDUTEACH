@@ -6,6 +6,9 @@ interface Flashcard {
   id: string;
   front: string;
   back: string;
+  image?: string;
+  frontImage?: string;
+  backImage?: string;
 }
 
 interface Props {
@@ -201,7 +204,17 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     </div>
 
                     {/* Card Front Content */}
-                    <div className="flex-1 flex items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar">
+                    <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full">
+                      {(activeCard.frontImage || activeCard.image) && (
+                        <div className="max-h-24 sm:max-h-32 mb-3 shrink-0 rounded-xl overflow-hidden border border-slate-700/80 shadow-md bg-slate-950/40 p-1 flex items-center justify-center">
+                          <img 
+                            src={activeCard.frontImage || activeCard.image} 
+                            alt="Front Illustration" 
+                            referrerPolicy="no-referrer"
+                            className="max-h-[96px] sm:max-h-[128px] max-w-full object-contain rounded-lg"
+                          />
+                        </div>
+                      )}
                       <div className="text-xl sm:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm">
                         <MarkdownMath 
                           content={activeCard.front || '(Chưa nhập nội dung mặt trước)'} 
@@ -230,7 +243,17 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     </div>
 
                     {/* Card Back Content */}
-                    <div className="flex-1 flex items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar">
+                    <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full">
+                      {(activeCard.backImage || activeCard.image) && (
+                        <div className="max-h-24 sm:max-h-32 mb-3 shrink-0 rounded-xl overflow-hidden border border-purple-900/40 shadow-md bg-indigo-950/40 p-1 flex items-center justify-center">
+                          <img 
+                            src={activeCard.backImage || activeCard.image} 
+                            alt="Back Illustration" 
+                            referrerPolicy="no-referrer"
+                            className="max-h-[96px] sm:max-h-[128px] max-w-full object-contain rounded-lg"
+                          />
+                        </div>
+                      )}
                       <div className="text-lg sm:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm">
                         <MarkdownMath 
                           content={activeCard.back || '(Chưa nhập nội dung mặt sau)'} 

@@ -129,6 +129,37 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
     setCurrentNote(userNotes[selectedDate] || '');
   }, [selectedDate, userNotes]);
 
+  // Aggregated table for centralized monthly notes
+  const notesInMonth = React.useMemo(() => {
+    const map = new Map<string, {
+      date: string;
+      sessions: ClassSession[];
+      personalNote: string;
+    }>();
+
+    completedSessionsInMonth.forEach(s => {
+      const d = format(new Date(s.startTime), 'yyyy-MM-dd');
+      if (!map.has(d)) {
+        map.set(d, { date: d, sessions: [], personalNote: '' });
+      }
+      map.get(d)!.sessions.push(s);
+    });
+
+    Object.keys(userNotes).forEach(dateStr => {
+      const d = new Date(dateStr);
+      if (d.getMonth() + 1 === statsMonth && d.getFullYear() === statsYear) {
+        if (!map.has(dateStr)) {
+          map.set(dateStr, { date: dateStr, sessions: [], personalNote: '' });
+        }
+        map.get(dateStr)!.personalNote = userNotes[dateStr];
+      }
+    });
+
+    return Array.from(map.values())
+      .filter(item => item.personalNote || item.sessions.some(s => s.completedNote))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [completedSessionsInMonth, userNotes, statsMonth, statsYear]);
+
   const handleOpenCreate = () => {
     setEditingSession(null);
     setTitle('');
@@ -357,6 +388,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
           
           {/* Monthly Work Summary & Report Widget (shown on completed tab) */}
           {scheduleTab === 'completed' && (
+            <>
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 mb-1.5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
                 <div className="flex items-center gap-2">
@@ -484,6 +516,81 @@ ${completedSessionsInMonth.map((s, idx) => {
                 </div>
               )}
             </div>
+
+            {/* BẢNG TỔNG HỢP GHI CHÚ TẬP TRUNG */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 mb-4 shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-purple-100 text-purple-700 rounded-xl">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm">Bảng Quản Lý Ghi Chú Tập Trung - Tháng {statsMonth}/{statsYear}</h4>
+                  <p className="text-slate-500 text-[11px] font-medium">Tổng hợp toàn bộ ghi chú học tập và nhật ký bài giảng để tiện ôn tập</p>
+                </div>
+              </div>
+              
+              <div className="overflow-x-auto custom-scrollbar pb-2">
+                <table className="w-full text-left text-xs text-slate-700 min-w-[600px]">
+                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-y border-slate-200">
+                    <tr>
+                      <th className="p-3 w-24 whitespace-nowrap">Ngày tháng</th>
+                      <th className="p-3 w-48">Buổi học (Nếu có)</th>
+                      <th className="p-3 min-w-[200px]">Ghi chú & Nhật ký Giáo viên</th>
+                      <th className="p-3 min-w-[200px]">Nhắc nhở Cá nhân</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {notesInMonth.length > 0 ? (
+                      notesInMonth.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-3 align-top font-bold text-slate-800">
+                            {format(new Date(item.date), 'dd/MM/yyyy')}
+                          </td>
+                          <td className="p-3 align-top space-y-1.5">
+                            {item.sessions.map(s => (
+                              <div key={s.id} className="bg-slate-100/70 p-2 rounded-xl border border-slate-200">
+                                <span className="text-[9px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-md uppercase block w-fit mb-0.5">{s.subject}</span>
+                                <span className="font-bold text-slate-900 leading-tight block">{s.title}</span>
+                              </div>
+                            ))}
+                            {item.sessions.length === 0 && <span className="text-slate-400 italic text-[10px]">— Không có buổi học —</span>}
+                          </td>
+                          <td className="p-3 align-top">
+                            {item.sessions.filter(s => s.completedNote).length > 0 ? (
+                              <div className="space-y-1.5">
+                                {item.sessions.filter(s => s.completedNote).map(s => (
+                                  <div key={`note-${s.id}`} className="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-100 text-emerald-950 font-medium italic leading-relaxed">
+                                    "{s.completedNote}"
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-300 italic text-[10px] block mt-1">—</span>
+                            )}
+                          </td>
+                          <td className="p-3 align-top">
+                            {item.personalNote ? (
+                              <div className="bg-amber-50/50 p-2.5 rounded-xl border border-amber-100 text-amber-950 font-medium leading-relaxed">
+                                📌 {item.personalNote}
+                              </div>
+                            ) : (
+                              <span className="text-slate-300 italic text-[10px] block mt-1">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-slate-400 font-medium">
+                          Không có ghi chú hay nhật ký nào được lưu trong tháng {statsMonth}/{statsYear}.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            </>
           )}
 
           {(() => {
