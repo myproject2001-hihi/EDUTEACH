@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, 
-  FolderOpen, Sparkles, AlertCircle, ArrowRight, Check, HelpCircle as QuestionIcon
+  FolderOpen, Sparkles, AlertCircle, ArrowRight, Check, HelpCircle as QuestionIcon, Layers
 } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
+import { SubFlashcardSet } from '../types';
 
 interface Flashcard {
   id: string;
@@ -20,6 +21,8 @@ interface FlashcardWizardProps {
   setFlashcardSubStep: (step: 1 | 2) => void;
   newFlashcards: Flashcard[];
   setNewFlashcards: (cards: Flashcard[]) => void;
+  newSubFlashcardSets?: SubFlashcardSet[];
+  setNewSubFlashcardSets?: (sets: SubFlashcardSet[]) => void;
   rawQuestionCode: string;
   setRawQuestionCode: (code: string) => void;
   setShowFlashcardPreview: (show: boolean) => void;
@@ -33,6 +36,8 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   setFlashcardSubStep,
   newFlashcards,
   setNewFlashcards,
+  newSubFlashcardSets,
+  setNewSubFlashcardSets,
   rawQuestionCode,
   setRawQuestionCode,
   setShowFlashcardPreview,
@@ -395,7 +400,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   >
                     <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả
                   </button>
-                  
+
                   {/* Smart Batch Upload Button */}
                   <button
                     type="button"
@@ -426,6 +431,104 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Hierarchical Sub-Sets Management Banner (When editing/creating a parent lesson) */}
+              {newSubFlashcardSets && newSubFlashcardSets.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-2xl p-4 text-white space-y-3 shadow-md border border-purple-500/30 shrink-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 bg-purple-500/30 rounded-lg text-purple-200">📦</span>
+                      <div>
+                        <h5 className="font-extrabold text-xs sm:text-sm text-white flex items-center gap-2">
+                          <span>BÀI HỌC TỔNG HỢP / BỘ CHA</span>
+                          <span className="text-[10px] px-2 py-0.5 bg-purple-500/40 rounded-md font-bold text-purple-200">
+                            {newSubFlashcardSets.length} bộ con
+                          </span>
+                        </h5>
+                        <p className="text-[11px] text-purple-200/80">Bài học này quản lý nhiều bộ con độc lập. Bạn có thể chỉnh sửa tên & mô tả từng bộ bên dưới.</p>
+                      </div>
+                    </div>
+
+                    {setNewSubFlashcardSets && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSub: SubFlashcardSet = {
+                            id: `sub_${Date.now()}`,
+                            title: `Bộ con ${newSubFlashcardSets.length + 1}`,
+                            description: '',
+                            flashcards: [{ id: Date.now().toString(), front: '', back: '' }],
+                            questions: []
+                          };
+                          setNewSubFlashcardSets([...newSubFlashcardSets, newSub]);
+                        }}
+                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition-all active:scale-95 flex items-center gap-1 shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Thêm bộ con mới
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1 max-h-48 overflow-y-auto custom-scrollbar">
+                    {newSubFlashcardSets.map((sub, sIdx) => (
+                      <div key={sub.id || sIdx} className="bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-black px-2 py-0.5 bg-purple-500/40 rounded-md text-purple-100 uppercase">
+                            Bộ #{sIdx + 1}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-purple-200 font-medium">
+                              {sub.flashcards?.length || 0} thẻ
+                            </span>
+                            {setNewSubFlashcardSets && newSubFlashcardSets.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Xóa bộ con "${sub.title}" khỏi bài học cha này?`)) {
+                                    setNewSubFlashcardSets(newSubFlashcardSets.filter(s => s.id !== sub.id));
+                                  }
+                                }}
+                                className="p-1 hover:bg-rose-500/40 text-rose-200 rounded-lg transition-colors"
+                                title="Xóa bộ con này"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <input
+                          type="text"
+                          value={sub.title}
+                          onChange={(e) => {
+                            if (setNewSubFlashcardSets) {
+                              const updated = [...newSubFlashcardSets];
+                              updated[sIdx] = { ...updated[sIdx], title: e.target.value };
+                              setNewSubFlashcardSets(updated);
+                            }
+                          }}
+                          placeholder="Tên bộ con (VD: Từ vựng Bài 1)"
+                          className="w-full px-2.5 py-1.5 bg-black/20 border border-white/20 rounded-lg text-xs text-white placeholder-purple-300/60 font-bold outline-none focus:border-purple-300"
+                        />
+
+                        <input
+                          type="text"
+                          value={sub.description || ''}
+                          onChange={(e) => {
+                            if (setNewSubFlashcardSets) {
+                              const updated = [...newSubFlashcardSets];
+                              updated[sIdx] = { ...updated[sIdx], description: e.target.value };
+                              setNewSubFlashcardSets(updated);
+                            }
+                          }}
+                          placeholder="Mô tả bộ con (không bắt buộc)"
+                          className="w-full px-2.5 py-1.5 bg-black/20 border border-white/20 rounded-lg text-[11px] text-purple-100 placeholder-purple-300/60 outline-none focus:border-purple-300"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Guidance Banner */}
               <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2 shrink-0">

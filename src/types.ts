@@ -37,6 +37,8 @@ export interface SubFlashcardSet {
   title: string;
   description?: string;
   flashcards: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
+  questions?: QuizQuestion[];
+  rawCode?: string;
 }
 
 export interface Assignment {

@@ -673,16 +673,21 @@ export function AssignmentsView({
   const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string, image?: string, frontImage?: string, backImage?: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
   const [newSubFlashcardSets, setNewSubFlashcardSets] = useState<SubFlashcardSet[]>([]);
   const [activeSubSetId, setActiveSubSetId] = useState<string>('all');
+  const [expandedSubSetId, setExpandedSubSetId] = useState<string | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   useEffect(() => {
-    setActiveSubSetId('all');
+    if (selectedAssignment?.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0) {
+      setActiveSubSetId('overview');
+    } else {
+      setActiveSubSetId('all');
+    }
   }, [selectedAssignment?.id]);
 
   const displayFlashcards = useMemo(() => {
     if (!selectedAssignment || selectedAssignment.type !== 'flashcard') return [];
     if (selectedAssignment.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0) {
-      if (activeSubSetId === 'all') {
+      if (activeSubSetId === 'overview' || activeSubSetId === 'all') {
         return selectedAssignment.flashcards && selectedAssignment.flashcards.length > 0
           ? selectedAssignment.flashcards
           : selectedAssignment.subFlashcardSets.flatMap(s => s.flashcards || []);
@@ -3227,28 +3232,176 @@ export function AssignmentsView({
                       const allFlipped = displayFlashcards.length > 0 && flippedCards.size >= displayFlashcards.length;
                       const activeCard = displayFlashcards[activeCardIndex];
 
+                      // 1. OVERVIEW VIEW FOR PARENT ASSIGNMENT (Gộp thành bộ cha / Bài học tổng hợp)
+                      if (hasSubSets && activeSubSetId === 'overview') {
+                        const totalCardsCount = selectedAssignment.subFlashcardSets!.reduce((acc, s) => acc + (s.flashcards?.length || 0), 0);
+
+                        return (
+                          <div className="space-y-6 max-w-4xl mx-auto">
+                            {/* Parent Header Card */}
+                            <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+                              <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+                              <div className="relative z-10 space-y-4">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="px-3 py-1 bg-purple-500/30 border border-purple-400/40 backdrop-blur-md rounded-full text-xs font-black text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Layers className="w-3.5 h-3.5 text-purple-300" /> BÀI HỌC TỔNG HỢP (BỘ CHA)
+                                  </span>
+                                  <span className="px-3 py-1 bg-white/10 backdrop-blur-md rounded-full text-xs font-semibold text-slate-200">
+                                    📚 {selectedAssignment.subFlashcardSets!.length} Bộ con
+                                  </span>
+                                  <span className="px-3 py-1 bg-emerald-500/30 border border-emerald-400/30 backdrop-blur-md rounded-full text-xs font-semibold text-emerald-200">
+                                    ✨ {totalCardsCount} Thẻ ghi nhớ
+                                  </span>
+                                </div>
+
+                                <div>
+                                  <h2 className="text-xl sm:text-2xl font-black text-white">{selectedAssignment.title}</h2>
+                                  {selectedAssignment.description && (
+                                    <p className="text-sm text-purple-100/80 leading-relaxed max-w-2xl mt-1.5">{selectedAssignment.description}</p>
+                                  )}
+                                </div>
+
+                                <div className="pt-2 flex flex-wrap items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveSubSetId('all');
+                                      setActiveCardIndex(0);
+                                      setFlippedCards(new Set());
+                                    }}
+                                    className="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg shadow-emerald-950/40 transition-all active:scale-95 flex items-center gap-2 uppercase tracking-wider"
+                                  >
+                                    <Sparkles className="w-4 h-4" /> Học tất cả các bộ con (Gộp {totalCardsCount} thẻ)
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Section title */}
+                            <div className="flex items-center justify-between px-1">
+                              <div>
+                                <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                                  <span>📚</span> Các bộ bài học con bên trong:
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Mỗi bộ con giữ nguyên đúng dữ liệu câu hỏi & thẻ ghi nhớ ban đầu</p>
+                              </div>
+                              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                                {selectedAssignment.subFlashcardSets!.length} bộ bài học
+                              </span>
+                            </div>
+
+                            {/* Grid of Sub-sets */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {selectedAssignment.subFlashcardSets!.map((sub, idx) => {
+                                const isExpanded = expandedSubSetId === sub.id;
+                                const cardCount = sub.flashcards?.length || 0;
+
+                                return (
+                                  <div
+                                    key={sub.id || idx}
+                                    className="bg-white border-2 border-slate-200 hover:border-indigo-300 rounded-2xl p-4 sm:p-5 shadow-sm transition-all flex flex-col justify-between space-y-4 group"
+                                  >
+                                    <div className="space-y-2">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <span className="w-7 h-7 rounded-xl bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center shrink-0">
+                                            #{idx + 1}
+                                          </span>
+                                          <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                            {sub.title}
+                                          </h4>
+                                        </div>
+                                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 shrink-0 border border-slate-200">
+                                          {cardCount} thẻ
+                                        </span>
+                                      </div>
+
+                                      {sub.description && (
+                                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 pl-9">
+                                          {sub.description}
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedSubSetId(isExpanded ? null : sub.id)}
+                                        className="text-xs font-bold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        <span>{isExpanded ? 'Ẩn thẻ' : 'Xem danh sách thẻ'}</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveSubSetId(sub.id);
+                                          setActiveCardIndex(0);
+                                          setFlippedCards(new Set());
+                                        }}
+                                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-100 transition-all flex items-center gap-1.5"
+                                      >
+                                        <BookOpen className="w-3.5 h-3.5" />
+                                        <span>Học bộ con này</span>
+                                      </button>
+                                    </div>
+
+                                    {/* Accordion Preview of Flashcards in this Sub-Set */}
+                                    {isExpanded && (
+                                      <div className="mt-3 pt-3 border-t border-indigo-100 bg-slate-50 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                          Danh sách {cardCount} thẻ trong "{sub.title}":
+                                        </p>
+                                        {sub.flashcards?.map((card, cIdx) => (
+                                          <div key={card.id || cIdx} className="bg-white border border-slate-200 rounded-lg p-2.5 text-xs flex items-center justify-between gap-2">
+                                            <span className="font-mono text-[10px] text-slate-400 font-bold shrink-0">#{cIdx + 1}</span>
+                                            <div className="flex-1 min-w-0 font-medium text-slate-800 truncate">
+                                              <strong className="text-indigo-600">Trước:</strong> {card.front || '(Trống)'}
+                                            </div>
+                                            <div className="flex-1 min-w-0 font-medium text-slate-600 truncate border-l border-slate-200 pl-2">
+                                              <strong className="text-purple-600">Sau:</strong> {card.back || '(Trống)'}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // 2. FLASHCARD PLAYER VIEW (FOR ACTIVE SUB-SET OR SINGLE SET)
                       return (
                         <div className="bg-slate-50 border border-slate-200 rounded-3xl p-3.5 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 text-center max-w-2xl mx-auto flex flex-col shadow-sm">
-                          <div className="space-y-1">
-                            <h3 className="font-extrabold text-slate-900 text-base sm:text-xl flex items-center justify-center gap-2">
-                              {hasSubSets && <Layers className="w-5 h-5 text-purple-600 shrink-0" />}
-                              <span>{selectedAssignment.title}</span>
-                            </h3>
-                            {hasSubSets && (
-                              <span className="inline-block mt-1 text-[11px] font-extrabold text-purple-700 bg-purple-100/80 px-3 py-1 rounded-full border border-purple-200 shadow-sm">
-                                📦 Bộ lớn (Gồm {selectedAssignment.subFlashcardSets!.length} bộ con)
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Sub-set Selector Grid / Horizontal Scroll Tabs on Mobile */}
+                          {/* Navigation Bar if parent assignment with sub-sets */}
                           {hasSubSets && (
-                            <div className="bg-white border border-slate-200 rounded-2xl p-2.5 sm:p-3 text-left space-y-2 shadow-sm">
-                              <label className="block text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                                <span>Danh sách bộ thẻ con:</span>
-                                <span className="text-purple-600 lowercase font-normal">Chạm để chọn học</span>
-                              </label>
-                              <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar sm:grid sm:grid-cols-2 max-h-48 sm:overflow-y-auto p-0.5">
+                            <div className="space-y-3 text-left">
+                              <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-2.5 sm:p-3 shadow-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveSubSetId('overview')}
+                                  className="inline-flex items-center gap-1.5 text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl text-xs font-extrabold border border-indigo-200 transition-all active:scale-95"
+                                >
+                                  <ArrowLeft className="w-4 h-4 shrink-0" />
+                                  <span>Quay lại danh sách bộ con</span>
+                                </button>
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">Đang học:</span>
+                                  <span className="text-xs font-black text-indigo-900 truncate max-w-[160px] sm:max-w-xs block">
+                                    {activeSubSetId === 'all'
+                                      ? '✨ Tất cả các bộ con (Gộp chung)'
+                                      : `📚 ${selectedAssignment.subFlashcardSets?.find(s => s.id === activeSubSetId)?.title || 'Bộ con'}`}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Quick sub-set tabs switcher */}
+                              <div className="flex gap-2 overflow-x-auto pb-1 custom-scrollbar">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -3256,18 +3409,13 @@ export function AssignmentsView({
                                     setActiveCardIndex(0);
                                     setFlippedCards(new Set());
                                   }}
-                                  className={`p-2.5 rounded-xl text-xs font-bold transition-all text-left flex items-center justify-between gap-2 border shrink-0 sm:shrink ${
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border shrink-0 ${
                                     activeSubSetId === 'all'
                                       ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                                      : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
+                                      : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
                                   }`}
                                 >
-                                  <span className="flex items-center gap-1.5 font-bold whitespace-nowrap">
-                                    <Sparkles className="w-4 h-4 shrink-0" /> Tất cả bộ con
-                                  </span>
-                                  <span className={`text-[10px] px-2 py-0.5 rounded-md ${activeSubSetId === 'all' ? 'bg-purple-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                                    {selectedAssignment.flashcards?.length || 0} thẻ
-                                  </span>
+                                  Sparkles Tất cả bộ ({selectedAssignment.flashcards?.length || 0} thẻ)
                                 </button>
 
                                 {selectedAssignment.subFlashcardSets!.map((sub, idx) => (
@@ -3279,19 +3427,24 @@ export function AssignmentsView({
                                       setActiveCardIndex(0);
                                       setFlippedCards(new Set());
                                     }}
-                                    className={`p-2.5 rounded-xl text-xs font-bold transition-all text-left flex items-center justify-between gap-2 border shrink-0 sm:shrink ${
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap border shrink-0 ${
                                       activeSubSetId === sub.id
                                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border-slate-200'
+                                        : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
                                     }`}
                                   >
-                                    <span className="truncate pr-1 whitespace-nowrap">📚 {sub.title}</span>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-md shrink-0 ${activeSubSetId === sub.id ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                                      {sub.flashcards?.length || 0} thẻ
-                                    </span>
+                                    📚 {sub.title} ({sub.flashcards?.length || 0})
                                   </button>
                                 ))}
                               </div>
+                            </div>
+                          )}
+
+                          {!hasSubSets && (
+                            <div className="space-y-1">
+                              <h3 className="font-extrabold text-slate-900 text-base sm:text-xl flex items-center justify-center gap-2">
+                                <span>{selectedAssignment.title}</span>
+                              </h3>
                             </div>
                           )}
 
@@ -4188,6 +4341,8 @@ export function AssignmentsView({
                       setFlashcardSubStep={setFlashcardSubStep}
                       newFlashcards={newFlashcards}
                       setNewFlashcards={setNewFlashcards}
+                      newSubFlashcardSets={newSubFlashcardSets}
+                      setNewSubFlashcardSets={setNewSubFlashcardSets}
                       rawQuestionCode={rawQuestionCode}
                       setRawQuestionCode={setRawQuestionCode}
                       setShowFlashcardPreview={setShowFlashcardPreview}
