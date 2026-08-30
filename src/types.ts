@@ -63,6 +63,8 @@ export interface Assignment {
   teacherId?: string;
   teacherName?: string;
   isPublished?: boolean; // Nếu false, học sinh sẽ không thấy bài tập này
+  grade?: string;
+  className?: string;
 }
 
 export interface SubmissionQuizQuestion {

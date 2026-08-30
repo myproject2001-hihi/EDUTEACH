@@ -25,6 +25,7 @@ import { RobotGuide } from './components/RobotGuide';
 import { checkAndIncrementNewResourceVisits } from './utils/resourceVisits';
 import { ActivityLogsView } from './views/ActivityLogsView';
 import { logActivity } from './lib/activityLogger';
+import { ResourcesRepositoryView } from './views/ResourcesRepositoryView';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -793,6 +794,13 @@ export default function App() {
           <ActivityLogsView
             currentUser={activeUser}
             onNavigateToTab={setActiveTab}
+          />
+        ) : null;
+      case 'resources-repository':
+        return isTeacherOrAdmin ? (
+          <ResourcesRepositoryView
+            user={activeUser}
+            assignments={assignments}
           />
         ) : null;
       case 'students':

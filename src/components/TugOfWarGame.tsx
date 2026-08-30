@@ -149,7 +149,6 @@ export function TugOfWarGame({
   }, [questions]);
 
   // State
-  const [showModeSelection, setShowModeSelection] = useState<boolean>(true); // Mode selection screen at start
   const [vsBotMode, setVsBotMode] = useState<boolean>(true); // Default Vs Bot mode
   const [scoreBlue, setScoreBlue] = useState<number>(0);
   const [scoreRed, setScoreRed] = useState<number>(0);
@@ -268,7 +267,7 @@ export function TugOfWarGame({
 
   useEffect(() => {
     initGame();
-  }, [initGame]);
+  }, [initGame, vsBotMode]);
 
   // Finish Game
   const finishGame = useCallback((reason: 'blue_knockout' | 'red_knockout' | 'timeup', finalBlue: number, finalRed: number, finalOffset: number) => {
@@ -310,7 +309,7 @@ export function TugOfWarGame({
 
   // Timer countdown
   useEffect(() => {
-    if (isGameOver || showModeSelection) return;
+    if (isGameOver) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -324,7 +323,7 @@ export function TugOfWarGame({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isGameOver, showModeSelection, scoreBlue, scoreRed, ropeOffset, finishGame]);
+  }, [isGameOver, scoreBlue, scoreRed, ropeOffset, finishGame]);
 
   // Pull animation trigger
   const triggerPull = (dir: 'left' | 'right') => {
@@ -422,12 +421,12 @@ export function TugOfWarGame({
 
   // Bot Logic (if vsBotMode is enabled)
   useEffect(() => {
-    if (!vsBotMode || isGameOver || showModeSelection) return;
+    if (!vsBotMode || isGameOver) return;
 
     // Bot acts every 3.5 - 5 seconds
     const intervalTime = Math.floor(Math.random() * 1500) + 3500;
     const botTimer = setTimeout(() => {
-      if (isGameOver || showModeSelection) return;
+      if (isGameOver) return;
       const qObj = redDeck[redIdx % redDeck.length];
       if (!qObj) return;
 
@@ -443,7 +442,7 @@ export function TugOfWarGame({
     }, intervalTime);
 
     return () => clearTimeout(botTimer);
-  }, [vsBotMode, isGameOver, showModeSelection, redDeck, redIdx, ropeOffset, scoreBlue, scoreRed]);
+  }, [vsBotMode, isGameOver, redDeck, redIdx, ropeOffset, scoreBlue, scoreRed]);
 
   // Fullscreen toggle
   const toggleFullscreen = () => {
@@ -550,114 +549,8 @@ export function TugOfWarGame({
         }
       `}</style>
 
-      {showModeSelection ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 bg-slate-950 relative overflow-y-auto">
-          {/* Subtle background glow */}
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-rose-600/10 rounded-full blur-3xl pointer-events-none" />
-
-          {/* Title and Badge */}
-          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12 z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-xs font-black uppercase tracking-wider mb-4">
-              <span>🪢 TRÒ CHƠI KỊCH TÍNH</span>
-            </div>
-            <h1 className="text-3xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-amber-300 to-rose-400 drop-shadow-sm uppercase tracking-wide">
-              Kéo Co Kiến Thức
-            </h1>
-            <p className="text-slate-400 mt-3 text-xs sm:text-sm font-bold max-w-md mx-auto leading-relaxed">
-              Dùng trí tuệ và sự nhạy bén để kéo dây thừng về phía đội mình. Hãy chọn một chế độ chơi bên dưới để bắt đầu cuộc đấu trí!
-            </p>
-          </div>
-
-          {/* Main Mode Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl w-full mx-auto z-10 px-2">
-            
-            {/* Mode 1: Vs Machine / Bot */}
-            <button
-              type="button"
-              onClick={() => {
-                setVsBotMode(true);
-                setShowModeSelection(false);
-                initGame();
-              }}
-              className="group relative flex flex-col justify-between bg-gradient-to-b from-slate-900 to-slate-950 hover:from-slate-900 hover:to-slate-900/40 border-2 border-slate-800 hover:border-blue-500 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/15 transform hover:-translate-y-1 active:translate-y-0 active:scale-[0.98]"
-            >
-              <div className="absolute top-4 right-4 text-[10px] font-black text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 rounded-full uppercase tracking-wider group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                ĐƠN HÀNH
-              </div>
-              
-              <div className="space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
-                  <Bot className="w-8 h-8 text-white" />
-                </div>
-                
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-black text-white group-hover:text-blue-400 transition-colors flex items-center gap-2">
-                    <span>Chơi Với Máy</span>
-                    <span className="text-lg">🤖</span>
-                  </h3>
-                  <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-2 leading-relaxed">
-                    Độc hành đấu trí với Trí Tuệ Nhân Tạo (Robot Máy). Đội Đỏ sẽ tự động trả lời câu hỏi sau vài giây với tỉ lệ chính xác 75%. Thử thách tinh thần thép của bạn trước AI!
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-slate-900/60 flex items-center justify-between text-blue-400 text-xs font-black uppercase tracking-wider">
-                <span>Vào đấu trí với Máy</span>
-                <span className="transform group-hover:translate-x-1.5 transition-transform">▶</span>
-              </div>
-            </button>
-
-            {/* Mode 2: Versus / PvP Mode */}
-            <button
-              type="button"
-              onClick={() => {
-                setVsBotMode(false);
-                setShowModeSelection(false);
-                initGame();
-              }}
-              className="group relative flex flex-col justify-between bg-gradient-to-b from-slate-900 to-slate-950 hover:from-slate-900 hover:to-slate-900/40 border-2 border-slate-800 hover:border-rose-500 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-2xl hover:shadow-rose-500/15 transform hover:-translate-y-1 active:translate-y-0 active:scale-[0.98]"
-            >
-              <div className="absolute top-4 right-4 text-[10px] font-black text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-full uppercase tracking-wider group-hover:bg-rose-500 group-hover:text-white transition-colors">
-                SONG HÙNG
-              </div>
-              
-              <div className="space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center shadow-lg shadow-rose-500/30 group-hover:scale-110 transition-transform">
-                  <Users className="w-8 h-8 text-white" />
-                </div>
-                
-                <div>
-                  <h3 className="text-xl sm:text-2xl font-black text-white group-hover:text-rose-400 transition-colors flex items-center gap-2">
-                    <span>Chơi Đối Kháng</span>
-                    <span className="text-lg">⚔️</span>
-                  </h3>
-                  <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-2 leading-relaxed">
-                    Thách đấu tay đôi trực tiếp trên cùng một màn hình thiết bị! Bên trái là Đội Xanh, bên phải là Đội Đỏ. Hãy cùng thi thố tài năng xem ai nhanh mắt nhanh tay hơn!
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-slate-900/60 flex items-center justify-between text-rose-400 text-xs font-black uppercase tracking-wider">
-                <span>Vào đấu đối kháng PvP</span>
-                <span className="transform group-hover:translate-x-1.5 transition-transform">▶</span>
-              </div>
-            </button>
-
-          </div>
-
-          {/* Close / Return Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="mt-12 text-slate-500 hover:text-slate-300 text-sm font-bold flex items-center gap-1.5 transition underline decoration-dashed"
-          >
-            <span>Quay lại phòng game</span>
-          </button>
-        </div>
-      ) : (
-        <>
-          {/* HEADER CONTROL BAR */}
+      <>
+        {/* HEADER CONTROL BAR */}
           <header className="h-14 sm:h-16 bg-slate-900 border-b border-slate-800 px-3 sm:px-5 flex items-center justify-between shrink-0 z-20">
             {/* Title */}
             <div className="flex items-center gap-2 sm:gap-3">
@@ -699,15 +592,15 @@ export function TugOfWarGame({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Mode Selection Trigger */}
+              {/* Mode Switcher */}
               <button
                 type="button"
-                onClick={() => setShowModeSelection(true)}
+                onClick={() => setVsBotMode(!vsBotMode)}
                 className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
-                title="Thay đổi Chế độ chơi"
+                title={vsBotMode ? "Chuyển sang Chế độ Đối Kháng" : "Chuyển sang Chế độ Đấu Với Máy"}
               >
                 {vsBotMode ? <Bot className="w-4 h-4 text-rose-400" /> : <Users className="w-4 h-4 text-emerald-400" />}
-                <span className="hidden lg:inline">Đổi Chế Độ</span>
+                <span className="hidden lg:inline">{vsBotMode ? 'Chơi Với Máy' : 'Chơi Đối Kháng'}</span>
               </button>
 
               {/* Sound */}
@@ -817,7 +710,7 @@ export function TugOfWarGame({
                   <img
                     src={tugOfWarTeamsImg}
                     alt="Đội Kéo Co Kiến Thức"
-                    className="w-full max-w-[560px] max-h-[260px] object-contain drop-shadow-lg select-none pointer-events-none"
+                    className="w-full max-w-[560px] max-h-[260px] object-contain drop-shadow-lg select-none pointer-events-none mix-blend-multiply"
                     referrerPolicy="no-referrer"
                   />
                 </div>
@@ -913,20 +806,19 @@ export function TugOfWarGame({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowModeSelection(true);
+                      setVsBotMode(!vsBotMode);
                       setModalState(prev => ({ ...prev, isOpen: false }));
                     }}
                     className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 px-6 rounded-2xl border border-slate-700 transition transform active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <Bot className="w-4 h-4" />
-                    <span>THAY ĐỔI CHẾ ĐỘ CHƠI</span>
+                    {vsBotMode ? <Users className="w-4 h-4 text-emerald-400" /> : <Bot className="w-4 h-4 text-rose-400" />}
+                    <span>{vsBotMode ? 'CHUYỂN SANG ĐỐI KHÁNG' : 'CHUYỂN SANG ĐẤU MÁY'}</span>
                   </button>
                 </div>
               </div>
             </div>
           )}
         </>
-      )}
     </div>
   );
 }

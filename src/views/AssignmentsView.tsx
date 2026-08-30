@@ -639,6 +639,7 @@ export function AssignmentsView({
 
   // Unsubmitted students modal state
   const [usersList, setUsersList] = useState<User[]>([]);
+  const [classList, setClassList] = useState<any[]>([]);
   const [unsubmittedModalAssignment, setUnsubmittedModalAssignment] = useState<Assignment | null>(null);
   const [copiedStudentId, setCopiedStudentId] = useState<string | null>(null);
 
@@ -653,6 +654,21 @@ export function AssignmentsView({
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'class_sessions'), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach(docSnap => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setClassList(list);
+    });
+    return () => unsub();
+  }, []);
+
+  const teacherClasses = React.useMemo(() => {
+    return classList.filter(c => c.teacherId === user.id || user.role === 'admin');
+  }, [classList, user]);
+
 
 
   // Teacher Create Assignment Form State
@@ -661,6 +677,8 @@ export function AssignmentsView({
   const [newDescription, setNewDescription] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newSessionTitle, setNewSessionTitle] = useState('');
+  const [newGrade, setNewGrade] = useState('');
+  const [newClassName, setNewClassName] = useState('');
   const [newPdfUrl, setNewPdfUrl] = useState('');
   const [newSimUrl, setNewSimUrl] = useState('');
   const [selectedSimId, setSelectedSimId] = useState<string>('');
@@ -1316,6 +1334,8 @@ export function AssignmentsView({
     setNewDescription('');
     setNewDueDate('');
     setNewSessionTitle('');
+    setNewGrade('');
+    setNewClassName('');
     setNewPdfUrl('');
     setNewSimUrl('');
     setSelectedSimId('');
@@ -1365,6 +1385,8 @@ export function AssignmentsView({
     setNewDescription(assignment.description || '');
     setNewDueDate(formatForDateTimeInput(assignment.dueDate));
     setNewSessionTitle(assignment.classSessionTitle || '');
+    setNewGrade(assignment.grade || '');
+    setNewClassName(assignment.className || '');
     setNewPdfUrl(assignment.pdfUrl || '');
     setNewSimUrl(assignment.simulationUrl || '');
     setNewGameType(assignment.gameType || 'quiz_nghieng_dau');
@@ -1563,6 +1585,8 @@ export function AssignmentsView({
       isMandatory: newIsMandatory,
       isPublished: newIsPublished,
       maxAttempts: newMaxAttempts,
+      grade: newGrade || undefined,
+      className: newClassName || undefined,
       flashcards: newType === 'flashcard' ? (newSubFlashcardSets.length > 0 ? undefined : newFlashcards) : undefined,
       subFlashcardSets: newType === 'flashcard' && newSubFlashcardSets.length > 0 ? newSubFlashcardSets : undefined,
       rawCode: (newType === 'online_test' || newType === 'game' || (newType === 'flashcard' && newSubFlashcardSets.length === 0)) ? rawQuestionCode : undefined,
@@ -1597,6 +1621,8 @@ export function AssignmentsView({
       setNewTitle('');
       setNewDescription('');
       setNewDueDate('');
+      setNewGrade('');
+      setNewClassName('');
       setNewIsMandatory(false);
       setNewGameType('quiz_nghieng_dau');
       setGameSubStep(1);
@@ -2652,6 +2678,18 @@ export function AssignmentsView({
                         Buổi học: {assignment.classSessionTitle}
                       </span>
                     )}
+
+                    {assignment.grade && (
+                      <span className="inline-block text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
+                        {assignment.grade}
+                      </span>
+                    )}
+
+                    {assignment.className && (
+                      <span className="inline-block text-[10px] text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded">
+                        Lớp: {assignment.className}
+                      </span>
+                    )}
                   </div>
 
                   <p className={`text-xs flex items-center font-medium ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
@@ -2667,76 +2705,33 @@ export function AssignmentsView({
                           <Layers className="w-3 h-3 text-indigo-500" />
                           <span>Danh sách {assignment.subFlashcardSets!.length} Level / Bộ con:</span>
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedAssignment(assignment);
-                            setActiveSubSetId('overview');
-                          }}
-                          className={`px-2 py-0.5 rounded-md font-extrabold transition-all ${
-                            isSelected && activeSubSetId === 'overview'
-                              ? 'bg-purple-100 text-purple-800'
-                              : 'text-purple-600 hover:bg-purple-50'
-                          }`}
-                        >
-                          ✨ Xem Tổng Quan
-                        </button>
                       </div>
-
+ 
                       <div className="space-y-1 pl-2 border-l-2 border-indigo-200 ml-1.5">
                         {assignment.subFlashcardSets!.map((sub, subIdx) => {
-                          const isSubActive = isSelected && activeSubSetId === sub.id;
                           const subCards = sub.flashcards?.length || 0;
                           const subQuiz = sub.questions?.length || 0;
-
+ 
                           return (
                             <div
                               key={sub.id || subIdx}
-                              onClick={() => {
-                                setSelectedAssignment(assignment);
-                                setActiveSubSetId(sub.id);
-                                setActiveCardIndex(0);
-                                setFlippedCards(new Set());
-                              }}
-                              className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition-all cursor-pointer border ${
-                                isSubActive
-                                  ? 'bg-indigo-600 text-white font-bold border-indigo-600 shadow-sm'
-                                  : 'bg-slate-50 hover:bg-indigo-50/70 text-slate-700 hover:text-indigo-900 border-slate-200/70'
-                              }`}
+                              className="flex items-center justify-between gap-2 p-2 bg-slate-50/80 border border-slate-100 rounded-xl text-xs text-slate-700"
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                <span
-                                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 ${
-                                    isSubActive
-                                      ? 'bg-white/20 text-white'
-                                      : 'bg-indigo-100 text-indigo-700'
-                                  }`}
-                                >
+                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 bg-indigo-50 text-indigo-600 border border-indigo-100">
                                   Level {subIdx + 1}
                                 </span>
                                 <span className="truncate font-semibold text-xs">
                                   {sub.title || `Bộ con ${subIdx + 1}`}
                                 </span>
                               </div>
-
+ 
                               <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                                <span
-                                  className={`px-1.5 py-0.5 rounded-md font-medium ${
-                                    isSubActive
-                                      ? 'bg-indigo-700 text-indigo-100'
-                                      : 'bg-slate-200/70 text-slate-600'
-                                  }`}
-                                >
+                                <span className="px-1.5 py-0.5 rounded-md font-medium bg-slate-100 text-slate-600">
                                   {subCards} thẻ
                                 </span>
                                 {subQuiz > 0 && (
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded-md font-medium ${
-                                      isSubActive
-                                        ? 'bg-emerald-500 text-white'
-                                        : 'bg-emerald-100 text-emerald-700'
-                                    }`}
-                                  >
+                                  <span className="px-1.5 py-0.5 rounded-md font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
                                     {subQuiz} quiz
                                   </span>
                                 )}
@@ -2937,6 +2932,22 @@ export function AssignmentsView({
                   </span>
                   <span className="text-slate-300">•</span>
                   <span>Hoạt động theo buổi học</span>
+                  {selectedAssignment.grade && (
+                    <>
+                      <span className="text-slate-300">•</span>
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-bold rounded-lg border border-emerald-150">
+                        {selectedAssignment.grade}
+                      </span>
+                    </>
+                  )}
+                  {selectedAssignment.className && (
+                    <>
+                      <span className="text-slate-300">•</span>
+                      <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold rounded-lg border border-purple-150">
+                        Lớp: {selectedAssignment.className}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -4958,6 +4969,57 @@ export function AssignmentsView({
                         className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow placeholder:text-slate-400 font-normal"
                         placeholder="VD: Đại số 10 - Tiết 23" 
                       />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Chọn Khối lớp:</label>
+                        <select
+                          value={newGrade}
+                          onChange={e => setNewGrade(e.target.value)}
+                          className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
+                        >
+                          <option value="">-- Chọn Khối --</option>
+                          <option value="Khối 10">Khối 10</option>
+                          <option value="Khối 11">Khối 11</option>
+                          <option value="Khối 12">Khối 12</option>
+                          <option value="Khác">Khác</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Chọn Lớp đang dạy:</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={newClassName}
+                            onChange={e => setNewClassName(e.target.value)}
+                            placeholder="VD: 10A1, 12C5..."
+                            className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow placeholder:text-slate-400 font-normal"
+                          />
+                          {teacherClasses.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {Array.from(new Set(teacherClasses.map(c => c.title))).map((clsTitle: any) => {
+                                if (!clsTitle) return null;
+                                return (
+                                  <button
+                                    key={clsTitle}
+                                    type="button"
+                                    onClick={() => setNewClassName(clsTitle)}
+                                    className={`px-2 py-0.5 text-[10px] rounded-lg font-bold border transition-all ${
+                                      newClassName === clsTitle
+                                        ? 'bg-blue-50 border-blue-400 text-blue-700'
+                                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    {clsTitle}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     <div>

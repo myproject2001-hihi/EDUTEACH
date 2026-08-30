@@ -229,6 +229,29 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
     return assignments.filter(a => a.type === 'simulation');
   }, [assignments]);
 
+  // Quick Filter for On Air/Draft in Teacher Dashboard
+  const [onAirFilter, setOnAirFilter] = React.useState<'all' | 'on-air' | 'draft'>('all');
+
+  const filteredOnAirAssignments = React.useMemo(() => {
+    return assignments.filter(a => {
+      if (onAirFilter === 'on-air') return a.isPublished === true;
+      if (onAirFilter === 'draft') return a.isPublished !== true;
+      return true;
+    });
+  }, [assignments, onAirFilter]);
+
+  const handleTogglePublish = async (assignmentId: string, currentStatus: boolean) => {
+    try {
+      const assignmentRef = doc(db, 'assignments', assignmentId);
+      await updateDoc(assignmentRef, {
+        isPublished: !currentStatus
+      });
+    } catch (err) {
+      console.error('Error toggling publish status:', err);
+      alert('Không thể cập nhật trạng thái On Air!');
+    }
+  };
+
   // Stats calculation
   const mySubmissions = submissions.filter(s => s.studentId === user.id);
   const nextClass = classes.find(c => new Date(c.endTime) >= new Date()) || classes[0];
@@ -508,6 +531,131 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                       <Bar dataKey="diemTB" fill="#4f46e5" radius={[6, 6, 0, 0]} barSize={32} name="Điểm trung bình học tập" />
                     </BarChart>
                   </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+
+            {/* 📋 QUẢN LÝ TRẠNG THÁI PHÁT SÓNG (ON AIR) TÀI NGUYÊN */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-1.5">
+                    <Sliders className="w-5 h-5 text-indigo-600" />
+                    Trạng thái Phát sóng (On Air)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Bộ lọc nhanh trạng thái bài tập, game, mô phỏng và flashcard đang phát sóng.</p>
+                </div>
+                
+                {/* Quick Filter Pills */}
+                <div className="flex bg-slate-100 p-1 rounded-xl shrink-0 gap-1">
+                  <button
+                    onClick={() => setOnAirFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                      onAirFilter === 'all'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    Tất cả ({assignments.length})
+                  </button>
+                  <button
+                    onClick={() => setOnAirFilter('on-air')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
+                      onAirFilter === 'on-air'
+                        ? 'bg-emerald-500 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-emerald-700'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${onAirFilter === 'on-air' ? 'bg-white' : 'bg-emerald-500'}`}></span>
+                    Đã On Air ({assignments.filter(a => a.isPublished === true).length})
+                  </button>
+                  <button
+                    onClick={() => setOnAirFilter('draft')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1 ${
+                      onAirFilter === 'draft'
+                        ? 'bg-amber-500 text-white shadow-sm'
+                        : 'text-slate-500 hover:text-amber-700'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${onAirFilter === 'draft' ? 'bg-white' : 'bg-amber-500'}`}>
+                    </span>
+                    Chưa On Air ({assignments.filter(a => a.isPublished !== true).length})
+                  </button>
+                </div>
+              </div>
+
+              {filteredOnAirAssignments.length === 0 ? (
+                <div className="py-10 text-center text-slate-400 text-xs font-extrabold flex flex-col items-center justify-center gap-2 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <Sliders className="w-8 h-8 text-slate-300" />
+                  <span>Không tìm thấy tài nguyên nào ở trạng thái này.</span>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                  {filteredOnAirAssignments.map((assignment) => {
+                    const isOnAir = assignment.isPublished === true;
+                    return (
+                      <div key={assignment.id} className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="space-y-1 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                              assignment.type === 'game' ? 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100' :
+                              assignment.type === 'flashcard' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                              assignment.type === 'simulation' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                              'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                            }`}>
+                              {assignment.type === 'game' ? '🎮 Game' :
+                               assignment.type === 'flashcard' ? '🗂️ Flashcard' :
+                               assignment.type === 'simulation' ? '🧪 Mô phỏng' : '📚 Trắc nghiệm'}
+                            </span>
+                            {assignment.grade && (
+                              <span className="text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.2 rounded border border-emerald-100">
+                                {assignment.grade}
+                              </span>
+                            )}
+                            {assignment.className && (
+                              <span className="text-[9px] bg-purple-50 text-purple-700 font-bold px-1.5 py-0.2 rounded border border-purple-100">
+                                Lớp: {assignment.className}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <h5 
+                            onClick={() => {
+                              if (onSelectAssignment) {
+                                onSelectAssignment(assignment.id);
+                              }
+                              onNavigate(assignment.type === 'game' ? 'games' : 'assignments');
+                            }}
+                            className="font-extrabold text-slate-800 hover:text-indigo-600 cursor-pointer text-sm leading-snug transition-colors"
+                          >
+                            {assignment.title}
+                          </h5>
+                          <p className="text-[10px] text-slate-400 font-semibold">Ngày tạo: {new Date(assignment.createdAt).toLocaleDateString('vi-VN')}</p>
+                        </div>
+                        
+                        {/* Switch Status Action */}
+                        <div className="flex items-center gap-3 shrink-0 self-stretch sm:self-auto justify-between border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-50">
+                          <span className={`text-[11px] font-black uppercase tracking-wider ${isOnAir ? 'text-emerald-600' : 'text-amber-500'}`}>
+                            {isOnAir ? '🟢 Đã On Air' : '🟡 Bản Nháp'}
+                          </span>
+                          
+                          {/* Interactive Toggle Switch */}
+                          <button
+                            onClick={() => handleTogglePublish(assignment.id, isOnAir)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isOnAir ? 'bg-emerald-500' : 'bg-slate-200'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                isOnAir ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
