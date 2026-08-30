@@ -45,6 +45,29 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   const [frontFiles, setFrontFiles] = useState<{ name: string; base64: string; key: string }[]>([]);
   const [backFiles, setBackFiles] = useState<{ name: string; base64: string; key: string }[]>([]);
   const [isReadingFiles, setIsReadingFiles] = useState(false);
+  const [isDraggingFront, setIsDraggingFront] = useState(false);
+  const [isDraggingBack, setIsDraggingBack] = useState(false);
+
+  const processFiles = async (files: FileList | File[], setFilesState: React.Dispatch<React.SetStateAction<{ name: string; base64: string; key: string }[]>>) => {
+    if (!files || files.length === 0) return;
+    
+    setIsReadingFiles(true);
+    const loaded: { name: string; base64: string; key: string }[] = [];
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) continue;
+      const base64 = await compressImage(file);
+      loaded.push({
+        name: file.name,
+        base64,
+        key: extractKey(file.name)
+      });
+    }
+    
+    setFilesState(loaded);
+    setIsReadingFiles(false);
+  };
 
   // Match Helper Function to extract standard numbers or normalized strings
   const extractKey = (filename: string): string => {
@@ -61,46 +84,52 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
   // Handle uploading multiple files for Front
   const handleFrontFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsReadingFiles(true);
-    const loaded: { name: string; base64: string; key: string }[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const base64 = await compressImage(file);
-      loaded.push({
-        name: file.name,
-        base64,
-        key: extractKey(file.name)
-      });
+    if (e.target.files) {
+      await processFiles(e.target.files, setFrontFiles);
     }
+  };
 
-    setFrontFiles(loaded);
-    setIsReadingFiles(false);
+  const handleFrontDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingFront(false);
+    if (e.dataTransfer.files) {
+      await processFiles(e.dataTransfer.files, setFrontFiles);
+    }
+  };
+
+  const handleFrontDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingFront(true);
+  };
+
+  const handleFrontDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingFront(false);
   };
 
   // Handle uploading multiple files for Back
   const handleBackFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsReadingFiles(true);
-    const loaded: { name: string; base64: string; key: string }[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const base64 = await compressImage(file);
-      loaded.push({
-        name: file.name,
-        base64,
-        key: extractKey(file.name)
-      });
+    if (e.target.files) {
+      await processFiles(e.target.files, setBackFiles);
     }
+  };
 
-    setBackFiles(loaded);
-    setIsReadingFiles(false);
+  const handleBackDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingBack(false);
+    if (e.dataTransfer.files) {
+      await processFiles(e.dataTransfer.files, setBackFiles);
+    }
+  };
+
+  const handleBackDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingBack(true);
+  };
+
+  const handleBackDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingBack(false);
   };
 
   // Compress and read image as Base64 to ensure size is extremely lightweight for Firestore (< 20KB per image)
@@ -664,8 +693,11 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                       id="batch-front-uploader" 
                     />
                     <label 
-                      htmlFor="batch-front-uploader" 
-                      className="border-2 border-dashed border-slate-200 hover:border-indigo-500 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all bg-slate-50/50 hover:bg-indigo-50/10"
+                      htmlFor="batch-front-uploader"
+                      onDrop={handleFrontDrop}
+                      onDragOver={handleFrontDragOver}
+                      onDragLeave={handleFrontDragLeave}
+                      className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${isDraggingFront ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-500 bg-slate-50/50 hover:bg-indigo-50/10'}`}
                     >
                       <Upload className="w-7 h-7 text-indigo-500 animate-bounce" />
                       <span className="text-xs font-bold text-slate-700">Chọn nhiều ảnh Mặt trước</span>
@@ -701,8 +733,11 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                       id="batch-back-uploader" 
                     />
                     <label 
-                      htmlFor="batch-back-uploader" 
-                      className="border-2 border-dashed border-slate-200 hover:border-purple-500 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all bg-slate-50/50 hover:bg-purple-50/10"
+                      htmlFor="batch-back-uploader"
+                      onDrop={handleBackDrop}
+                      onDragOver={handleBackDragOver}
+                      onDragLeave={handleBackDragLeave}
+                      className={`border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${isDraggingBack ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-purple-500 bg-slate-50/50 hover:bg-purple-50/10'}`}
                     >
                       <Upload className="w-7 h-7 text-purple-500 animate-bounce" />
                       <span className="text-xs font-bold text-slate-700">Chọn nhiều ảnh Mặt sau</span>

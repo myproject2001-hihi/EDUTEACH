@@ -169,7 +169,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
           </div>
 
           {/* Empty State vs Interactive Card */}
-          {displayCards.length === 0 || (!activeCard.front.trim() && !activeCard.back.trim()) ? (
+          {displayCards.length === 0 || (!activeCard.front.trim() && !activeCard.back.trim() && !activeCard.frontImage && !activeCard.backImage && !activeCard.image) ? (
             <div className="flex-1 bg-slate-800/60 border-2 border-dashed border-slate-700 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-4 m-4">
               <div className="w-16 h-16 bg-slate-800 text-amber-400 rounded-2xl flex items-center justify-center border border-slate-700">
                 <AlertCircle className="w-8 h-8" />

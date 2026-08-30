@@ -54,12 +54,12 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: cont
   const [gameStatus, setGameStatus] = useState<'playing' | 'correct' | 'wrong'>('playing');
 
   // Define steps based on role
-  const steps: TourStep[] = isTeacher
+      const steps: TourStep[] = isTeacher
     ? [
         {
           tabId: 'dashboard',
           title: 'Xin chào Thầy/Cô! 👋',
-          content: 'Em là Robot Hướng Dẫn viên. Hôm nay em rất vinh dự được đồng hành cùng Thầy/Cô khám phá hệ thống dạy học tương tác thông minh này nhé!',
+          content: 'Em là Robot Hướng Dẫn viên. Gần đây hệ thống vừa cập nhật thêm rất nhiều tính năng xịn xò như Chế độ Bản Nháp (On Air), Flashcard hình ảnh, Kết nối Zalo OA! Hãy cùng em khám phá nhé!',
           sandboxType: 'none',
         },
         {
@@ -78,22 +78,22 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: cont
         },
         {
           tabId: 'notifications-manager',
-          title: 'Hòm Thư Yêu Thương & Thông Báo ✉️',
-          content: 'Đây là tính năng độc quyền đầy tính nhân văn! Thầy/Cô có thể soạn thảo tin tức chung, hoặc gửi phong bì viết tay 3D chuyển động bồng bềnh lấp lánh chứa thông điệp yêu thương, khen thưởng đến từng học sinh.',
+          title: 'Hòm Thư Yêu Thương & Zalo OA ✉️',
+          content: 'Độc quyền đầy nhân văn! Gửi thư khen thưởng viết tay 3D. Hơn nữa, Thầy/Cô có thể kết nối Zalo OA để tự động bắn thông báo điểm số, bài tập mới về ngay Zalo của học sinh hoặc phụ huynh.',
           highlightSelector: '[data-tour="notifications-manager"]',
           sandboxType: 'none',
         },
         {
           tabId: 'flashcards',
           title: 'Hệ Thống Thẻ Ghi Nhớ Flashcard 🗂️',
-          content: 'Thầy/Cô có thể thiết kế các bộ thẻ ghi nhớ thông minh, lưu định nghĩa học tập, công thức toán lý hóa, hỗ trợ học sinh tự học ôn tập từ vựng chủ động, ghi nhớ bài cực lâu.',
+          content: 'Đã hỗ trợ chèn Ảnh 2 mặt cực nét! Thầy/Cô có thể Tải ảnh hàng loạt (Batch upload), tự động tạo tên thẻ và gộp nhiều bộ thẻ để sinh bài Quiz/trò chơi Lật thẻ ghép cặp tự động.',
           highlightSelector: '[data-tour="flashcards"]',
           sandboxType: 'none',
         },
         {
           tabId: 'assignments',
-          title: 'Kho Bài Tập & Đề Thi Sinh Động 📝',
-          content: 'Mục Bài tập là nơi Thầy/Cô giao bài tự luận, trắc nghiệm tự động chấm điểm, hay tải tài liệu học tập PDF/hình ảnh. Hệ thống tự động theo dõi danh sách học sinh chưa nộp bài.',
+          title: 'Kho Bài Tập & Bản Nháp (On Air) 📝',
+          content: 'Soạn bài an toàn hơn với chế độ Bản Nháp (On Air)! Thầy/Cô có thể lưu tạm, kiểm tra trước nội dung rồi mới click Phát Hành. Ngoài ra, học sinh giờ có thể Chat trực tiếp đặt câu hỏi ở mỗi bài tập.',
           highlightSelector: '[data-tour="assignments"]',
           sandboxType: 'none',
         },
@@ -123,27 +123,27 @@ export function RobotGuide({ user, activeTab, onTabChange, onClose, isOpen: cont
         {
           tabId: 'dashboard',
           title: 'Chào bạn học sinh thân mến! 🌟',
-          content: 'Mình là Robot đồng hành cùng bạn. Hãy cùng dạo một vòng để khám phá cách học tập vui vẻ, nộp bài xuất sắc và rinh thật nhiều quà xu thưởng nhé!',
+          content: 'Mình là Robot đồng hành cùng bạn. Hệ thống vừa có vô vàn cập nhật siêu ngầu như Flashcard hình ảnh, trò chơi Lật thẻ và Kết nối Zalo! Cùng dạo một vòng nhé!',
           sandboxType: 'none',
         },
         {
           tabId: 'dashboard',
-          title: 'Góc Học Tập Đa Sắc Màu 📊',
-          content: 'Đây là Trang chủ của bạn. Bạn sẽ theo dõi được số bài tập cần làm, lịch nhắc nhở hôm nay, thứ hạng thi đua trong lớp và tổng số xu tích lũy được từ hoạt động học tập!',
+          title: 'Góc Học Tập & Zalo 📊',
+          content: 'Đây là Trang chủ của bạn. Bạn có thể theo dõi xếp hạng, điểm số. Đừng quên click "Kết nối Zalo" để Robot gửi ngay bài tập và điểm số mới về tin nhắn Zalo cho bạn nhé!',
           highlightSelector: '[data-tour="dashboard"]',
           sandboxType: 'none',
         },
         {
           tabId: 'flashcards',
-          title: 'Trải Nghiệm Flashcard Thần Kỳ 🗂️',
-          content: 'Mục Flashcard giúp bạn ghi nhớ từ vựng, công thức siêu tốc. Hãy tương tác thử với chiếc thẻ Flashcard mô phỏng ở khung bên phải để xem cách học và nhận xu thưởng nhé!',
+          title: 'Trải Nghiệm Flashcard Hình Ảnh 🗂️',
+          content: 'Flashcard giờ đã có hình ảnh 2 mặt siêu sinh động! Bạn còn có thể kiểm tra kiến thức qua bài Quiz trắc nghiệm và thử tài nhanh tay với trò chơi Lật thẻ ghép cặp. Hãy thử ngay!',
           highlightSelector: '[data-tour="flashcards"]',
           sandboxType: 'flashcard',
         },
         {
           tabId: 'assignments',
-          title: 'Làm Bài Tập & Gửi Nộp Bài 📝',
-          content: 'Nơi hiển thị các nhiệm vụ thầy cô giao. Bạn có thể tự viết câu trả lời, đính kèm hình ảnh chụp vở. Hãy thử soạn câu trả lời và click "Nộp bài thử nghiệm" ở khung ảo bên phải nhé!',
+          title: 'Làm Bài Tập & Chat Với Giáo Viên 📝',
+          content: 'Nơi hiển thị các nhiệm vụ thầy cô giao. Nếu có câu hỏi khó, bạn có thể bấm nút Chat trực tiếp với Giáo viên ngay trong bài để được giải đáp 1-1. Hãy thử "Nộp bài" ở khung ảo nhé!',
           highlightSelector: '[data-tour="assignments"]',
           sandboxType: 'assignment',
         },
