@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, 
-  FolderOpen, Sparkles, AlertCircle, ArrowRight, Check, HelpCircle as QuestionIcon, Layers, Search
+  FolderOpen, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpDown, Check, HelpCircle as QuestionIcon, Layers, Search, ListOrdered, RotateCcw
 } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 import { SubFlashcardSet, Assignment } from '../types';
@@ -59,12 +59,35 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   const [showSelectSubSetModal, setShowSelectSubSetModal] = useState(false);
   const [subsetSearchQuery, setSubsetSearchQuery] = useState('');
 
+  // Reordering Modal state for sub-sets
+  const [showReorderModal, setShowReorderModal] = useState(false);
+
   // Active Sub-Set state when editing a parent / combined lesson
   const [activeSubIndex, setActiveSubIndex] = useState<number>(0);
 
   const hasSubSets = Boolean(newSubFlashcardSets && newSubFlashcardSets.length > 0);
   const safeSubIndex = hasSubSets ? Math.min(activeSubIndex, (newSubFlashcardSets?.length || 1) - 1) : 0;
   const currentSubSet = hasSubSets && newSubFlashcardSets ? newSubFlashcardSets[safeSubIndex] : null;
+
+  const moveSubSet = (fromIdx: number, toIdx: number) => {
+    if (!setNewSubFlashcardSets || !newSubFlashcardSets) return;
+    if (toIdx < 0 || toIdx >= newSubFlashcardSets.length || fromIdx === toIdx) return;
+    const updated = [...newSubFlashcardSets];
+    const [moved] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, moved);
+    setNewSubFlashcardSets(updated);
+    setActiveSubIndex(toIdx);
+    setNewFlashcards(moved.flashcards && moved.flashcards.length > 0 ? moved.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
+  };
+
+  const reverseAllSubSets = () => {
+    if (!setNewSubFlashcardSets || !newSubFlashcardSets || newSubFlashcardSets.length <= 1) return;
+    const reversed = [...newSubFlashcardSets].reverse();
+    const newActive = Math.max(0, newSubFlashcardSets.length - 1 - safeSubIndex);
+    setNewSubFlashcardSets(reversed);
+    setActiveSubIndex(newActive);
+    setNewFlashcards(reversed[newActive]?.flashcards || [{ id: Date.now().toString(), front: '', back: '' }]);
+  };
 
   const updateActiveCards = (updatedCards: Flashcard[]) => {
     setNewFlashcards(updatedCards);
@@ -510,20 +533,43 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           </span>
                         </h5>
                         <p className="text-[11px] text-indigo-200/80 mt-0.5">
-                          Nhấp chọn từng bộ con bên dưới để xem & chỉnh sửa thẻ ghi nhớ của riêng bộ con đó.
+                          Nhấp chọn từng bộ con bên dưới để chỉnh sửa hoặc điều chỉnh thứ tự hiển thị.
                         </p>
                       </div>
                     </div>
 
-                    {setNewSubFlashcardSets && (
-                      <button
-                        type="button"
-                        onClick={() => setShowSelectSubSetModal(true)}
-                        className="px-3.5 py-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 rounded-xl text-xs font-black border border-amber-300 transition-all active:scale-95 flex items-center gap-1.5 shrink-0 shadow-md"
-                      >
-                        <Plus className="w-4 h-4" /> Thêm bộ con mới
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {newSubFlashcardSets.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowReorderModal(true)}
+                            className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold border border-white/20 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+                            title="Mở bảng sắp xếp lại thứ tự các bộ con"
+                          >
+                            <ArrowUpDown className="w-3.5 h-3.5 text-amber-300" /> Sắp xếp thứ tự ({newSubFlashcardSets.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={reverseAllSubSets}
+                            className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-xl text-xs font-bold border border-white/15 transition-all active:scale-95 flex items-center gap-1 shadow-sm"
+                            title="Đảo ngược toàn bộ thứ tự các bộ con"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" /> Đảo thứ tự
+                          </button>
+                        </>
+                      )}
+
+                      {setNewSubFlashcardSets && (
+                        <button
+                          type="button"
+                          onClick={() => setShowSelectSubSetModal(true)}
+                          className="px-3.5 py-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 rounded-xl text-xs font-black border border-amber-300 transition-all active:scale-95 flex items-center gap-1.5 shrink-0 shadow-md"
+                        >
+                          <Plus className="w-4 h-4" /> Thêm bộ con mới
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Sub-Set Horizontal Navigation Tabs */}
@@ -533,35 +579,36 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                       const cardCount = sub.flashcards?.length || 0;
 
                       return (
-                        <button
-                          key={sub.id || sIdx}
-                          type="button"
-                          onClick={() => {
-                            setActiveSubIndex(sIdx);
-                            const targetCards = sub.flashcards || [];
-                            setNewFlashcards(targetCards.length > 0 ? targetCards : [{ id: Date.now().toString(), front: '', back: '' }]);
-                          }}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 shrink-0 border ${
-                            isActive
-                              ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
-                              : 'bg-white/10 hover:bg-white/20 text-indigo-100 border-white/15'
-                          }`}
-                        >
-                          <span>📦 #{sIdx + 1} {sub.title || 'Bộ con'}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
-                            isActive ? 'bg-black/20 text-slate-900' : 'bg-black/30 text-indigo-200'
-                          }`}>
-                            {cardCount} thẻ
-                          </span>
-                        </button>
+                        <div key={sub.id || sIdx} className="flex items-center shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubIndex(sIdx);
+                              const targetCards = sub.flashcards || [];
+                              setNewFlashcards(targetCards.length > 0 ? targetCards : [{ id: Date.now().toString(), front: '', back: '' }]);
+                            }}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-2 border ${
+                              isActive
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-400 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
+                                : 'bg-white/10 hover:bg-white/20 text-indigo-100 border-white/15'
+                            }`}
+                          >
+                            <span>📦 #{sIdx + 1} {sub.title || 'Bộ con'}</span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-black ${
+                              isActive ? 'bg-black/20 text-slate-900' : 'bg-black/30 text-indigo-200'
+                            }`}>
+                              {cardCount} thẻ
+                            </span>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
 
                   {/* Active Sub-set Settings Card */}
                   {currentSubSet && (
-                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-                      <div className="sm:col-span-5">
+                    <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3.5 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                      <div className="sm:col-span-4">
                         <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
                           Tên bộ con #{safeSubIndex + 1}:
                         </label>
@@ -580,7 +627,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         />
                       </div>
 
-                      <div className="sm:col-span-5">
+                      <div className="sm:col-span-4">
                         <label className="block text-[10px] font-bold text-indigo-200 uppercase tracking-wider mb-1">
                           Mô tả bộ con #{safeSubIndex + 1}:
                         </label>
@@ -599,7 +646,47 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         />
                       </div>
 
-                      <div className="sm:col-span-2 flex items-end justify-end pt-2 sm:pt-4">
+                      {/* Sub-set Position / Order Controls */}
+                      <div className="sm:col-span-3">
+                        <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
+                          Thứ tự vị trí:
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            disabled={safeSubIndex === 0}
+                            onClick={() => moveSubSet(safeSubIndex, safeSubIndex - 1)}
+                            className="p-1.5 bg-black/30 hover:bg-black/50 disabled:opacity-30 disabled:hover:bg-black/30 text-white rounded-lg border border-white/20 transition-colors"
+                            title="Dời bộ này sang trước (về bên trái)"
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                          </button>
+
+                          <select
+                            value={safeSubIndex}
+                            onChange={(e) => moveSubSet(safeSubIndex, Number(e.target.value))}
+                            className="flex-1 px-2.5 py-1.5 bg-black/40 border border-amber-400/40 rounded-lg text-xs text-amber-200 font-extrabold outline-none cursor-pointer"
+                          >
+                            {newSubFlashcardSets.map((_, idx) => (
+                              <option key={idx} value={idx} className="bg-slate-900 text-white">
+                                Vị trí #{idx + 1} {idx === 0 ? '(Đầu tiên)' : idx === newSubFlashcardSets.length - 1 ? '(Cuối cùng)' : ''}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            disabled={safeSubIndex === newSubFlashcardSets.length - 1}
+                            onClick={() => moveSubSet(safeSubIndex, safeSubIndex + 1)}
+                            className="p-1.5 bg-black/30 hover:bg-black/50 disabled:opacity-30 disabled:hover:bg-black/30 text-white rounded-lg border border-white/20 transition-colors"
+                            title="Dời bộ này ra sau (về bên phải)"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-1 flex items-end justify-end pt-1">
                         {setNewSubFlashcardSets && newSubFlashcardSets.length > 1 && (
                           <button
                             type="button"
@@ -615,7 +702,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                             className="w-full py-1.5 px-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-200 border border-rose-400/30 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1"
                             title="Xóa bộ con này"
                           >
-                            <Trash2 className="w-3.5 h-3.5" /> Xóa bộ
+                            <Trash2 className="w-3.5 h-3.5" /> Xóa
                           </button>
                         )}
                       </div>
@@ -1283,6 +1370,121 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* RENDER REORDER SUB-SETS MODAL */}
+      {showReorderModal && hasSubSets && newSubFlashcardSets && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-5 z-[10050] overflow-y-auto">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col my-auto max-h-[90vh]"
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-500/30 rounded-xl border border-amber-400/30">
+                  <ArrowUpDown className="w-5 h-5 text-amber-300" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base text-white">Sắp Xếp Thứ Tự Các Bộ Thẻ Con</h3>
+                  <p className="text-indigo-200/80 text-[11px]">
+                    Điều chỉnh thứ tự hiển thị từ trước ra sau của các bộ con trong bài học tổng hợp
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setShowReorderModal(false)}
+                className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* List & Quick Reorder Controls */}
+            <div className="p-4 sm:p-5 space-y-3 flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
+              <div className="flex items-center justify-between pb-1 text-xs text-slate-500 font-bold">
+                <span>Danh sách ({newSubFlashcardSets.length} bộ con):</span>
+                <button
+                  type="button"
+                  onClick={reverseAllSubSets}
+                  className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-extrabold border border-indigo-200 transition-colors flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Đảo ngược toàn bộ
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {newSubFlashcardSets.map((sub, idx) => {
+                  const cardCount = sub.flashcards?.length || 0;
+                  const isCurrent = idx === safeSubIndex;
+
+                  return (
+                    <div 
+                      key={sub.id || idx}
+                      className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                        isCurrent 
+                          ? 'bg-amber-50/80 border-amber-300 shadow-sm' 
+                          : 'bg-white border-slate-200 hover:border-indigo-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                          isCurrent ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          #{idx + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <h5 className="font-extrabold text-xs sm:text-sm text-slate-800 truncate">
+                            {sub.title || `Bộ con ${idx + 1}`}
+                          </h5>
+                          <p className="text-[11px] text-slate-400 font-medium truncate">
+                            {cardCount} thẻ ghi nhớ {sub.description ? `• ${sub.description}` : ''}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Move controls */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => moveSubSet(idx, idx - 1)}
+                          className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-30 disabled:hover:bg-slate-100 disabled:hover:text-inherit rounded-lg text-slate-600 border border-slate-200 transition-colors"
+                          title="Di chuyển lên trên"
+                        >
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === newSubFlashcardSets.length - 1}
+                          onClick={() => moveSubSet(idx, idx + 1)}
+                          className="p-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-30 disabled:hover:bg-slate-100 disabled:hover:text-inherit rounded-lg text-slate-600 border border-slate-200 transition-colors"
+                          title="Di chuyển xuống dưới"
+                        >
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 sm:p-4 bg-white border-t border-slate-100 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => setShowReorderModal(false)}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs sm:text-sm transition-all shadow-md active:scale-95 flex items-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> Hoàn tất sắp xếp
+              </button>
             </div>
           </motion.div>
         </div>

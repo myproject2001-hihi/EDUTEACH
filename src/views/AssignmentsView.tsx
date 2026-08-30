@@ -1617,7 +1617,8 @@ export function AssignmentsView({
   };
 
   const handleCombineFlashcards = () => {
-    const selectedAssignments = assignments.filter(a => selectedIdsForDeletion.includes(a.id) && a.type === 'flashcard');
+    // Merge from bottom to top as requested (reverse list order so earlier/bottom selected items come first)
+    const selectedAssignments = assignments.filter(a => selectedIdsForDeletion.includes(a.id) && a.type === 'flashcard').reverse();
     
     if (selectedAssignments.length < 1) {
       alert("Vui lòng chọn ít nhất 1 bộ thẻ để gộp.");
@@ -1657,10 +1658,15 @@ export function AssignmentsView({
       combinedCards = [{ id: Date.now().toString(), front: '', back: '' }];
     }
 
+    // Default active flashcards to the first subSet cards for crisp editing
+    const initialActiveCards = subSets[0]?.flashcards && subSets[0].flashcards.length > 0
+      ? subSets[0].flashcards
+      : combinedCards;
+
     const parentTitle = `BỘ LỚN: ${selectedAssignments.map(a => a.title).join(' + ')}`;
     const parentDesc = `Bộ thẻ tổng hợp bao gồm ${subSets.length} bộ con (${selectedAssignments.map(a => a.title).join(', ')})`;
 
-    handleOpenCreateModal('flashcard', combinedCards, subSets);
+    handleOpenCreateModal('flashcard', initialActiveCards, subSets);
     setNewTitle(parentTitle);
     setNewDescription(parentDesc);
     setSelectedIdsForDeletion([]);
