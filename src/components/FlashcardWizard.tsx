@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, 
-  FolderOpen, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpDown, Check, HelpCircle as QuestionIcon, Layers, Search, ListOrdered, RotateCcw
+  FolderOpen, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpDown, Check, Layers, Search, ListOrdered, RotateCcw, FileQuestion
 } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 import { SubFlashcardSet, Assignment } from '../types';
@@ -396,35 +396,33 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
   return (
     <div id="flashcard-wizard-container" className="flex-1 flex flex-col md:overflow-hidden bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
-      {/* Stepper Header (Only shown for SINGLE Flashcard sets, HIDDEN for Parent/Combined sets) */}
-      {!hasSubSets && (
-        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 border-b border-slate-100 pb-3 shrink-0">
-          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto custom-scrollbar flex-1 pb-1 sm:pb-0">
-            <button
-              type="button"
-              onClick={() => setFlashcardSubStep(1)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-            >
-              <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">1</span>
-              Thiết Lập Bộ Thẻ
-            </button>
-            <span className="text-slate-300 text-xs shrink-0">➔</span>
-            <button
-              type="button"
-              onClick={() => setFlashcardSubStep(2)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-            >
-              <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">2</span>
-              Câu Hỏi Trắc Nghiệm
-            </button>
-          </div>
+      {/* Stepper Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 border-b border-slate-100 pb-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto custom-scrollbar flex-1 pb-1 sm:pb-0">
+          <button
+            type="button"
+            onClick={() => setFlashcardSubStep(1)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 1 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">1</span>
+            {hasSubSets ? 'Thiết Lập Bộ Thẻ Con' : 'Thiết Lập Bộ Thẻ'}
+          </button>
+          <span className="text-slate-300 text-xs shrink-0">➔</span>
+          <button
+            type="button"
+            onClick={() => setFlashcardSubStep(2)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-extrabold transition-all shrink-0 ${flashcardSubStep === 2 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+          >
+            <span className="w-5 h-5 rounded-full bg-black/10 flex items-center justify-center text-[10px] font-black">2</span>
+            Câu Hỏi Trắc Nghiệm
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Step Contents */}
       <div className="flex-1 md:overflow-hidden min-h-0 flex flex-col">
         <AnimatePresence mode="wait">
-          {(flashcardSubStep === 1 || hasSubSets) && (
+          {flashcardSubStep === 1 && (
             <motion.div 
               key="flashcard-step-1"
               initial={{ opacity: 0, y: 15 }}
@@ -498,7 +496,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     </button>
 
                     <button 
-                      type="button"
+                      type="button" 
                       onClick={handleDownloadSampleFlashcards}
                       className="px-3 sm:px-4 py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors shrink-0"
                     >
@@ -538,24 +536,27 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-wrap">
+                    {/* Hình 1: Icon only buttons for Sub-sets Header */}
+                    <div className="flex items-center gap-2">
                       {newSubFlashcardSets.length > 1 && (
                         <>
                           <button
                             type="button"
                             onClick={() => setShowReorderModal(true)}
-                            className="px-3 py-1.5 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold border border-white/20 transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
-                            title="Mở bảng sắp xếp lại thứ tự các bộ con"
+                            className="p-2 bg-white/15 hover:bg-white/25 text-amber-300 rounded-xl border border-white/20 transition-all active:scale-95 flex items-center justify-center shadow-sm"
+                            title={`Sắp xếp thứ tự (${newSubFlashcardSets.length} bộ con)`}
+                            aria-label="Sắp xếp thứ tự"
                           >
-                            <ArrowUpDown className="w-3.5 h-3.5 text-amber-300" /> Sắp xếp thứ tự ({newSubFlashcardSets.length})
+                            <ArrowUpDown className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
                             onClick={reverseAllSubSets}
-                            className="px-2.5 py-1.5 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-xl text-xs font-bold border border-white/15 transition-all active:scale-95 flex items-center gap-1 shadow-sm"
+                            className="p-2 bg-white/10 hover:bg-white/20 text-indigo-200 hover:text-white rounded-xl border border-white/15 transition-all active:scale-95 flex items-center justify-center shadow-sm"
                             title="Đảo ngược toàn bộ thứ tự các bộ con"
+                            aria-label="Đảo thứ tự"
                           >
-                            <RotateCcw className="w-3.5 h-3.5" /> Đảo thứ tự
+                            <RotateCcw className="w-4 h-4" />
                           </button>
                         </>
                       )}
@@ -564,9 +565,11 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         <button
                           type="button"
                           onClick={() => setShowSelectSubSetModal(true)}
-                          className="px-3.5 py-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 rounded-xl text-xs font-black border border-amber-300 transition-all active:scale-95 flex items-center gap-1.5 shrink-0 shadow-md"
+                          className="p-2 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 rounded-xl border border-amber-300 transition-all active:scale-95 flex items-center justify-center shrink-0 shadow-md"
+                          title="Thêm bộ con mới"
+                          aria-label="Thêm bộ con mới"
                         >
-                          <Plus className="w-4 h-4" /> Thêm bộ con mới
+                          <Plus className="w-4 h-4" />
                         </button>
                       )}
                     </div>
@@ -646,7 +649,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                         />
                       </div>
 
-                      {/* Sub-set Position / Order Controls */}
+                      {/* Sub-set Position / Order Controls (Hình 3: Dropdown without '(Đầu tiên)' & '(Cuối cùng)') */}
                       <div className="sm:col-span-3">
                         <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
                           Thứ tự vị trí:
@@ -669,7 +672,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           >
                             {newSubFlashcardSets.map((_, idx) => (
                               <option key={idx} value={idx} className="bg-slate-900 text-white">
-                                Vị trí #{idx + 1} {idx === 0 ? '(Đầu tiên)' : idx === newSubFlashcardSets.length - 1 ? '(Cuối cùng)' : ''}
+                                Vị trí #{idx + 1}
                               </option>
                             ))}
                           </select>
@@ -711,7 +714,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                 </div>
               )}
 
-              {/* Sub-set Card Controls Bar (Only when editing parent/combined set) */}
+              {/* Sub-set Card Controls Bar (Hình 4: Only icons + Giao bài tập trắc nghiệm) */}
               {hasSubSets && (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 shadow-sm gap-2 shrink-0">
                   <div className="flex items-center gap-2">
@@ -723,23 +726,41 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    {/* Preview bộ này */}
                     <button 
                       type="button"
                       onClick={() => setShowFlashcardPreview(true)}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-sm active:scale-95 shrink-0"
-                      title="Xem trước trình lật thẻ bộ con này"
+                      className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all active:scale-95 shrink-0 flex items-center justify-center"
+                      title="Preview bộ này (Xem trước bộ thẻ)"
+                      aria-label="Preview bộ này"
                     >
-                      <Play className="w-3.5 h-3.5" /> Preview bộ này
+                      <Play className="w-4 h-4" />
                     </button>
+
+                    {/* Ghép ảnh hàng loạt */}
                     <button
                       type="button"
                       onClick={() => setShowBatchModal(true)}
-                      className="px-3 py-1.5 bg-purple-50 text-purple-700 font-extrabold rounded-xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition-colors shrink-0 shadow-sm active:scale-95"
+                      className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
                       title="Ghép ảnh hàng loạt cho bộ con này"
+                      aria-label="Ghép ảnh hàng loạt"
                     >
-                      <FolderOpen className="w-3.5 h-3.5" /> Ghép ảnh hàng loạt
+                      <FolderOpen className="w-4 h-4" />
                     </button>
+
+                    {/* Giao bài tập trắc nghiệm */}
+                    <button
+                      type="button"
+                      onClick={() => setFlashcardSubStep(2)}
+                      className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                      title="Giao bài tập trắc nghiệm / Cấu hình câu hỏi trắc nghiệm"
+                      aria-label="Giao bài tập trắc nghiệm"
+                    >
+                      <FileQuestion className="w-4 h-4" />
+                    </button>
+
+                    {/* Xóa tất cả */}
                     <button 
                       type="button"
                       onClick={() => {
@@ -747,16 +768,22 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                           updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
                         }
                       }}
-                      className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 shrink-0"
+                      className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                      title="Xóa tất cả thẻ ghi nhớ của bộ con này"
+                      aria-label="Xóa tất cả thẻ"
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Xóa tất cả
+                      <Trash2 className="w-4 h-4" />
                     </button>
+
+                    {/* Thêm thẻ mới */}
                     <button 
                       type="button" 
                       onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
-                      className="px-3 py-1.5 bg-blue-600 text-white font-extrabold rounded-xl text-xs hover:bg-blue-700 flex items-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
+                      className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                      title="Thêm thẻ mới"
+                      aria-label="Thêm thẻ mới"
                     >
-                      <Plus className="w-3.5 h-3.5" /> Thêm thẻ mới
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -1117,7 +1144,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                               </div>
                             ) : (
                               <div className="w-10 h-10 border-2 border-dashed border-slate-200 rounded-lg shrink-0 flex items-center justify-center bg-slate-50 text-slate-300">
-                                <QuestionIcon className="w-4 h-4" />
+                                <HelpCircle className="w-4 h-4" />
                               </div>
                             )}
                             <div className="truncate">
@@ -1146,7 +1173,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                               </div>
                             ) : (
                               <div className="w-10 h-10 border-2 border-dashed border-slate-200 rounded-lg shrink-0 flex items-center justify-center bg-slate-50 text-slate-300">
-                                <QuestionIcon className="w-4 h-4" />
+                                <HelpCircle className="w-4 h-4" />
                               </div>
                             )}
                           </div>
@@ -1434,11 +1461,37 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
-                          isCurrent ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700'
-                        }`}>
-                          #{idx + 1}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0" title="Nhập số thứ tự trực tiếp">
+                          <input
+                            type="number"
+                            min={1}
+                            max={newSubFlashcardSets.length}
+                            defaultValue={idx + 1}
+                            key={`subset-order-input-${idx}-${sub.id || ''}-${newSubFlashcardSets.length}`}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              if (!isNaN(val) && val >= 1 && val <= newSubFlashcardSets.length && val !== idx + 1) {
+                                moveSubSet(idx, val - 1);
+                              } else {
+                                e.target.value = (idx + 1).toString();
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const val = parseInt((e.target as HTMLInputElement).value, 10);
+                                if (!isNaN(val) && val >= 1 && val <= newSubFlashcardSets.length && val !== idx + 1) {
+                                  moveSubSet(idx, val - 1);
+                                }
+                              }
+                            }}
+                            className={`w-12 h-8 rounded-xl text-center text-xs font-black border outline-none transition-all ${
+                              isCurrent 
+                                ? 'bg-amber-500 text-white border-amber-600 focus:ring-2 focus:ring-amber-300' 
+                                : 'bg-slate-100 text-slate-800 border-slate-300 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'
+                            }`}
+                            title="Nhập số thứ tự vị trí mong muốn và nhấn Enter hoặc bấm ra ngoài"
+                          />
+                        </div>
                         <div className="min-w-0">
                           <h5 className="font-extrabold text-xs sm:text-sm text-slate-800 truncate">
                             {sub.title || `Bộ con ${idx + 1}`}
