@@ -958,44 +958,53 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
           {/* SECTION 2: MULTIPLE-CHOICE QUESTIONS EDITOR (DISPLAYED DIRECTLY BENEATH THE CARDS) */}
           <div id="flashcard-questions-editor-section" className="pt-4 border-t-2 border-dashed border-slate-200 space-y-3">
-            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200 rounded-2xl p-4 shadow-sm space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">
-                      Trắc nghiệm kiểm tra
-                    </span>
-                    <span className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
-                      {hasSubSets ? `Mã nguồn câu hỏi của #${safeSubIndex + 1} (${currentSubSet?.title || 'Bộ con'})` : 'Mã nguồn câu hỏi kiểm tra Flashcard'}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-600 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-xs">
-                      {rawQuestionCode.split('\n').length} dòng
-                    </span>
+            <div className="bg-gradient-to-r from-emerald-50/90 via-teal-50/90 to-indigo-50/70 border border-emerald-200/80 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                    📝
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-1">
-                    {hasSubSets 
-                      ? `Soạn câu hỏi kiểm tra riêng cho bộ con #${safeSubIndex + 1} (học sinh sẽ làm sau khi học lật thẻ của bộ con này).`
-                      : 'Soạn câu hỏi trắc nghiệm kiểm tra sau khi học sinh ôn tập các thẻ ghi nhớ ở trên.'}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] bg-emerald-700 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-xs whitespace-nowrap shrink-0">
+                        Trắc nghiệm kiểm tra
+                      </span>
+                      <h5 className="text-xs sm:text-sm font-extrabold text-slate-900 break-words">
+                        {hasSubSets ? `Mã nguồn câu hỏi: #${safeSubIndex + 1} - ${currentSubSet?.title || 'Bộ con'}` : 'Mã nguồn câu hỏi kiểm tra Flashcard'}
+                      </h5>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5 leading-normal">
+                      {hasSubSets 
+                        ? `Soạn câu hỏi kiểm tra riêng cho bộ con #${safeSubIndex + 1} (học sinh làm bài sau khi ôn lật thẻ của bộ này).`
+                        : 'Soạn câu hỏi trắc nghiệm kiểm tra sau khi học sinh ôn tập các thẻ ghi nhớ ở trên.'}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 flex-wrap shrink-0 justify-end pt-1 lg:pt-0">
+                  <span className="text-[11px] font-mono font-bold text-slate-600 bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 shadow-xs whitespace-nowrap shrink-0 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    {rawQuestionCode.trim() ? `${rawQuestionCode.split('\n').length} dòng` : '0 dòng'}
+                  </span>
+
                   <button 
                     type="button"
                     onClick={() => handleRawQuestionCodeChange('')}
                     title="Xóa trắng mã nguồn câu hỏi"
-                    className="p-1.5 px-3 text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                    className="px-3 py-1.5 text-rose-600 bg-white border border-rose-200 hover:bg-rose-50 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs active:scale-95 whitespace-nowrap shrink-0"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>Xóa trắng</span>
                   </button>
+
                   <button 
                     type="button"
                     onClick={() => setShowFlashcardQuizTest(true)} 
                     title="Xem trước bài kiểm tra trắc nghiệm"
-                    className="px-3.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 border border-emerald-500 transition-all shadow-md shadow-emerald-100 shrink-0"
+                    className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm flex items-center gap-1.5 border border-emerald-500 transition-all shadow-md shadow-emerald-100 whitespace-nowrap shrink-0"
                   >
-                    <Play className="w-3.5 h-3.5" /> Preview trắc nghiệm
+                    <Play className="w-3.5 h-3.5" /> 
+                    <span>Preview trắc nghiệm</span>
                   </button>
                 </div>
               </div>
