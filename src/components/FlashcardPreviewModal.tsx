@@ -268,7 +268,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     {/* Floating Top Tag (does not take flex height) */}
                     <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 pointer-events-none opacity-85 group-hover:opacity-100 transition-opacity">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-950/80 text-indigo-300 border border-indigo-500/30 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow backdrop-blur-sm">
-                        <Sparkles className="w-3 h-3 text-indigo-400" /> Mặt trước #{activeIndex + 1}
+                        <Sparkles className="w-3 h-3 text-indigo-400" /> Mặt trước
                       </span>
                     </div>
 
@@ -305,7 +305,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     {/* Floating Top Tag (does not take flex height) */}
                     <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10 pointer-events-none opacity-85 group-hover:opacity-100 transition-opacity">
                       <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-950/80 text-purple-300 border border-purple-500/40 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow backdrop-blur-sm">
-                        ✨ Mặt sau #{activeIndex + 1}
+                        ✨ Mặt sau
                       </span>
                     </div>
 

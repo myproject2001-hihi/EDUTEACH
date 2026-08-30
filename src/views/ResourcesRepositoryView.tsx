@@ -178,7 +178,11 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
 
       // Type Filter
       if (filterType !== 'all') {
-        if (a.type !== filterType) return false;
+        if (filterType === 'assignment') {
+          if (a.type !== 'online_test' && a.type !== 'file_upload') return false;
+        } else {
+          if (a.type !== filterType) return false;
+        }
       }
 
       // Grade Filter
@@ -398,11 +402,10 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                   className="w-full px-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-600 outline-none"
                 >
                   <option value="all">Tất cả loại hình</option>
-                  <option value="online_test">Trắc nghiệm Online</option>
-                  <option value="file_upload">Tự luận / Đính kèm PDF</option>
-                  <option value="simulation">Mô phỏng Khoa học</option>
-                  <option value="game">Trò chơi học tập</option>
-                  <option value="flashcard">Học liệu Flashcard</option>
+                  <option value="flashcard">Flashcard</option>
+                  <option value="assignment">Bài tập</option>
+                  <option value="game">Game (Trò chơi)</option>
+                  <option value="simulation">Mô phỏng</option>
                 </select>
               </div>
 
@@ -414,9 +417,10 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                   className="w-full px-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-600 outline-none"
                 >
                   <option value="all">Tất cả Khối lớp</option>
-                  <option value="Khối 10">Khối 10</option>
-                  <option value="Khối 11">Khối 11</option>
-                  <option value="Khối 12">Khối 12</option>
+                  {Array.from({ length: 12 }, (_, i) => `Khối ${i + 1}`).map(grade => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
+                  <option value="Khác">Khác</option>
                 </select>
               </div>
 
@@ -741,9 +745,9 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                   className="w-full px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600"
                 >
                   <option value="">-- Chọn Khối --</option>
-                  <option value="Khối 10">Khối 10</option>
-                  <option value="Khối 11">Khối 11</option>
-                  <option value="Khối 12">Khối 12</option>
+                  {Array.from({ length: 12 }, (_, i) => `Khối ${i + 1}`).map(grade => (
+                    <option key={grade} value={grade}>{grade}</option>
+                  ))}
                   <option value="Khác">Khác</option>
                 </select>
               </div>

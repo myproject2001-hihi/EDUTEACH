@@ -4980,9 +4980,9 @@ export function AssignmentsView({
                           className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
                         >
                           <option value="">-- Chọn Khối --</option>
-                          <option value="Khối 10">Khối 10</option>
-                          <option value="Khối 11">Khối 11</option>
-                          <option value="Khối 12">Khối 12</option>
+                          {Array.from({ length: 12 }, (_, i) => `Khối ${i + 1}`).map(grade => (
+                            <option key={grade} value={grade}>{grade}</option>
+                          ))}
                           <option value="Khác">Khác</option>
                         </select>
                       </div>
