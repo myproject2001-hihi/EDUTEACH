@@ -132,8 +132,8 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setIsDraggingBack(false);
   };
 
-  // Compress and read image as Base64 to ensure size is extremely lightweight for Firestore (< 20KB per image)
-  const compressImage = (file: File, maxWidth = 400, maxHeight = 400, quality = 0.45): Promise<string> => {
+  // Compress and read image as Base64 to ensure size is manageable for Firestore but retain sharpness for large images
+  const compressImage = (file: File, maxWidth = 1280, maxHeight = 1280, quality = 0.85): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -327,7 +327,6 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setShowBatchModal(false);
     setFrontFiles([]);
     setBackFiles([]);
-    alert(`Đã ghép thành công và nhập ${importedCards.length} thẻ mới vào bài học!`);
   };
 
   return (

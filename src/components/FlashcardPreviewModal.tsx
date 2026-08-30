@@ -208,22 +208,28 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     </div>
 
                     {/* Card Front Content */}
-                    <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full">
-                      {(activeCard.frontImage || activeCard.image) ? (
-                        <div className="max-h-[70vh] shrink-0 rounded-xl overflow-hidden border border-slate-700/80 shadow-md bg-slate-950/40 p-1 flex items-center justify-center w-full">
+                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full gap-3">
+                      {(activeCard.frontImage || activeCard.image) && (
+                        <div className="flex-1 min-h-0 w-full shrink-1 rounded-xl overflow-hidden shadow-md bg-slate-950/40 p-1 flex items-center justify-center">
                           <img 
                             src={activeCard.frontImage || activeCard.image} 
                             alt="Front Illustration" 
                             referrerPolicy="no-referrer"
-                            className="max-h-[60vh] max-w-full object-contain rounded-lg"
+                            className="w-full h-full object-contain rounded-lg"
                           />
                         </div>
-                      ) : (
-                        <div className="text-xl sm:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm">
+                      )}
+                      {activeCard.front && (
+                        <div className="shrink-0 text-xl sm:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm">
                           <MarkdownMath 
-                            content={activeCard.front || '(Chưa nhập nội dung mặt trước)'} 
+                            content={activeCard.front} 
                             className="text-white text-center font-extrabold"
                           />
+                        </div>
+                      )}
+                      {!activeCard.front && !(activeCard.frontImage || activeCard.image) && (
+                        <div className="shrink-0 text-xl sm:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm opacity-50">
+                          (Chưa nhập nội dung mặt trước)
                         </div>
                       )}
                     </div>
@@ -248,22 +254,28 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                     </div>
 
                     {/* Card Back Content */}
-                    <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full">
-                      {(activeCard.backImage || activeCard.image) ? (
-                        <div className="max-h-[70vh] shrink-0 rounded-xl overflow-hidden border border-purple-900/40 shadow-md bg-indigo-950/40 p-1 flex items-center justify-center w-full">
+                    <div className="flex-1 min-h-0 flex flex-col items-center justify-center text-center py-3 px-2 overflow-y-auto custom-scrollbar w-full gap-3">
+                      {(activeCard.backImage || activeCard.image) && (
+                        <div className="flex-1 min-h-0 w-full shrink-1 rounded-xl overflow-hidden shadow-md bg-indigo-950/40 p-1 flex items-center justify-center">
                           <img 
                             src={activeCard.backImage || activeCard.image} 
                             alt="Back Illustration" 
                             referrerPolicy="no-referrer"
-                            className="max-h-[60vh] max-w-full object-contain rounded-lg"
+                            className="w-full h-full object-contain rounded-lg"
                           />
                         </div>
-                      ) : (
-                        <div className="text-lg sm:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm">
+                      )}
+                      {activeCard.back && (
+                        <div className="shrink-0 text-lg sm:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm">
                           <MarkdownMath 
-                            content={activeCard.back || '(Chưa nhập nội dung mặt sau)'} 
+                            content={activeCard.back} 
                             className="text-amber-200 text-center font-bold"
                           />
+                        </div>
+                      )}
+                      {!activeCard.back && !(activeCard.backImage || activeCard.image) && (
+                        <div className="shrink-0 text-lg sm:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm opacity-50">
+                          (Chưa nhập nội dung mặt sau)
                         </div>
                       )}
                     </div>
