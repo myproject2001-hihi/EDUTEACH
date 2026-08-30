@@ -7,7 +7,7 @@ import { StudentsReportView } from './views/StudentsReportView';
 import { SimulationsView } from './views/SimulationsView';
 import { AuthView } from './views/AuthView';
 import { currentUserMock } from './mockData';
-import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress, SystemNotification, LoveLetter } from './types';
+import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, StudentProgress, SystemNotification, LoveLetter, StudentAttempt } from './types';
 import { AnimatePresence, motion } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -474,8 +474,24 @@ export default function App() {
       id,
       submittedAt: new Date().toISOString(),
     }));
+    
+    const attemptId = `attempt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const newAttempt: StudentAttempt = JSON.parse(JSON.stringify({
+      id: attemptId,
+      assignmentId: submission.assignmentId,
+      studentId: submission.studentId,
+      submittedAt: new Date().toISOString(),
+      answers: submission.quizAnswers || {},
+      grade: submission.grade,
+      quizDetails: submission.quizDetails,
+      content: submission.content
+    }));
+
     try {
       await setDoc(doc(db, 'submissions', id), newSubmission);
+      
+      // Also save the specific attempt to 'student_attempts'
+      await setDoc(doc(db, 'student_attempts', attemptId), newAttempt);
 
       // Log activity
       if (currentUser) {

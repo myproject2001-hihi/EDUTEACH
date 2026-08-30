@@ -43,6 +43,12 @@ service cloud.firestore {
       allow write: if isAuthenticated(); // Students can write their own, teachers can grade
     }
 
+    // Student attempts collection
+    match /student_attempts/{attemptId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
     // Class sessions collection
     match /class_sessions/{sessionId} {
       allow read: if isAuthenticated();

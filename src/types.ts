@@ -52,6 +52,7 @@ export interface Assignment {
   createdAt: string;
   teacherId?: string;
   teacherName?: string;
+  isPublished?: boolean; // Nếu false, học sinh sẽ không thấy bài tập này
 }
 
 export interface SubmissionQuizQuestion {
@@ -69,6 +70,17 @@ export interface SubmissionQuizDetails {
   correctCount: number;
   score: number;
   questions?: SubmissionQuizQuestion[];
+}
+
+export interface StudentAttempt {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  submittedAt: string;
+  answers: Record<string, any>; // Record of answers provided
+  grade?: number;
+  quizDetails?: SubmissionQuizDetails;
+  content?: string; // For text/file submissions
 }
 
 export interface Submission {

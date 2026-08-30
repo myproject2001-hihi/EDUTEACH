@@ -110,7 +110,7 @@ export function FlashcardQuizGame({
     }
 
     // Otherwise, generate 4-option questions dynamically from flashcards
-    const validCards = flashcards.filter(c => c.front.trim() && c.back.trim());
+    const validCards = flashcards.filter(c => c.front.trim() || c.back.trim() || c.frontImage || c.backImage || c.image);
     if (validCards.length === 0) {
       return [
         {
@@ -312,17 +312,18 @@ export function FlashcardQuizGame({
             <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
               Câu hỏi {currentIndex + 1}
             </span>
-            <div className="text-base sm:text-xl font-normal text-slate-800 leading-relaxed pt-1">
-              <MarkdownMath content={currentQ.question} className="font-normal text-slate-800" />
-            </div>
-            {currentQ.image && (
-              <div className="max-h-36 sm:max-h-48 mt-2.5 mx-auto overflow-hidden rounded-xl border border-slate-200/80 shadow-sm bg-white p-1 flex items-center justify-center max-w-[280px] sm:max-w-[360px]">
+            {currentQ.image ? (
+              <div className="max-h-[50vh] mt-2.5 mx-auto overflow-hidden rounded-xl border border-slate-200/80 shadow-sm bg-white p-1 flex items-center justify-center max-w-[80vw] sm:max-w-[460px]">
                 <img 
                   src={currentQ.image} 
                   alt="Câu hỏi" 
                   referrerPolicy="no-referrer"
-                  className="max-h-[134px] sm:max-h-[180px] w-auto object-contain rounded-lg"
+                  className="max-h-[45vh] w-auto object-contain rounded-lg"
                 />
+              </div>
+            ) : (
+              <div className="text-base sm:text-xl font-normal text-slate-800 leading-relaxed pt-1">
+                <MarkdownMath content={currentQ.question} className="font-normal text-slate-800" />
               </div>
             )}
           </div>

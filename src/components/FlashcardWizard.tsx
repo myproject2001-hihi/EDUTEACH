@@ -267,6 +267,13 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
       });
     });
 
+    // Finally sort the matched pairs to ensure they appear in the correct 1, 2, 3 order
+    matchedPairs.sort((a, b) => {
+      const aName = a.front?.name || a.back?.name || a.key;
+      const bName = b.front?.name || b.back?.name || b.key;
+      return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
     return matchedPairs;
   }, [frontFiles, backFiles]);
 
@@ -278,18 +285,10 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     }
 
     const importedCards: Flashcard[] = pairedItems.map((item, idx) => {
-      // Create clean text defaults based on keys/names
-      const cleanFrontName = item.front 
-        ? item.front.name.substring(0, item.front.name.lastIndexOf('.'))
-        : '';
-      const cleanBackName = item.back
-        ? item.back.name.substring(0, item.back.name.lastIndexOf('.'))
-        : '';
-
       return {
         id: `fc_batch_${Date.now()}_${idx}`,
-        front: cleanFrontName || `Thẻ số ${item.key}`,
-        back: cleanBackName || `Đáp án thẻ ${item.key}`,
+        front: '', // Leave text empty to focus on image
+        back: '', // Leave text empty to focus on image
         frontImage: item.front?.base64,
         backImage: item.back?.base64
       };

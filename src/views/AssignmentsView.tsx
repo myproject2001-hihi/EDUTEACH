@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation } from '../t
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -592,6 +592,9 @@ export function AssignmentsView({
 
   const filteredAssignments = React.useMemo(() => {
     return assignments.filter(assignment => {
+      // 0. Filter out unpublished for students
+      if (!isTeacher && !isAdmin && assignment.isPublished === false) return false;
+
       // 1. Search Query Match
       const q = searchQuery.toLowerCase().trim();
       if (q) {
@@ -657,6 +660,7 @@ export function AssignmentsView({
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
+  const [newIsPublished, setNewIsPublished] = useState(false);
   const [newMaxAttempts, setNewMaxAttempts] = useState<number>(0); // 0 = vĩnh viễn (không giới hạn)
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
@@ -1228,6 +1232,7 @@ export function AssignmentsView({
     setNewGameType('quiz_nghieng_dau');
     setNewGameFormats(['multiple_choice', 'true_false']);
     setNewIsMandatory(false);
+    setNewIsPublished(false); // Default to draft for new assignments
     setNewMaxAttempts(0);
     setGameSubStep(1);
     setFlashcardSubStep(1);
@@ -1274,6 +1279,7 @@ export function AssignmentsView({
     setNewGameType(assignment.gameType || 'quiz_nghieng_dau');
     setNewGameFormats(assignment.gameFormats || ['multiple_choice', 'true_false']);
     setNewIsMandatory(assignment.isMandatory || false);
+    setNewIsPublished(assignment.isPublished !== false);
     setNewMaxAttempts(assignment.maxAttempts !== undefined ? assignment.maxAttempts : 0);
     setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
     
@@ -1324,6 +1330,7 @@ export function AssignmentsView({
       gameType: newType === 'game' ? newGameType : undefined,
       gameFormats: newType === 'game' ? newGameFormats : undefined,
       isMandatory: newIsMandatory,
+      isPublished: newIsPublished,
       maxAttempts: newMaxAttempts,
       flashcards: newType === 'flashcard' ? newFlashcards : undefined,
       rawCode: (newType === 'online_test' || newType === 'game' || newType === 'flashcard') ? rawQuestionCode : undefined,
@@ -2282,6 +2289,12 @@ export function AssignmentsView({
                   </h4>
 
                   <div className="flex flex-wrap gap-1.5 mb-2">
+                    {isTeacher && assignment.isPublished === false && (
+                      <span className="inline-block bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                        Bản nháp
+                      </span>
+                    )}
+                    
                     {assignment.isMandatory && (
                       <span className="inline-block bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                         Bắt buộc
@@ -2366,6 +2379,40 @@ export function AssignmentsView({
                   
                   {isTeacher && (
                     <div className="flex flex-wrap items-center gap-2">
+                      <button 
+                        type="button"
+                        onClick={async () => {
+                          const newStatus = selectedAssignment.isPublished === false ? true : false;
+                          try {
+                            await setDoc(doc(db, 'assignments', selectedAssignment.id), { isPublished: newStatus }, { merge: true });
+                            if (newStatus) {
+                              alert('Đã phát hành bài tập/trò chơi cho học sinh!');
+                            } else {
+                              alert('Đã ẩn bài tập/trò chơi. Hiện tại chỉ giáo viên mới nhìn thấy.');
+                            }
+                          } catch (err) {
+                            alert('Lỗi cập nhật trạng thái');
+                          }
+                        }}
+                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors shadow-sm border ${
+                          selectedAssignment.isPublished !== false 
+                            ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' 
+                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'
+                        }`}
+                        title={selectedAssignment.isPublished !== false ? "Đang phát hành (Nhấn để ẩn)" : "Đang ẩn (Nhấn để phát hành)"}
+                      >
+                        {selectedAssignment.isPublished !== false ? (
+                          <>
+                            <Eye className="w-4 h-4 text-emerald-600" />
+                            Đã phát hành
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-4 h-4 text-amber-600" />
+                            Chưa phát hành
+                          </>
+                        )}
+                      </button>
                       <button 
                         type="button"
                         onClick={() => handleOpenEditModal(selectedAssignment)}
@@ -2555,8 +2602,10 @@ export function AssignmentsView({
               {!isTeacher && selectedAssignment.type !== 'simulation' && (
                 <div className="pt-4 border-t border-slate-100">
                   {(() => {
-                    const mySub = submissions.find(s => s.assignmentId === selectedAssignment.id && s.studentId === user.id);
-                    const mySubs = submissions.filter(s => s.assignmentId === selectedAssignment.id && s.studentId === user.id);
+                    const mySubs = submissions
+                      .filter(s => s.assignmentId === selectedAssignment.id && s.studentId === user.id)
+                      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+                    const mySub = mySubs[0]; // the latest attempt
                     const attemptCount = mySubs.length;
                     const maxAttempts = selectedAssignment.maxAttempts || 0; // 0 = vĩnh viễn
                     const isPastDue = new Date(selectedAssignment.dueDate) < new Date();
@@ -2735,6 +2784,27 @@ export function AssignmentsView({
                                   </div>
                                 );
                               })}
+                            </div>
+                          )}
+
+                          {mySubs.length > 1 && (
+                            <div className="mt-6 space-y-4">
+                              <h4 className="font-bold text-slate-800 text-sm border-b pb-2">Lịch sử làm bài</h4>
+                              <div className="space-y-3">
+                                {mySubs.map((sub, idx) => (
+                                  <div key={sub.id} className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-sm">
+                                    <div>
+                                      <p className="text-xs font-bold text-slate-700">Lần {mySubs.length - idx}</p>
+                                      <p className="text-[11px] text-slate-500">{format(new Date(sub.submittedAt), 'HH:mm dd/MM/yyyy')}</p>
+                                    </div>
+                                    {sub.grade !== undefined ? (
+                                      <span className="font-black text-indigo-600 text-sm">{sub.grade}/10</span>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-medium italic">Chờ chấm</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
 
@@ -4176,17 +4246,32 @@ export function AssignmentsView({
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 pt-1">
-                      <input
-                        type="checkbox"
-                        id="isMandatory"
-                        checked={newIsMandatory}
-                        onChange={e => setNewIsMandatory(e.target.checked)}
-                        className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-600 cursor-pointer"
-                      />
-                      <label htmlFor="isMandatory" className="text-xs sm:text-sm font-bold text-slate-700 cursor-pointer select-none">
-                        Bài tập bắt buộc hoàn thành
-                      </label>
+                    <div className="flex flex-col gap-3 pt-1">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id="isMandatory"
+                          checked={newIsMandatory}
+                          onChange={e => setNewIsMandatory(e.target.checked)}
+                          className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-600 cursor-pointer"
+                        />
+                        <label htmlFor="isMandatory" className="text-xs sm:text-sm font-bold text-slate-700 cursor-pointer select-none">
+                          Bài tập bắt buộc hoàn thành
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id="isPublished"
+                          checked={newIsPublished}
+                          onChange={e => setNewIsPublished(e.target.checked)}
+                          className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 border-slate-300 rounded focus:ring-emerald-600 cursor-pointer"
+                        />
+                        <label htmlFor="isPublished" className="text-xs sm:text-sm font-bold text-slate-700 cursor-pointer select-none">
+                          Hiển thị với học sinh (On Air)
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
