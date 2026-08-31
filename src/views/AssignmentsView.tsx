@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -118,6 +118,9 @@ export interface ParsedQuestionItem {
   solutionText?: string;
   groupTitle?: string;
   matchingPairs?: { left: string; right: string }[];
+  image?: string;
+  imageUrl?: string;
+  thumb?: string;
 }
 
 export function cleanQuestionText(text: string): string {
@@ -368,6 +371,9 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       questionText = 'Nội dung câu hỏi chưa được định dạng đúng';
     }
 
+    const imageMatch = chunk.match(/(?:^|\n)\s*(?:Ảnh|Hình|Image):\s*(https?:\/\/[^\s\n]+)/i);
+    const image = imageMatch ? imageMatch[1].trim() : undefined;
+
     questionsList.push({
       id: `parsed_q_${index}_${Date.now()}`,
       numStr: `Câu ${questionsList.length + 1}.`,
@@ -381,7 +387,8 @@ export function parseRawCodeToQuestions(rawText: string): { groupTitle: string; 
       method,
       solutionText,
       groupTitle: currentGroupTitle,
-      matchingPairs
+      matchingPairs,
+      image
     });
 
     const matches = chunk.match(/^Phần\s+[^\n]+/igm);
@@ -445,6 +452,16 @@ export function formatForDateTimeInput(dateStr?: string): string {
     return '';
   }
 }
+
+const DEFAULT_THUMBNAILS = {
+  online_test: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=600&q=80',
+  game: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=80',
+  flashcard: 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=600&q=80',
+  lesson_check: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?auto=format&fit=crop&w=600&q=80',
+  simulation: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80',
+  file_upload: 'https://images.unsplash.com/photo-1454165833767-027ffea9e7a7?auto=format&fit=crop&w=600&q=80',
+  default: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80'
+};
 
 export function AssignmentsView({ 
   user, 
@@ -867,15 +884,29 @@ export function AssignmentsView({
 
   useEffect(() => {
     if (initialSelectedAssignmentId) {
-      const found = assignments.find(a => a.id === initialSelectedAssignmentId);
+      const found = (rawAssignments || []).find(a => a.id === initialSelectedAssignmentId) || assignments.find(a => a.id === initialSelectedAssignmentId);
       if (found) {
         setSelectedAssignment(found);
+        
+        // Auto-start for students
+        if (!isTeacher) {
+          if (found.type === 'online_test' || found.type === 'lesson_check') {
+            setIsExamStarted(true);
+            enterFullscreen();
+          } else if (found.type === 'game') {
+            setShowGamePreview(true);
+          } else if (found.type === 'flashcard') {
+            setShowFlashcardPreview(true);
+          } else if (found.type === 'simulation') {
+            setShowEmbeddedSim(true);
+          }
+        }
       }
       if (onClearInitialSelectedAssignmentId) {
         onClearInitialSelectedAssignmentId();
       }
     }
-  }, [initialSelectedAssignmentId, assignments, onClearInitialSelectedAssignmentId]);
+  }, [initialSelectedAssignmentId, rawAssignments, assignments, onClearInitialSelectedAssignmentId, isTeacher]);
 
   useEffect(() => {
     setIsExamStarted(false);
@@ -886,7 +917,7 @@ export function AssignmentsView({
     setFlippedCards(new Set());
     setViewedCards(new Set());
     setActiveCardIndex(0);
-  }, [selectedAssignment]);
+  }, [selectedAssignment?.id]);
 
   useEffect(() => {
     if (selectedAssignment?.type === 'flashcard' && selectedAssignment.flashcards) {
@@ -1567,7 +1598,8 @@ export function AssignmentsView({
           points: pq.points || 0.25,
           method: pq.method,
           solutionText: pq.solutionText,
-          matchingPairs: pq.matchingPairs
+          matchingPairs: pq.matchingPairs,
+          image: pq.image
         }));
       }
     }
@@ -1954,7 +1986,11 @@ export function AssignmentsView({
                 </div>
                 
                 <div className="text-sm font-serif text-slate-800 leading-relaxed pl-1">
-                  {q.numStr && <span className="font-bold mr-2">{q.numStr}</span>}
+                  {(q as any).image && (
+                    <div className="mb-4 max-h-[300px] overflow-hidden rounded-xl border border-slate-200 bg-white p-1 w-fit">
+                      <img src={(q as any).image} alt="Question" referrerPolicy="no-referrer" className="max-h-[280px] w-auto object-contain rounded-lg" />
+                    </div>
+                  )}
                   <MarkdownMath content={q.question} />
                   {q.type === 'multiple_choice' && q.options && (
                     <div className="mt-3 space-y-3 pl-2">
@@ -2113,703 +2149,278 @@ export function AssignmentsView({
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
-      {/* Top Header Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            {viewMode === 'games' 
-              ? 'Trò Chơi Học Tập & Tương Tác'
-              : viewMode === 'flashcards' 
-              ? 'Bộ Thẻ Ghi Nhớ (Flashcard)' 
-              : 'Bài Tập Sau Buổi Học'}
-          </h2>
-          <p className="text-sm text-slate-500 mt-0.5 hidden sm:block">
-            {viewMode === 'games'
-              ? (isTeacher ? 'Nơi tạo và giao các trò chơi tương tác ôn tập kiến thức cho học sinh' : 'Luyện tập kiến thức vui nhộn qua các trò chơi tương tác')
-              : viewMode === 'flashcards'
-              ? (isTeacher ? 'Nơi tạo và quản lý các bộ thẻ ghi nhớ giúp học sinh học thuộc khái niệm, từ vựng và định nghĩa' : 'Ghi nhớ định nghĩa, khái niệm và thuật ngữ qua các bộ thẻ ghi nhớ sinh động')
-              : (isTeacher ? 'Nơi tạo bài tập trắc nghiệm online, PDF, bài thực hành và quản lý tình trạng làm bài' : 'Nơi học sinh làm bài tập từ giáo viên, bắt buộc phải hoàn thành trước buổi học tiếp theo')}
-          </p>
-        </div>
-
-        {isTeacher && (
-          <button 
-            onClick={() => handleOpenCreateModal()}
-            className="flex items-center px-5 py-3 bg-indigo-600 text-white font-bold text-sm rounded-2xl hover:bg-indigo-700 transition-colors shadow-sm"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard' : 'Giao bài tập mới'}
-          </button>
-        )}
-      </div>
-
-      {/* ZALO BOT INTEGRATION SECTION */}
-      {false && (
-
-      <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#0068ff]/10 text-[#0068ff] rounded-2xl flex items-center justify-center font-black shadow-inner">
-              🤖
-            </div>
-            <div>
-              <h4 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
-                Tích hợp Thông Báo Zalo Bot
-                {(user as any).zaloUserId ? (
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200 uppercase">
-                    Đã liên kết
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2.5 py-0.5 rounded-full border border-slate-200 uppercase">
-                    Chưa kết nối
-                  </span>
-                )}
-              </h4>
-              <p className="text-xs text-slate-500">
-                {isTeacher 
-                  ? 'Gửi thông báo bài tập, flashcard, mô phỏng tức thì tới Zalo của học sinh qua Zalo OA.' 
-                  : 'Nhận thông báo bài học mới, điểm số và nhận xét từ thầy cô trực tiếp qua tin nhắn Zalo.'}
-              </p>
-            </div>
-          </div>
-          
-          <button
-            type="button"
-            onClick={() => setShowZaloSetup(!showZaloSetup)}
-            className="text-xs font-bold text-[#0068ff] hover:bg-[#0068ff]/5 px-3 py-2 rounded-xl transition-colors border border-[#0068ff]/20 flex items-center gap-1.5 active:scale-95"
-          >
-            {showZaloSetup ? 'Thu gọn bảng HD' : 'Cấu hình & Hướng dẫn'}
-            <HelpCircle className="w-4 h-4" />
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {showZaloSetup && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden border-t border-slate-100 pt-4"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* ROLE-BASED ACTION PANEL */}
-                <div className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-200/60">
-                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                    <span>⚙️ {isTeacher ? 'Cấu Hình Zalo Official Account (Dành cho Giáo viên)' : 'Kết Nối Tài Khoản Zalo (Dành cho Học sinh)'}</span>
-                  </h5>
-
-                  {isTeacher ? (
-                    // TEACHER FORM
-                    <div className="space-y-3 text-xs">
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Zalo Official Account ID (OA ID)</label>
-                        <input
-                          type="text"
-                          value={zaloConfig.oaId}
-                          onChange={(e) => setZaloConfig(prev => ({ ...prev, oaId: e.target.value }))}
-                          placeholder="Ví dụ: 43820247593821038"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-medium"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
-                          <span>OA Access Token (Hiệu lực 25 giờ)</span>
-                          <span className="text-[10px] text-amber-600 font-semibold bg-amber-50 px-1.5 py-0.5 rounded">Zalo OA v3.0</span>
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={zaloConfig.accessToken}
-                          onChange={(e) => setZaloConfig(prev => ({ ...prev, accessToken: e.target.value }))}
-                          placeholder="Nhập Access Token dài sinh ra từ Zalo App của bạn..."
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-mono text-[11px]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">Đường dẫn quan tâm OA (OA Link / QR Code URL)</label>
-                        <input
-                          type="text"
-                          value={zaloConfig.oaLink}
-                          onChange={(e) => setZaloConfig(prev => ({ ...prev, oaLink: e.target.value }))}
-                          placeholder="Ví dụ: https://zalo.me/1234567890123456"
-                          className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-medium"
-                        />
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleSaveZaloConfig}
-                        disabled={isSavingZalo}
-                        className="w-full py-2.5 bg-[#0068ff] hover:bg-[#0051d4] text-white font-extrabold rounded-xl transition-all shadow-md shadow-blue-100 flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
-                      >
-                        {isSavingZalo ? 'Đang lưu cấu hình...' : 'Lưu cấu hình hệ thống'}
-                      </button>
-                    </div>
-                  ) : (
-                    // STUDENT FORM
-                    <div className="space-y-4 text-xs">
-                      {(user as any).zaloUserId ? (
-                        <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl border border-emerald-100 flex items-start gap-2.5">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-extrabold text-sm text-emerald-900">Tài khoản đã liên kết Zalo thành công!</p>
-                            <p className="font-medium text-xs mt-1">Zalo User ID của bạn: <span className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-200/60 font-bold">{(user as any).zaloUserId}</span></p>
-                            <p className="text-[10px] text-emerald-700 mt-1">Bất cứ khi nào giáo viên có bài tập, flashcard hay thông báo mới, hệ thống sẽ tự động nhắn tin nhắc nhở vào Zalo của bạn.</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-amber-50 text-amber-800 p-3.5 rounded-xl border border-amber-100">
-                          <p className="font-bold flex items-center gap-1">⚠️ Chưa kết nối thông báo</p>
-                          <p className="text-[10px] mt-1 leading-relaxed font-medium">Hãy theo dõi 3 bước đơn giản ở bảng hướng dẫn bên phải để nhận tin nhắn bài học tức thì.</p>
-                        </div>
-                      )}
-
-                      <div className="space-y-2">
-                        <label className="block font-bold text-slate-700">Nhập Zalo User ID (Định danh riêng theo OA của bạn)</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={zaloStudentUserId}
-                            onChange={(e) => setZaloStudentUserId(e.target.value)}
-                            placeholder="Nhập mã ID Zalo gồm chữ và số..."
-                            className="flex-1 px-3 py-2 rounded-xl border border-slate-200 focus:border-[#0068ff] focus:ring-1 focus:ring-[#0068ff] outline-none font-mono font-bold"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleLinkZalo}
-                            disabled={isLinkingZalo}
-                            className="px-4 bg-[#0068ff] hover:bg-[#0051d4] text-white font-bold rounded-xl transition-all shadow-md shadow-blue-100 flex items-center justify-center active:scale-95 disabled:opacity-50"
-                          >
-                            {isLinkingZalo ? 'Đang liên kết...' : 'Kết nối'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* DETAILED USER GUIDE */}
-                <div className="space-y-4 text-xs font-medium text-slate-600">
-                  <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-2">
-                    <span>📖 Hướng Dẫn Sử Dụng Chi Tiết</span>
-                  </h5>
-
-                  {isTeacher ? (
-                    // TEACHER GUIDE
-                    <div className="space-y-3 leading-relaxed">
-                      <div className="space-y-1.5">
-                        <p className="font-black text-slate-800 text-xs">Các bước thiết lập nhanh cho giáo viên:</p>
-                        <ol className="list-decimal list-inside space-y-2 pl-1">
-                          <li>
-                            Truy cập <a href="https://developers.zalo.me" target="_blank" rel="noopener noreferrer" className="text-[#0068ff] font-bold underline">developers.zalo.me</a>, vào ứng dụng của bạn và bật trạng thái <b>"Đang hoạt động"</b>.
-                          </li>
-                          <li>
-                            Ở menu bên trái: vào <b>Sản phẩm &gt; Official Account &gt; Quản lý liên kết</b> để liên kết với trang Zalo OA lớp học của bạn.
-                          </li>
-                          <li>
-                            Mở công cụ <a href="https://developers.zalo.me/tools/explorer" target="_blank" rel="noopener noreferrer" className="text-[#0068ff] font-bold underline">API Explorer</a>, chọn Official Account Token và lấy mã <b>Access Token</b> (tích quyền gửi tin qua OA).
-                          </li>
-                          <li>
-                            Dán <b>OA ID</b>, <b>Access Token</b> và <b>Link quan tâm OA</b> vào mẫu bên trái và bấm <b>Lưu cấu hình hệ thống</b>.
-                          </li>
-                        </ol>
-                      </div>
-
-                      <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/60 text-slate-700 text-[11px]">
-                        <p className="font-extrabold text-[#0068ff] flex items-center gap-1">💡 Mẹo Giao Bài Nhanh:</p>
-                        <p className="mt-0.5 leading-relaxed font-medium">Bên dưới mỗi bài tập (Online Test, Mô Phỏng, Flashcard), hệ thống có tích hợp nút <b>"Gửi thông báo Zalo"</b>. Thầy cô chỉ cần bấm nút này, hệ thống sẽ tự động chọn lọc các học sinh <b>chưa nộp bài</b> đã liên kết Zalo để nhắn tin trực tiếp nhắc nhở.</p>
-                      </div>
-                    </div>
-                  ) : (
-                    // STUDENT GUIDE
-                    <div className="space-y-3 leading-relaxed">
-                      <div className="space-y-2">
-                        <p className="font-black text-slate-800">Để nhận thông báo qua Zalo, vui lòng làm theo 3 bước sau:</p>
-                        <div className="space-y-3 pl-1">
-                          <div className="flex gap-2 items-start">
-                            <span className="w-5 h-5 bg-[#0068ff]/10 text-[#0068ff] rounded-full flex items-center justify-center font-bold shrink-0 text-[10px]">1</span>
-                            <div>
-                              <p className="font-bold text-slate-800">Quan tâm trang Zalo OA của lớp</p>
-                              {zaloConfig.oaLink ? (
-                                <a
-                                  href={zaloConfig.oaLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 mt-1 font-extrabold text-white bg-[#0068ff] hover:bg-[#0051d4] px-3 py-1 rounded-lg transition-all text-[11px]"
-                                >
-                                  👉 Bấm vào đây để quan tâm OA
-                                </a>
-                              ) : (
-                                <p className="text-amber-600 font-semibold italic mt-0.5">Yêu cầu thầy cô cung cấp đường dẫn quan tâm Zalo OA của lớp học.</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 items-start">
-                            <span className="w-5 h-5 bg-[#0068ff]/10 text-[#0068ff] rounded-full flex items-center justify-center font-bold shrink-0 text-[10px]">2</span>
-                            <div>
-                              <p className="font-bold text-slate-800">Lấy mã định danh Zalo (Zalo User ID)</p>
-                              <p className="text-slate-500 text-[11px] leading-normal mt-0.5">Sau khi bấm quan tâm, nhắn tin cho OA dòng chữ <b className="text-[#0068ff] font-mono bg-slate-100 px-1 py-0.5 rounded border">/id</b> hoặc <b className="text-[#0068ff] font-mono bg-slate-100 px-1 py-0.5 rounded border">me</b>. Bot của lớp học sẽ ngay lập tức trả lời và gửi kèm cho bạn một dãy mã số.</p>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-2 items-start">
-                            <span className="w-5 h-5 bg-[#0068ff]/10 text-[#0068ff] rounded-full flex items-center justify-center font-bold shrink-0 text-[10px]">3</span>
-                            <div>
-                              <p className="font-bold text-slate-800">Dán ID và lưu liên kết</p>
-                              <p className="text-slate-500 text-[11px] leading-normal mt-0.5">Sao chép chính xác mã số nhận được từ Zalo Bot, dán vào khung nhập ở bên trái và bấm <b>Kết nối</b>. Bạn sẽ nhận được thông báo bài học tự động tức thì.</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      )}
-      {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Column: Assignments List */}
-        <div className={`lg:col-span-1 space-y-4 ${selectedAssignment ? 'hidden lg:block' : 'block'}`}>
-          <div className="flex items-center justify-between px-1">
-            <h3 className="font-bold text-slate-900 text-base">
-              {viewMode === 'games' ? 'Danh sách Game' : viewMode === 'flashcards' ? 'Danh sách Flashcard' : 'Danh sách Bài Tập'}
-            </h3>
-            <span className="text-xs font-semibold text-slate-500">
-              {filteredAssignments.length === assignments.length 
-                ? `${assignments.length} ${viewMode === 'games' ? 'game' : viewMode === 'flashcards' ? 'bộ' : 'bài'}` 
-                : `Tìm thấy ${filteredAssignments.length}/${assignments.length}`}
+      {/* SYNCED BANNER COMPONENT */}
+      <div className={`bg-gradient-to-r ${
+        viewMode === 'games' 
+          ? 'from-amber-500 via-orange-600 to-rose-600' 
+          : viewMode === 'flashcards' 
+          ? 'from-indigo-600 via-purple-600 to-pink-600' 
+          : 'from-sky-600 via-blue-600 to-indigo-600'
+      } rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-md`}>
+        <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <span className="bg-white/20 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">
+              {viewMode === 'games' ? 'Khu Vui Chơi Học Tập' : viewMode === 'flashcards' ? 'Kho Flashcard Sinh Động' : 'Bài Tập & Thử Thách'}
             </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              {viewMode === 'games' 
+                ? 'Trò Chơi Tương Tác & Ôn Tập'
+                : viewMode === 'flashcards' 
+                ? 'Bộ Thẻ Ghi Nhớ Thông Minh' 
+                : 'Bài Tập Rèn Luyện Mỗi Ngày'}
+            </h2>
+            <p className="text-white/80 text-xs sm:text-sm mt-1 max-w-2xl leading-relaxed">
+              {viewMode === 'games'
+                ? (isTeacher ? 'Tạo và giao các trò chơi tương tác ôn tập kiến thức cho học sinh' : 'Luyện tập kiến thức vui nhộn qua các trò chơi tương tác thú vị!')
+                : viewMode === 'flashcards'
+                ? (isTeacher ? 'Quản lý các bộ thẻ ghi nhớ giúp học sinh học thuộc khái niệm và định nghĩa' : 'Ghi nhớ định nghĩa và thuật ngữ qua các bộ thẻ ghi nhớ sinh động!')
+                : (isTeacher ? 'Quản lý bài tập trắc nghiệm, PDF và theo dõi tình trạng làm bài của lớp' : 'Hoàn thành các thử thách từ thầy cô để tích lũy điểm thưởng nhé!')}
+            </p>
           </div>
 
-          {/* SEARCH & FILTERS BOX */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3 shadow-sm">
-            <div className="relative">
+          {isTeacher && (
+            <button 
+              onClick={() => handleOpenCreateModal()}
+              className="px-5 py-3 bg-white text-slate-800 font-bold text-xs sm:text-sm rounded-2xl hover:bg-slate-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard' : 'Giao bài tập mới'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* SYNCED CATEGORY FILTER */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+        <Filter className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+        {['Tất cả', 'Đại Số', 'Hình Học', 'Vật Lý', 'Hóa Học', 'Khác'].map(cat => (
+          <button
+            key={cat}
+            onClick={() => setFilterType(cat === 'Tất cả' ? 'all' : cat)}
+            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap ${
+              (filterType === 'all' && cat === 'Tất cả') || filterType === cat
+                ? 'bg-indigo-600 text-white shadow-sm' 
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
+      {/* Main Content Layout */}
+      {!selectedAssignment ? (
+        <div className="space-y-6">
+          {/* SEARCH & FILTERS BOX - Inline in Grid view */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
               <input
                 type="text"
                 placeholder="Tìm tên bài, buổi học, mô tả..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-xl transition-all"
+                className="w-full pl-9 pr-8 py-2.5 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-xl transition-all"
               />
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-2 text-slate-400 hover:text-slate-600 font-bold transition-colors"
-                >
-                  ✕
-                </button>
+              <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+            </div>
+            
+            <div className="flex gap-2">
+              <select
+                value={filterDueDate}
+                onChange={(e) => setFilterDueDate(e.target.value)}
+                className="px-4 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">Tất cả hạn</option>
+                <option value="upcoming">Còn hạn</option>
+                <option value="overdue">Quá hạn</option>
+              </select>
+
+              {isTeacher && (
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={filteredAssignments.length > 0 && selectedIdsForDeletion.length === filteredAssignments.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIdsForDeletion(filteredAssignments.map(a => a.id));
+                      } else {
+                        setSelectedIdsForDeletion([]);
+                      }
+                    }}
+                    className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                  />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">Chọn tất cả</span>
+                </div>
+              )}
+
+              {selectedIdsForDeletion.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setShowBulkDeleteConfirm(true)}
+                    className="p-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors"
+                    title="Xóa hàng loạt"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  {viewMode === 'flashcards' && (
+                    <button
+                      onClick={handleCombineFlashcards}
+                      className="p-2 bg-purple-50 text-purple-600 border border-purple-200 rounded-xl hover:bg-purple-100 transition-colors"
+                      title="Gộp bộ thẻ"
+                    >
+                      <Layers className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 pl-0.5">Loại bài tập</label>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-lg transition-all cursor-pointer font-medium text-slate-700"
-                >
-                  <option value="all">Tất cả loại</option>
-                  <option value="file_upload">Nộp tự luận</option>
-                  <option value="online_test">Trắc nghiệm</option>
-                  <option value="simulation">Mô phỏng</option>
-                  <option value="game">Trò chơi</option>
-                  <option value="flashcard">Flashcard</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1 pl-0.5">Thời hạn</label>
-                <select
-                  value={filterDueDate}
-                  onChange={(e) => setFilterDueDate(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-lg transition-all cursor-pointer font-medium text-slate-700"
-                >
-                  <option value="all">Tất cả hạn</option>
-                  <option value="upcoming">Còn hạn nộp</option>
-                  <option value="overdue">Đã quá hạn</option>
-                </select>
-              </div>
-            </div>
-
-            {(searchQuery || filterType !== 'all' || filterDueDate !== 'all') && (
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
-                <span className="text-slate-400 font-medium">Đang lọc kết quả</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFilterType('all');
-                    setFilterDueDate('all');
-                  }}
-                  className="font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
-                >
-                  Xóa bộ lọc
-                </button>
-              </div>
-            )}
           </div>
 
-          {isTeacher && filteredAssignments.length > 0 && (
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between gap-2 text-xs shadow-inner">
-              <div className="flex items-center gap-2 font-bold text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={filteredAssignments.length > 0 && selectedIdsForDeletion.length === filteredAssignments.length}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedIdsForDeletion(filteredAssignments.map(a => a.id));
-                    } else {
-                      setSelectedIdsForDeletion([]);
-                    }
-                  }}
-                  className="w-4 h-4 text-[#0068ff] focus:ring-[#0068ff] border-slate-300 rounded cursor-pointer transition-all"
-                />
-                <span>Chọn tất cả ({selectedIdsForDeletion.length}/{filteredAssignments.length})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedIdsForDeletion.length > 0 && (() => {
-                  const selAss = filteredAssignments.filter(a => selectedIdsForDeletion.includes(a.id));
-                  const areAllOnAir = selAss.length > 0 && selAss.every(a => a.isPublished !== false);
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleBulkToggleOnAir()}
-                      className={`p-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center border shadow-sm ${
-                        areAllOnAir
-                          ? 'bg-rose-600 hover:bg-rose-700 text-white border-rose-600'
-                          : 'bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border-slate-300 hover:border-rose-300'
-                      }`}
-                      title={areAllOnAir ? `Đang ON AIR. Bấm để TẮT cho ${selectedIdsForDeletion.length} mục` : `Bấm để BẬT ON AIR cho ${selectedIdsForDeletion.length} mục`}
-                    >
-                      <Radio className={`w-4 h-4 ${areAllOnAir ? 'animate-pulse text-white' : 'text-slate-500'}`} />
-                    </button>
-                  );
-                })()}
-                {selectedIdsForDeletion.length > 0 && viewMode === 'flashcards' && (
-                  <button
-                    type="button"
-                    onClick={handleCombineFlashcards}
-                    className="p-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center justify-center"
-                    title={`Gộp ${selectedIdsForDeletion.length} bộ flashcard`}
-                  >
-                    <Layers className="w-4 h-4 text-white" />
-                  </button>
-                )}
-                {selectedIdsForDeletion.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowBulkDeleteConfirm(true)}
-                    className="p-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold rounded-xl transition-all shadow-sm flex items-center justify-center"
-                    title={`Xóa ${selectedIdsForDeletion.length} mục đã chọn`}
-                  >
-                    <Trash2 className="w-4 h-4 text-white" />
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3">
+          {/* GRID OF ASSIGNMENT CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {isLoadingAssignments ? (
-              <AssignmentListSkeleton count={4} />
+              Array(6).fill(0).map((_, i) => (
+                <div key={i} className="bg-white rounded-3xl h-64 animate-pulse border border-slate-100" />
+              ))
             ) : filteredAssignments.length === 0 ? (
-              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl text-center text-slate-500 text-xs">
-                {searchQuery || filterType !== 'all' || filterDueDate !== 'all'
-                  ? 'Không tìm thấy bài tập nào phù hợp với bộ lọc tìm kiếm.'
-                  : viewMode === 'games' ? 'Chưa có game nào.' : viewMode === 'flashcards' ? 'Chưa có flashcard nào.' : 'Chưa có bài tập nào.'}
+              <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+                <div className="text-4xl mb-4">📭</div>
+                <p className="text-slate-500 font-medium">Không tìm thấy bài tập nào phù hợp.</p>
               </div>
             ) : (
               filteredAssignments.map(assignment => {
-              const isSelected = selectedAssignment?.id === assignment.id;
-              const isPastDue = new Date(assignment.dueDate) < new Date();
-              const mySubmission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user.id);
-              const totalSubs = submissions.filter(s => s.assignmentId === assignment.id).length;
-              const isGroupedFlashcard = assignment.type === 'flashcard' && Array.isArray(assignment.subFlashcardSets) && assignment.subFlashcardSets.length > 0;
-              const totalCardsCount = isGroupedFlashcard 
-                ? (assignment.flashcards?.length || assignment.subFlashcardSets!.reduce((sum, s) => sum + (s.flashcards?.length || 0), 0))
-                : (assignment.flashcards?.length || 0);
-              const isGroupExpanded = expandedListGroups[assignment.id] ?? true;
+                const isPastDue = new Date(assignment.dueDate) < new Date();
+                const mySubmission = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user.id);
+                const totalSubs = submissions.filter(s => s.assignmentId === assignment.id).length;
+                const thumb = assignment.thumbnail || DEFAULT_THUMBNAILS[assignment.type] || DEFAULT_THUMBNAILS.default;
 
-              return (
-                <div 
-                  key={assignment.id}
-                  onClick={() => setSelectedAssignment(assignment)}
-                  className={`cursor-pointer transition-all border ${
-                    layoutDensity === 'compact' ? 'p-3 rounded-2xl' : 'p-5 rounded-3xl'
-                  } ${
-                    isSelected 
-                      ? 'bg-indigo-50/80 border-indigo-300 shadow-sm ring-1 ring-indigo-300' 
-                      : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex gap-3 items-start">
-                    {isTeacher && (
-                      <div 
-                        className="pt-1.5 shrink-0 flex items-center" 
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedIdsForDeletion.includes(assignment.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedIdsForDeletion(prev => [...prev, assignment.id]);
-                            } else {
-                              setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignment.id));
-                            }
-                          }}
-                          className="w-4.5 h-4.5 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer transition-all"
-                        />
+                return (
+                  <div 
+                    key={assignment.id}
+                    className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition-all group flex flex-col"
+                  >
+                    <div 
+                      className="relative h-44 bg-slate-100 overflow-hidden cursor-pointer"
+                      onClick={() => setSelectedAssignment(assignment)}
+                    >
+                      <img 
+                        src={thumb} 
+                        alt={assignment.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+                        <span className="bg-white/90 backdrop-blur-md text-slate-900 text-[10px] font-bold px-2.5 py-1 rounded-full border border-slate-200 uppercase">
+                          {assignment.type === 'game' ? '🎮 Game' : assignment.type === 'flashcard' ? '🎴 Flashcard' : '📝 Bài tập'}
+                        </span>
+                        {shouldShowNewBadge(user?.id, assignment) && (
+                          <span className="bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                            MỚI
+                          </span>
+                        )}
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
+                      
+                      <div className="absolute top-3 right-3">
+                        {isTeacher && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIdsForDeletion.includes(assignment.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              if (e.target.checked) {
+                                setSelectedIdsForDeletion(prev => [...prev, assignment.id]);
+                              } else {
+                                setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignment.id));
+                              }
+                            }}
+                            className="w-5 h-5 text-indigo-600 rounded-lg border-white/50 bg-white/20 backdrop-blur-sm focus:ring-indigo-500 cursor-pointer"
+                          />
+                        )}
+                      </div>
+
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-12 h-12 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-indigo-600 shadow-lg scale-90 group-hover:scale-100 transition-transform">
+                          <Play className="w-6 h-6 ml-1" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-5 flex-1 flex flex-col">
                       <div className="flex justify-between items-start gap-2 mb-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {isGroupedFlashcard ? (
-                        <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-200 flex items-center gap-1">
-                          <Layers className="w-3 h-3 text-purple-600" />
-                          <span>BỘ FLASHCARD ({assignment.subFlashcardSets!.length} Levels)</span>
-                        </span>
-                      ) : assignment.type === 'flashcard' ? (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">
-                          🎴 Flashcard ({totalCardsCount} thẻ)
-                        </span>
-                      ) : assignment.type === 'game' ? (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase">
-                          🎮 Game
-                        </span>
-                      ) : assignment.type === 'online_test' ? (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 uppercase">
-                          📝 Kiểm tra Online
-                        </span>
-                      ) : assignment.type === 'simulation' ? (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
-                          🔬 Mô phỏng
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200 uppercase">
-                          📄 Nộp bài
-                        </span>
-                      )}
-
-                      {shouldShowNewBadge(user?.id, assignment) && (
-                        <span className="inline-flex items-center gap-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse uppercase tracking-wider">
-                          🔥 MỚI
-                        </span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isGroupedFlashcard && (
-                        <button
-                          type="button"
-                          onClick={(e) => toggleListGroup(assignment.id, e)}
-                          className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors"
-                          title={isGroupExpanded ? "Thu gọn danh sách level" : "Mở rộng danh sách level"}
-                        >
-                          {isGroupExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
-                      )}
-
-                      {isTeacher ? (
-                        <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-200">
-                          {totalSubs}/3 đã nộp
-                        </span>
-                      ) : (
-                        mySubmission ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-200">
-                            Đã nộp
-                          </span>
-                        ) : isPastDue ? (
-                          <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-2.5 py-1 rounded-full border border-rose-200">
-                            Quá hạn (Vẫn mở làm)
-                          </span>
-                        ) : (
-                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-amber-200">
-                            Chưa nộp
-                          </span>
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  <h4 className={`font-bold text-sm sm:text-base ${isSelected ? 'text-indigo-900' : 'text-slate-900'} line-clamp-2 mb-2`}>
-                    {assignment.title}
-                  </h4>
-
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {isTeacher && (
-                      assignment.isPublished !== false ? (
-                        <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-rose-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping" />
-                          ON AIR
-                        </span>
-                      ) : (
-                        <span className="inline-block bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider border border-amber-200">
-                          BẢN NHÁP
-                        </span>
-                      )
-                    )}
-                    
-                    {assignment.isMandatory && (
-                      <span className="inline-block bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                        Bắt buộc
-                      </span>
-                    )}
-
-                    <span className="inline-block bg-slate-100 text-slate-700 text-[10px] font-bold px-2 py-0.5 rounded">
-                      {assignment.maxAttempts ? `Tối đa ${assignment.maxAttempts} lần` : 'Làm vĩnh viễn'}
-                    </span>
-
-                    {assignment.classSessionTitle && (
-                      <span className="inline-block text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded">
-                        Buổi học: {assignment.classSessionTitle}
-                      </span>
-                    )}
-
-                    {assignment.grade && (
-                      <span className="inline-block text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
-                        {assignment.grade}
-                      </span>
-                    )}
-
-                    {assignment.className && (
-                      <span className="inline-block text-[10px] text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded">
-                        Lớp: {assignment.className}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className={`text-xs flex items-center font-medium ${isSelected ? 'text-indigo-700' : 'text-slate-500'}`}>
-                    <Clock className="w-3.5 h-3.5 mr-1 text-indigo-500" />
-                    Hạn nộp: <span className="font-bold ml-1">{format(new Date(assignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })} (24H)</span>
-                  </p>
-
-                  {/* Hierarchical Sub-Sets / Level Grouping List */}
-                  {isGroupedFlashcard && isGroupExpanded && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-between px-1 text-[10px] text-slate-500 font-bold">
-                        <span className="flex items-center gap-1 uppercase tracking-wider text-slate-500">
-                          <Layers className="w-3 h-3 text-indigo-500" />
-                          <span>Danh sách {assignment.subFlashcardSets!.length} Level / Bộ con:</span>
-                        </span>
+                        <h3 className="font-bold text-slate-900 text-base line-clamp-2 leading-snug group-hover:text-indigo-600 transition-colors">
+                          {assignment.title}
+                        </h3>
                       </div>
- 
-                      <div className="space-y-1 pl-2 border-l-2 border-indigo-200 ml-1.5">
-                        {assignment.subFlashcardSets!.map((sub, subIdx) => {
-                          const subCards = sub.flashcards?.length || 0;
-                          const subQuiz = sub.questions?.length || 0;
- 
-                          return (
-                            <div
-                              key={sub.id || subIdx}
-                              className="flex items-center justify-between gap-2 p-2 bg-slate-50/80 border border-slate-100 rounded-xl text-xs text-slate-700"
+
+                      <div className="flex items-center gap-2 mb-4">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[11px] font-bold text-slate-500">
+                          Hạn: {format(new Date(assignment.dueDate), 'HH:mm - dd/MM', { locale: vi })}
+                        </span>
+                        <div className="ml-auto">
+                          {isTeacher ? (
+                            <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-indigo-100">
+                              {totalSubs}/3 đã nộp
+                            </span>
+                          ) : (
+                            mySubmission ? (
+                              <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-100">
+                                Đã nộp
+                              </span>
+                            ) : isPastDue ? (
+                              <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-rose-100">
+                                Quá hạn
+                              </span>
+                            ) : (
+                              <span className="bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-100">
+                                Chưa làm
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <button 
+                          onClick={() => setSelectedAssignment(assignment)}
+                          className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition-colors active:scale-95"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          {isTeacher ? 'Xem chi tiết' : 'Bắt đầu học'}
+                        </button>
+                        
+                        {isTeacher && (
+                          <div className="flex gap-1.5">
+                            <button 
+                              onClick={() => handleOpenEditModal(assignment)}
+                              className="p-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition-colors border border-amber-200"
+                              title="Sửa"
                             >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                  Level {subIdx + 1}
-                                </span>
-                                <span className="truncate font-semibold text-xs">
-                                  {sub.title || `Bộ con ${subIdx + 1}`}
-                                </span>
-                              </div>
- 
-                              <div className="flex items-center gap-1.5 shrink-0 text-[10px]">
-                                <span className="px-1.5 py-0.5 rounded-md font-medium bg-slate-100 text-slate-600">
-                                  {subCards} thẻ
-                                </span>
-                                {subQuiz > 0 && (
-                                  <span className="px-1.5 py-0.5 rounded-md font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                    {subQuiz} quiz
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => setDeleteConfirmAssignment(assignment)}
+                              className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors border border-rose-200"
+                              title="Xóa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-
-                  {isTeacher && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">
-                        {totalSubs} đã nộp
-                      </span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const newStatus = assignment.isPublished === false ? true : false;
-                            try {
-                              await setDoc(doc(db, 'assignments', assignment.id), { isPublished: newStatus }, { merge: true });
-                            } catch (err) {
-                              alert('Lỗi cập nhật trạng thái On Air');
-                            }
-                          }}
-                          className={`px-2.5 py-1.5 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1 border shadow-sm ${
-                            assignment.isPublished !== false 
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200' 
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-300'
-                          }`}
-                          title={assignment.isPublished !== false ? "Đang On Air (Hiển thị học sinh). Bấm để tắt" : "Đang Bản Nháp. Bấm để bật On Air"}
-                        >
-                          <Radio className={`w-3.5 h-3.5 ${assignment.isPublished !== false ? 'text-rose-600 animate-pulse' : 'text-slate-400'}`} />
-                          <span>{assignment.isPublished !== false ? 'On Air' : 'Bật On Air'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEditModal(assignment);
-                          }}
-                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-bold rounded-xl transition-colors flex items-center gap-1 border border-amber-200 shadow-sm"
-                          title="Chỉnh sửa bài tập"
-                        >
-                          <Pencil className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Sửa</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setUnsubmittedModalAssignment(assignment);
-                          }}
-                          className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold rounded-xl transition-colors flex items-center gap-1 shadow-sm"
-                        >
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          <span>Chưa nộp</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
                     </div>
                   </div>
-                </div>
-              );
-            }))}
+                );
+              })
+            )}
           </div>
         </div>
-
-        {/* Right Column: Selected Assignment Details & Actions */}
-        <div className="lg:col-span-2">
+      ) : (
+        /* SYNCED DETAIL VIEW: Only show the selected assignment's content */
+        <div className="space-y-6">
           {selectedAssignment ? (
             <div className="space-y-4">
               {/* Mobile Back to List Button */}
-              <div className="lg:hidden flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <button 
                   type="button"
                   onClick={() => setSelectedAssignment(null)}
@@ -4455,7 +4066,7 @@ export function AssignmentsView({
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {showGamePreview && (
         <GamePreview 

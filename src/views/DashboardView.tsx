@@ -51,7 +51,9 @@ import {
   HelpCircle,
   RefreshCw,
   Sliders,
-  MessageSquare
+  MessageSquare,
+  ChevronRight,
+  Search
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { db } from '../firebase';
@@ -212,10 +214,41 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   });
   const [newNoteText, setNewNoteText] = React.useState('');
 
+  const mySubmissions = submissions.filter(s => s.studentId === user.id);
+
   // Categorize assignments by domain type
   const actualAssignments = React.useMemo(() => {
     return assignments.filter(a => a.type !== 'flashcard' && a.type !== 'game');
   }, [assignments]);
+
+  const unfinishedAssignments = React.useMemo(() => {
+    return assignments.filter(a => !mySubmissions.some(s => s.assignmentId === a.id));
+  }, [assignments, mySubmissions]);
+
+  const handleStartAssignment = (assignment: Assignment) => {
+    if (onSelectAssignment) {
+      onSelectAssignment(assignment.id);
+    }
+    if (assignment.type === 'game') {
+      onNavigate('games');
+    } else if (assignment.type === 'flashcard') {
+      onNavigate('flashcards');
+    } else {
+      onNavigate('assignments');
+    }
+  };
+
+  const [showUnfinishedOnlyModal, setShowUnfinishedOnlyModal] = useState(false);
+  const [unfinishedFilterType, setUnfinishedFilterType] = useState<'all' | 'online_test' | 'flashcard' | 'game' | 'simulation'>('all');
+  const [unfinishedSearchQuery, setUnfinishedSearchQuery] = useState('');
+
+  const modalFilteredUnfinished = React.useMemo(() => {
+    return unfinishedAssignments.filter(a => {
+      const matchType = unfinishedFilterType === 'all' || a.type === unfinishedFilterType || (unfinishedFilterType === 'online_test' && (a.type === 'lesson_check' || a.type === 'file_upload' || (a.type as string) === 'standard'));
+      const matchSearch = unfinishedSearchQuery.trim() === '' || a.title.toLowerCase().includes(unfinishedSearchQuery.toLowerCase());
+      return matchType && matchSearch;
+    });
+  }, [unfinishedAssignments, unfinishedFilterType, unfinishedSearchQuery]);
 
   const flashcardAssignments = React.useMemo(() => {
     return assignments.filter(a => a.type === 'flashcard');
@@ -253,7 +286,6 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   };
 
   // Stats calculation
-  const mySubmissions = submissions.filter(s => s.studentId === user.id);
   const nextClass = classes.find(c => new Date(c.endTime) >= new Date()) || classes[0];
 
   // Monthly progress calculated dynamically from actual student submissions
@@ -858,55 +890,135 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
               </div>
             )}
 
-            {/* Unfinished Assignments */}
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm">
+            {/* All Assignments Card (Hiển thị tất cả nhiệm vụ đã và chưa làm) */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 space-y-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-1.5">
-                  <BookOpen className="w-5 h-5 text-indigo-600" />
-                  Nhiệm vụ học tập cần hoàn thành
-                </h3>
-                <span className="text-xs text-indigo-600 font-extrabold hover:underline cursor-pointer" onClick={() => onNavigate('assignments')}>Xem tất cả &gt;</span>
+                <div className="space-y-0.5">
+                  <h3 className="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-indigo-600" />
+                    Nhiệm vụ học tập cần hoàn thành
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-semibold">
+                    Tổng cộng {assignments.length} nhiệm vụ ({assignments.length - unfinishedAssignments.length} đã nộp, {unfinishedAssignments.length} chưa làm)
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowUnfinishedOnlyModal(true)}
+                  className="text-xs text-indigo-600 font-black hover:text-indigo-700 hover:underline cursor-pointer flex items-center gap-1 shrink-0 bg-indigo-50/80 px-3 py-1.5 rounded-xl border border-indigo-100 transition-all hover:bg-indigo-100"
+                >
+                  <span>Xem tất cả ({unfinishedAssignments.length})</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
 
-              {assignments.length === mySubmissions.length ? (
-                <div className="py-8 text-center text-slate-400 text-xs font-extrabold flex items-center justify-center gap-1.5 bg-emerald-50/50 rounded-2xl border border-dashed border-emerald-100 text-emerald-800">
-                  <CheckCircle className="w-5 h-5 text-emerald-500" />
-                  Tuyệt vời! Em đã làm hết toàn bộ bài tập và trò chơi rồi! 🎉
+              {assignments.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs font-extrabold flex flex-col items-center justify-center gap-2 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <BookOpen className="w-8 h-8 text-slate-300" />
+                  <span>Chưa có bài tập nào được giao.</span>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
                   {assignments
-                    .filter(a => !mySubmissions.some(s => s.assignmentId === a.id))
                     .map(assignment => {
                       const isGame = assignment.type === 'game';
+                      const isFlashcard = assignment.type === 'flashcard';
+                      const isSimulation = assignment.type === 'simulation';
+                      const submission = mySubmissions.find(s => s.assignmentId === assignment.id);
+                      const isCompleted = !!submission;
+                      const isPastDue = assignment.dueDate ? new Date(assignment.dueDate).getTime() < Date.now() : false;
+                      
                       return (
-                        <div key={assignment.id} className="p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-slate-100/50 transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                                isGame 
-                                  ? 'bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-100' 
-                                  : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                        <div 
+                          key={assignment.id} 
+                          className={`p-4 sm:p-5 rounded-2xl border transition-all space-y-3.5 ${
+                            isCompleted 
+                              ? 'border-emerald-200/80 bg-emerald-50/30' 
+                              : 'border-slate-200 bg-white hover:border-indigo-300 hover:shadow-md'
+                          }`}
+                        >
+                          {/* Tag & Status Row */}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border ${
+                                isGame ? 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' :
+                                isFlashcard ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                isSimulation ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-200'
                               }`}>
-                                {isGame ? '🎮 Trò chơi trí tuệ' : '📚 Bài kiểm tra'}
+                                {isGame ? '🎮 TRÒ CHƠI' : 
+                                 isFlashcard ? '🗂️ FLASHCARD' :
+                                 isSimulation ? '🧪 MÔ PHỎNG' : '📚 BÀI KIỂM TRA'}
                               </span>
-                              {shouldShowNewBadge(user.id, assignment) && (
-                                <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded animate-bounce">MỚI</span>
+
+                              {shouldShowNewBadge(user.id, assignment) && !isCompleted && (
+                                <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                                  MỚI
+                                </span>
+                              )}
+
+                              {isPastDue && !isCompleted && (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                  QUÁ HẠN
+                                </span>
                               )}
                             </div>
-                            <h5 className="font-bold text-slate-900 text-sm leading-snug">{assignment.title}</h5>
-                            <p className="text-[10px] text-slate-500">Hạn nộp: {assignment.dueDate ? new Date(assignment.dueDate).toLocaleString('vi-VN') : 'Không có hạn'}</p>
+
+                            {isCompleted ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  ĐÃ HOÀN THÀNH
+                                </span>
+                                {submission.grade !== undefined && (
+                                  <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg border border-indigo-200">
+                                    {submission.grade}/10 điểm
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                                CHƯA NỘP
+                              </span>
+                            )}
                           </div>
+
+                          {/* Assignment Title */}
+                          <div className="space-y-1">
+                            <h4 
+                              onClick={() => handleStartAssignment(assignment)}
+                              className="font-extrabold text-slate-900 text-sm sm:text-base leading-snug tracking-tight hover:text-indigo-600 cursor-pointer transition-colors"
+                            >
+                              {assignment.title}
+                            </h4>
+                            
+                            <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              <span>Hạn nộp:</span>
+                              <strong className="text-slate-700 font-bold">
+                                {assignment.dueDate ? new Date(assignment.dueDate).toLocaleString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit',
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric'
+                                }) : 'Không có hạn'}
+                              </strong>
+                            </p>
+                          </div>
+
+                          {/* Action Button: Bắt đầu làm bài / Xem bài làm */}
                           <button
-                            onClick={() => {
-                              if (onSelectAssignment) {
-                                onSelectAssignment(assignment.id);
-                              }
-                              onNavigate(isGame ? 'games' : 'assignments');
-                            }}
-                            className="w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm shadow-indigo-100 shrink-0 text-center"
+                            type="button"
+                            onClick={() => handleStartAssignment(assignment)}
+                            className={`w-full py-3 px-4 font-black text-xs sm:text-sm rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 active:scale-[0.99] cursor-pointer ${
+                              isCompleted 
+                                ? 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-none' 
+                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200 shadow-md'
+                            }`}
                           >
-                            Bắt đầu làm bài
+                            <span>{isCompleted ? 'Xem lại bài làm' : 'Bắt đầu làm bài'}</span>
+                            <ArrowRight className="w-4 h-4" />
                           </button>
                         </div>
                       );
@@ -1064,6 +1176,207 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
           </div>
         </div>
       )}
+
+      {/* Unfinished Only Modal - Bùng bảng các nhiệm vụ chưa làm */}
+      <AnimatePresence>
+        {showUnfinishedOnlyModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-[32px] border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col relative overflow-hidden"
+            >
+              {/* Header */}
+              <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-indigo-50/60">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
+                    <BookOpen className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-black text-slate-900 text-lg sm:text-xl">Nhiệm vụ học tập chưa hoàn thành</h3>
+                      <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+                        {unfinishedAssignments.length} bài chưa làm
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                      Danh sách tất cả các bài tập, flashcard và trò chơi em chưa nộp. Hãy hoàn thành ngay nhé!
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowUnfinishedOnlyModal(false)}
+                  className="p-2 hover:bg-white rounded-full transition-colors text-slate-400 hover:text-slate-600 border border-transparent hover:border-slate-100 shadow-sm shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="p-4 sm:px-6 border-b border-slate-100 bg-white flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                {/* Search */}
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={unfinishedSearchQuery}
+                    onChange={(e) => setUnfinishedSearchQuery(e.target.value)}
+                    placeholder="Tìm kiếm nhiệm vụ chưa làm..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-indigo-500 focus:bg-white font-medium transition-all"
+                  />
+                  {unfinishedSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setUnfinishedSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 custom-scrollbar">
+                  {[
+                    { id: 'all', label: `Tất cả (${unfinishedAssignments.length})` },
+                    { id: 'online_test', label: 'Bài kiểm tra' },
+                    { id: 'flashcard', label: 'Flashcard' },
+                    { id: 'game', label: 'Trò chơi' },
+                    { id: 'simulation', label: 'Mô phỏng' },
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setUnfinishedFilterType(tab.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all whitespace-nowrap shrink-0 ${
+                        unfinishedFilterType === tab.id
+                          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-100'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Assignment List Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3 custom-scrollbar bg-slate-50/50">
+                {unfinishedAssignments.length === 0 ? (
+                  <div className="py-16 text-center space-y-4">
+                    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                      <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-black text-slate-900 text-lg">Tuyệt vời! Không còn bài tập nào chưa làm</h4>
+                      <p className="text-sm text-slate-500 font-medium max-w-md mx-auto">
+                        Em đã hoàn thành xuất sắc mọi nhiệm vụ học tập được giao. Chúc mừng em! 🎉
+                      </p>
+                    </div>
+                  </div>
+                ) : modalFilteredUnfinished.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs font-bold">
+                    Không tìm thấy bài tập chưa làm phù hợp với bộ lọc.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {modalFilteredUnfinished.map((assignment) => {
+                      const isGame = assignment.type === 'game';
+                      const isFlashcard = assignment.type === 'flashcard';
+                      const isSimulation = assignment.type === 'simulation';
+                      const isPastDue = assignment.dueDate ? new Date(assignment.dueDate).getTime() < Date.now() : false;
+
+                      return (
+                        <div 
+                          key={assignment.id} 
+                          className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-300 hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+                        >
+                          <div className="space-y-2 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md border ${
+                                isGame ? 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100' :
+                                isFlashcard ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                isSimulation ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-100'
+                              }`}>
+                                {isGame ? '🎮 Trò chơi trí tuệ' : 
+                                 isFlashcard ? '🗂️ Flashcard' :
+                                 isSimulation ? '🧪 Mô phỏng' : '📚 Bài kiểm tra'}
+                              </span>
+
+                              {shouldShowNewBadge(user.id, assignment) && (
+                                <span className="bg-rose-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                                  MỚI
+                                </span>
+                              )}
+
+                              {isPastDue && (
+                                <span className="bg-amber-100 text-amber-800 border border-amber-200 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                  QUÁ HẠN
+                                </span>
+                              )}
+                            </div>
+
+                            <h4 
+                              onClick={() => {
+                                setShowUnfinishedOnlyModal(false);
+                                handleStartAssignment(assignment);
+                              }}
+                              className="font-black text-slate-900 text-sm sm:text-base group-hover:text-indigo-600 transition-colors cursor-pointer"
+                            >
+                              {assignment.title}
+                            </h4>
+
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" /> 
+                                Hạn nộp: <strong className="text-slate-700">{assignment.dueDate ? new Date(assignment.dueDate).toLocaleString('vi-VN') : 'Không giới hạn'}</strong>
+                              </span>
+                              {assignment.classSessionTitle && (
+                                <span className="flex items-center gap-1 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                                  <Layers className="w-3 h-3" /> {assignment.classSessionTitle}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowUnfinishedOnlyModal(false);
+                              handleStartAssignment(assignment);
+                            }}
+                            className="w-full sm:w-auto px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0 cursor-pointer"
+                          >
+                            <span>Bắt đầu làm bài</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 sm:p-5 border-t border-slate-100 bg-white flex items-center justify-between">
+                <p className="text-xs text-slate-400 font-semibold">
+                  Hiển thị {modalFilteredUnfinished.length} / {unfinishedAssignments.length} nhiệm vụ chưa nộp
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowUnfinishedOnlyModal(false)}
+                  className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Unsubmitted Zalo reminder detail modal overlay */}
       {showUnsubmittedModal && (

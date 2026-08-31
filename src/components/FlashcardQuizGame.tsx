@@ -312,7 +312,7 @@ export function FlashcardQuizGame({
             <span className="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
               Câu hỏi {currentIndex + 1}
             </span>
-            {currentQ.image ? (
+            {currentQ.image && (
               <div className="max-h-[50vh] mt-2.5 mx-auto overflow-hidden rounded-xl border border-slate-200/80 shadow-sm bg-white p-1 flex items-center justify-center max-w-[80vw] sm:max-w-[460px]">
                 <img 
                   src={currentQ.image} 
@@ -321,11 +321,10 @@ export function FlashcardQuizGame({
                   className="max-h-[45vh] w-auto object-contain rounded-lg"
                 />
               </div>
-            ) : (
-              <div className="text-base sm:text-xl font-normal text-slate-800 leading-relaxed pt-1">
-                <MarkdownMath content={currentQ.question} className="font-normal text-slate-800" />
-              </div>
             )}
+            <div className="text-base sm:text-xl font-normal text-slate-800 leading-relaxed pt-1">
+              <MarkdownMath content={currentQ.question} className="font-normal text-slate-800" />
+            </div>
           </div>
 
           {/* Options Grid */}

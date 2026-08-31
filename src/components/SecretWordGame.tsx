@@ -16,6 +16,7 @@ export interface WordItem {
   display: string; // Original display text with diacritics (e.g. TOÁN HỌC)
   found?: boolean;
   color?: string;
+  image?: string;
 }
 
 export interface PathCell {
@@ -102,7 +103,8 @@ export function SecretWordGame({
               id: `word_${qIdx}_${wordList.length}_${raw}`,
               raw,
               display: str.toUpperCase(),
-              found: false
+              found: false,
+              image: q.image || q.imageUrl || q.thumb
             });
           }
         });
@@ -512,7 +514,14 @@ export function SecretWordGame({
                     : 'bg-slate-50 border-slate-200/90 text-slate-700 shadow-2xs hover:border-emerald-300'
                 }`}
               >
-                <span className="truncate">{word.display}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {word.image && (
+                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0">
+                      <img src={word.image} alt="" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <span className="truncate">{word.display}</span>
+                </div>
                 {word.found && <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />}
               </div>
             ))}

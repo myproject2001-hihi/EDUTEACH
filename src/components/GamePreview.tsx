@@ -631,6 +631,11 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               </div>
             </div>
             <div className="w-full max-w-2xl text-center mb-2 flex flex-col items-center">
+              {currentQ.image && (
+                <div className="max-h-[30vh] mb-4 mx-auto overflow-hidden rounded-xl border border-slate-200 shadow-sm bg-white p-1">
+                  <img src={currentQ.image} alt="Question" referrerPolicy="no-referrer" className="max-h-[25vh] w-auto object-contain rounded-lg" />
+                </div>
+              )}
               <div className="text-xl sm:text-2xl font-bold text-slate-800 mb-2"><MarkdownMath content={cleanQuestionText(currentQ?.question) || 'Câu hỏi mẫu: Đâu là thủ đô của Việt Nam?'} /></div>
               <p className="text-slate-500 text-xs font-semibold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full border border-indigo-100">
                 {hasCD 
@@ -674,7 +679,12 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               </h2>
               <div className="w-32 h-1 bg-[#8B4513] mx-auto mb-6 rounded-full opacity-50" />
               
-              <div className="bg-white/80 p-5 sm:p-6 rounded-xl border-2 border-[#8B4513] mb-6 flex justify-center">
+              <div className="bg-white/80 p-5 sm:p-6 rounded-xl border-2 border-[#8B4513] mb-6 flex flex-col items-center justify-center gap-3">
+                {mapQ.image && (
+                  <div className="max-h-[30vh] overflow-hidden rounded-lg border border-[#8B4513]/30 bg-white p-1">
+                    <img src={mapQ.image} alt="Question" referrerPolicy="no-referrer" className="max-h-[25vh] w-auto object-contain rounded-md" />
+                  </div>
+                )}
                 <div className="text-[#5c2e0e] font-bold text-lg sm:text-xl">
                   <MarkdownMath content={cleanQuestionText(mapQ?.question) || 'Nội dung câu hỏi...'} />
                 </div>
@@ -724,8 +734,15 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
                       )}
                     </div>
                     
-                    <div className="text-base sm:text-2xl font-black text-slate-800 mb-4 text-center my-auto">
-                      <MarkdownMath content={cleanQuestionText(raceQ?.question) || 'Câu hỏi đua xe...'} />
+                    <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                      {raceQ.image && (
+                        <div className="max-h-[25vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
+                          <img src={raceQ.image} alt="Question" referrerPolicy="no-referrer" className="max-h-[22vh] w-auto object-contain rounded-lg" />
+                        </div>
+                      )}
+                      <div className="text-base sm:text-2xl font-black text-slate-800 text-center">
+                        <MarkdownMath content={cleanQuestionText(raceQ?.question) || 'Câu hỏi đua xe...'} />
+                      </div>
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">

@@ -7,6 +7,7 @@ export interface LevelData {
   sentence: string[];
   distractors: string[];
   hint: string;
+  img?: string;
 }
 
 export interface WordObj {
@@ -139,7 +140,7 @@ export function parseQuestionToLevel(q: ParsedQuestionItem, index: number): Leve
     }
   }
 
-  return { sentence, distractors, hint };
+  return { sentence, distractors, hint, img: (q as any).image || (q as any).imageUrl || (q as any).thumb };
 }
 
 export function FlyingWordsGame({
@@ -546,6 +547,11 @@ export function FlyingWordsGame({
 
         {/* CENTER: FLOATING QUESTION / HINT CARD */}
         <div className="bg-white/95 backdrop-blur-md border-2 border-sky-200/90 px-4 py-2 sm:px-6 sm:py-2.5 rounded-2xl sm:rounded-3xl shadow-2xl pointer-events-auto flex-1 max-w-2xl text-center flex flex-col items-center justify-center min-h-[48px]">
+          {currentLevel.img && (
+            <div className="max-h-[80px] mb-1 overflow-hidden rounded-lg bg-sky-50 p-0.5 shrink-0">
+              <img src={currentLevel.img} alt="Hint" referrerPolicy="no-referrer" className="max-h-[70px] w-auto object-contain rounded-md" />
+            </div>
+          )}
           <div className="text-xs sm:text-sm md:text-base lg:text-lg font-black text-slate-800 leading-snug max-h-[75px] sm:max-h-[95px] overflow-y-auto custom-scrollbar w-full px-1">
             <span className="text-sky-600 font-bold mr-1">Gợi ý:</span>
             <MarkdownMath content={currentLevel.hint} />

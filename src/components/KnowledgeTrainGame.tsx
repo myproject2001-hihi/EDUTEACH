@@ -15,12 +15,14 @@ interface LearningPair {
   id: string;
   q: string;
   a: string;
+  img?: string;
 }
 
 interface CarriageData {
   id: string;
   prevAns: string;
   nextQ: string;
+  nextImg?: string;
 }
 
 // Default educational pairs for fallback
@@ -49,7 +51,7 @@ export function KnowledgeTrainGame({
   onSubmitWork
 }: KnowledgeTrainGameProps) {
   // Extract pairs from questions
-  const { startQuestion, carriages, totalSlots } = useMemo(() => {
+  const { startQuestion, startImg, carriages, totalSlots } = useMemo(() => {
     const pairs: LearningPair[] = [];
 
     if (questions && questions.length > 0) {
@@ -79,7 +81,8 @@ export function KnowledgeTrainGame({
             pairs.push({
               id: `p_${idx}`,
               q: rawQ,
-              a: rawA
+              a: rawA,
+              img: (q as any).image || (q as any).imageUrl || (q as any).thumb
             });
           }
         }
@@ -111,12 +114,14 @@ export function KnowledgeTrainGame({
       return {
         id: pair.id,
         prevAns: pair.a,
-        nextQ: nextPair ? nextPair.q : "🎉 Đích đến tuyệt vời!"
+        nextQ: nextPair ? nextPair.q : "🎉 Đích đến tuyệt vời!",
+        nextImg: nextPair ? nextPair.img : undefined
       };
     });
 
     return {
       startQuestion: firstQ,
+      startImg: limitedPairs[0]?.img,
       carriages: carriageList,
       totalSlots: carriageList.length
     };
@@ -578,7 +583,12 @@ export function KnowledgeTrainGame({
                     <div className="w-full bg-blue-600 text-white text-[10px] sm:text-xs font-black py-1 px-2 text-center uppercase tracking-wider flex items-center justify-center gap-1 shrink-0">
                       <span>🚂 Toa Mở Đầu: Câu Hỏi</span>
                     </div>
-                    <div className="flex-1 p-2 sm:p-3 flex items-center justify-center text-center font-bold text-slate-800 text-xs sm:text-sm leading-snug">
+                    <div className="flex-1 p-2 sm:p-3 flex flex-col items-center justify-center text-center font-bold text-slate-800 text-xs sm:text-sm leading-snug gap-1.5">
+                      {startImg && (
+                        <div className="h-10 sm:h-12 w-full overflow-hidden flex items-center justify-center">
+                          <img src={startImg} alt="Question" referrerPolicy="no-referrer" className="max-h-full w-auto object-contain rounded-md" />
+                        </div>
+                      )}
                       <MarkdownMath content={startQuestion} />
                     </div>
                     {/* Wheels */}
@@ -782,9 +792,14 @@ function DominoCarriageDisplay({ data }: { data: CarriageData }) {
       </div>
 
       {/* Right side: nextQ */}
-      <div className="w-[62%] bg-white rounded-r-2xl flex flex-col items-center justify-center p-2.5 text-center font-bold text-slate-800 text-[10px] sm:text-xs leading-snug relative">
+      <div className="w-[62%] bg-white rounded-r-2xl flex flex-col items-center justify-center p-2.5 text-center font-bold text-slate-800 text-[10px] sm:text-xs leading-snug relative gap-1">
         {/* Blue bead dot indicator */}
         <div className="absolute top-2 right-2 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-gradient-to-br from-blue-400 to-blue-700 border border-white shadow-xs" />
+        {data.nextImg && (
+          <div className="h-10 sm:h-12 w-full overflow-hidden flex items-center justify-center">
+             <img src={data.nextImg} alt="Question" referrerPolicy="no-referrer" className="max-h-full w-auto object-contain rounded-md" />
+          </div>
+        )}
         <MarkdownMath content={data.nextQ} />
       </div>
 

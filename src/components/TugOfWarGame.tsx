@@ -17,6 +17,7 @@ interface ProcessedQuestion {
   q: string;
   options: string[];
   correctIdx: number;
+  img?: string;
 }
 
 // Default educational question bank for fallback
@@ -129,7 +130,8 @@ export function TugOfWarGame({
               id: `q_${idx}`,
               q: rawQ,
               options: opts.slice(0, 4),
-              correctIdx
+              correctIdx,
+              img: q.image || q.imageUrl || q.thumb
             });
           }
         }
@@ -644,8 +646,15 @@ export function TugOfWarGame({
                 <div className="absolute top-2.5 left-3 text-[10px] sm:text-xs font-black uppercase text-blue-200 tracking-wider flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-blue-300" /> Đội Xanh - Câu hỏi
                 </div>
-                <div className="text-base sm:text-xl font-black text-white leading-relaxed my-auto pt-4">
-                  <MarkdownMath content={currentBlueQ.q} />
+                <div className="flex flex-col items-center justify-center my-auto pt-4 gap-2">
+                  {currentBlueQ.img && (
+                    <div className="max-h-[80px] overflow-hidden rounded-lg bg-white/10 p-0.5">
+                      <img src={currentBlueQ.img} alt="Question" referrerPolicy="no-referrer" className="max-h-[70px] w-auto object-contain rounded-md" />
+                    </div>
+                  )}
+                  <div className="text-base sm:text-xl font-black text-white leading-relaxed">
+                    <MarkdownMath content={currentBlueQ.q} />
+                  </div>
                 </div>
               </div>
 
@@ -735,8 +744,15 @@ export function TugOfWarGame({
                 <div className="absolute top-2.5 right-3 text-[10px] sm:text-xs font-black uppercase text-rose-200 tracking-wider flex items-center gap-1.5">
                   {vsBotMode ? 'Máy (Đỏ) - Câu hỏi' : 'Đội Đỏ - Câu hỏi'} <span className="w-2 h-2 rounded-full bg-rose-300" />
                 </div>
-                <div className="text-base sm:text-xl font-black text-white leading-relaxed my-auto pt-4">
-                  <MarkdownMath content={currentRedQ.q} />
+                <div className="flex flex-col items-center justify-center my-auto pt-4 gap-2">
+                  {currentRedQ.img && (
+                    <div className="max-h-[80px] overflow-hidden rounded-lg bg-white/10 p-0.5">
+                      <img src={currentRedQ.img} alt="Question" referrerPolicy="no-referrer" className="max-h-[70px] w-auto object-contain rounded-md" />
+                    </div>
+                  )}
+                  <div className="text-base sm:text-xl font-black text-white leading-relaxed">
+                    <MarkdownMath content={currentRedQ.q} />
+                  </div>
                 </div>
               </div>
 

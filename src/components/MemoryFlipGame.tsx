@@ -15,6 +15,7 @@ export interface CardItem {
   pairId: string;   // Identifier for matching pair
   type: 'q' | 'a';  // Question card or Answer card
   content: string;  // Text or LaTeX string
+  img?: string;     // Optional image
   isFlipped: boolean;
   isMatched: boolean;
   isShaking: boolean;
@@ -24,6 +25,8 @@ interface LearningPair {
   id: string;
   q: string;
   a: string;
+  qImg?: string;
+  aImg?: string;
 }
 
 // Fallback Educational Pairs
@@ -70,7 +73,9 @@ export function MemoryFlipGame({
               pairs.push({
                 id: `q_${idx}_mp_${mpIdx}`,
                 q: mp.left,
-                a: mp.right
+                a: mp.right,
+                qImg: (mp as any).leftImg,
+                aImg: (mp as any).rightImg
               });
             }
           });
@@ -91,7 +96,8 @@ export function MemoryFlipGame({
             pairs.push({
               id: `q_${idx}`,
               q: rawQ,
-              a: rawA
+              a: rawA,
+              qImg: (q as any).image || (q as any).imageUrl || (q as any).thumb
             });
           }
         }
@@ -138,6 +144,7 @@ export function MemoryFlipGame({
         pairId: pair.id,
         type: 'q',
         content: pair.q,
+        img: pair.qImg,
         isFlipped: false,
         isMatched: false,
         isShaking: false
@@ -148,6 +155,7 @@ export function MemoryFlipGame({
         pairId: pair.id,
         type: 'a',
         content: pair.a,
+        img: pair.aImg,
         isFlipped: false,
         isMatched: false,
         isShaking: false
@@ -469,7 +477,12 @@ export function MemoryFlipGame({
                           </div>
 
                           {/* Card Body Content with LaTeX support */}
-                          <div className="flex-1 w-full min-h-0 flex items-center justify-center overflow-y-auto custom-scrollbar my-0.5 sm:my-1">
+                          <div className="flex-1 w-full min-h-0 flex flex-col items-center justify-center overflow-y-auto custom-scrollbar my-0.5 sm:my-1 gap-1">
+                            {card.img && (
+                              <div className="max-h-[50px] sm:max-h-[70px] w-full overflow-hidden flex items-center justify-center shrink-0">
+                                <img src={card.img} alt="Content" referrerPolicy="no-referrer" className="max-h-full w-auto object-contain rounded-md" />
+                              </div>
+                            )}
                             <div className="text-[11px] sm:text-xs md:text-sm font-bold leading-tight break-words max-w-full">
                               <MarkdownMath content={card.content} />
                             </div>

@@ -30,6 +30,7 @@ export interface QuizQuestion {
   method?: string;
   solutionText?: string;
   matchingPairs?: { left: string; right: string }[];
+  image?: string;
 }
 
 export interface SubFlashcardSet {
@@ -58,6 +59,8 @@ export interface Assignment {
   maxAttempts?: number; // 0 hoặc undefined = Vĩnh viễn (Không giới hạn), 1 = 1 lần, 2, 3, 5, 10
   flashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
   subFlashcardSets?: SubFlashcardSet[]; // Các bộ thẻ con khi gộp thành bộ lớn (Bộ cha)
+  thumbnail?: string; // Ảnh bìa cho bài tập
+  category?: string; // Phân loại (Đại số, Hình học, v.v.)
   rawCode?: string; // Lưu giữ 100% nguyên vẹn mã nguồn đề thi người dùng nhập
   createdAt: string;
   teacherId?: string;

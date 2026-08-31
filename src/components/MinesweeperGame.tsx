@@ -17,6 +17,7 @@ interface Question {
   question: string;
   options?: string[];
   answers?: Answer[];
+  image?: string;
   [key: string]: any;
 }
 
@@ -237,6 +238,7 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
 
       return {
         question: qText,
+        image: q.image || q.imageUrl || q.thumb,
         answers: answersList
       };
     });
@@ -681,6 +683,11 @@ export function MinesweeperGame({ questions, onClose, isStudentMode = false, onS
 
         {/* CENTER: FLOATING QUESTION CARD */}
         <div className="bg-white/95 backdrop-blur-md border-2 border-indigo-200/90 px-4 py-2 sm:px-6 sm:py-3 rounded-2xl sm:rounded-3xl shadow-2xl pointer-events-auto flex-1 max-w-2xl text-center flex flex-col items-center justify-center min-h-[48px]">
+          {(q as any)?.image && (
+            <div className="max-h-[120px] mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white p-0.5 shrink-0">
+               <img src={(q as any).image} alt="Question" referrerPolicy="no-referrer" className="max-h-[110px] w-auto object-contain rounded-md" />
+            </div>
+          )}
           <div className="text-xs sm:text-sm md:text-base lg:text-lg font-black text-slate-800 leading-snug max-h-[75px] sm:max-h-[95px] overflow-y-auto custom-scrollbar w-full px-1">
             <MarkdownMath content={q?.question || 'Câu hỏi...'} />
           </div>
