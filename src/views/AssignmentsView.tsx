@@ -791,9 +791,16 @@ export function AssignmentsView({
     const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
     defaults.forEach(d => classSet.add(d));
 
-    return Array.from(classSet).filter(Boolean).sort((a, b) => 
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    );
+    return Array.from(classSet)
+      .filter(Boolean)
+      .filter(name => {
+        const trimmed = name.trim();
+        // Keep standard school classes: e.g. starts with a digit like 10A1, 11A2, 12A1, 9A, etc.
+        return /^\d/.test(trimmed);
+      })
+      .sort((a, b) => 
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
   }, [classList, usersList, user, assignments]);
 
 
@@ -902,6 +909,7 @@ export function AssignmentsView({
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
+  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
   // Online test raw code input (Azota style)
   const [rawQuestionCode, setRawQuestionCode] = useState<string>(SAMPLE_TEMPLATES.mau2);
@@ -5048,50 +5056,95 @@ export function AssignmentsView({
                           )}
                         </div>
                         
-                        {/* Select dropdown from system classes */}
-                        <select
-                          value={availableTeacherClasses.includes(newClassName) ? newClassName : (newClassName ? '__custom__' : '')}
-                          onChange={e => {
-                            if (e.target.value === '__custom__') {
-                              // keep current or leave empty to type
-                            } else {
-                              setNewClassName(e.target.value);
-                            }
-                          }}
-                          className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow mb-2"
-                        >
-                          <option value="">🌐 Toàn bộ học sinh (Áp dụng tất cả các lớp)</option>
-                          <optgroup label="Danh sách các lớp trong hệ thống">
-                            {availableTeacherClasses.map((cls) => (
-                              <option key={cls} value={cls}>
-                                🏫 Lớp {cls}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </select>
+                        <div className="relative">
+                          {/* Dropdown Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
+                            className="w-full px-4 py-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 hover:border-slate-300 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between shadow-xs transition-all outline-none focus:ring-2 focus:ring-blue-600/20"
+                          >
+                            <span className="flex items-center gap-2">
+                              {newClassName ? (
+                                <>
+                                  <span className="text-base">🏫</span>
+                                  <span>Lớp {newClassName}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="text-base">🌐</span>
+                                  <span>Toàn bộ học sinh (Áp dụng tất cả các lớp)</span>
+                                </>
+                              )}
+                            </span>
+                            <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isClassDropdownOpen ? 'rotate-180' : ''}`} />
+                          </button>
 
-                        {/* Quick Selection Buttons */}
-                        {availableTeacherClasses.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                            {availableTeacherClasses.map((clsTitle) => {
-                              const isSelected = newClassName === clsTitle;
-                              return (
+                          {/* Dropdown Menu Popup */}
+                          {isClassDropdownOpen && (
+                            <>
+                              {/* Backdrop to close */}
+                              <div 
+                                className="fixed inset-0 z-40" 
+                                onClick={() => setIsClassDropdownOpen(false)} 
+                              />
+                              
+                              <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+                                {/* Option: All students */}
                                 <button
-                                  key={clsTitle}
                                   type="button"
-                                  onClick={() => setNewClassName(isSelected ? '' : clsTitle)}
-                                  className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all ${
-                                    isSelected
-                                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs scale-105'
-                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200'
+                                  onClick={() => {
+                                    setNewClassName('');
+                                    setIsClassDropdownOpen(false);
+                                  }}
+                                  className={`w-full px-4 py-2.5 text-left text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${
+                                    !newClassName 
+                                      ? 'bg-blue-50 text-blue-700' 
+                                      : 'text-slate-700 hover:bg-slate-50'
                                   }`}
                                 >
-                                  {clsTitle}
+                                  <span className="flex items-center gap-2">
+                                    <span>🌐</span>
+                                    <span>Toàn bộ học sinh (Áp dụng tất cả các lớp)</span>
+                                  </span>
+                                  {!newClassName && <Check className="w-4 h-4 text-blue-600" />}
                                 </button>
-                              );
-                            })}
-                          </div>
-                        )}
+
+                                <div className="border-t border-slate-100 my-1" />
+
+                                {/* Optgroup Header */}
+                                <div className="px-4 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                                  Danh sách các lớp trong hệ thống
+                                </div>
+
+                                {/* Class options */}
+                                {availableTeacherClasses.map((cls) => {
+                                  const isSelected = newClassName === cls;
+                                  return (
+                                    <button
+                                      key={cls}
+                                      type="button"
+                                      onClick={() => {
+                                        setNewClassName(cls);
+                                        setIsClassDropdownOpen(false);
+                                      }}
+                                      className={`w-full px-4 py-2.5 text-left text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${
+                                        isSelected 
+                                          ? 'bg-blue-50 text-blue-700' 
+                                          : 'text-slate-700 hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      <span className="flex items-center gap-2">
+                                        <span>🏫</span>
+                                        <span>Lớp {cls}</span>
+                                      </span>
+                                      {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
 

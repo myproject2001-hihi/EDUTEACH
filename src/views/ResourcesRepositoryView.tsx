@@ -37,6 +37,7 @@ import {
   HelpCircle,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Eye,
   Shuffle,
   Maximize2,
@@ -92,6 +93,7 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
   const [requestingAssignment, setRequestingAssignment] = useState<Assignment | null>(null);
   const [targetGrade, setTargetGrade] = useState('');
   const [targetClassName, setTargetClassName] = useState('');
+  const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
   const [previewingAssignment, setPreviewingAssignment] = useState<Assignment | null>(null);
 
   useEffect(() => {
@@ -238,9 +240,16 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
     const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
     defaults.forEach(d => classSet.add(d));
 
-    return Array.from(classSet).filter(Boolean).sort((a, b) => 
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    );
+    return Array.from(classSet)
+      .filter(Boolean)
+      .filter(name => {
+        const trimmed = name.trim();
+        // Keep standard school classes: e.g. starts with a digit like 10A1, 11A2, 12A1, 9A, etc.
+        return /^\d/.test(trimmed);
+      })
+      .sort((a, b) => 
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
   }, [classList, user, isAdmin, assignments]);
 
   const myClasses = React.useMemo(() => {
@@ -941,48 +950,95 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                   )}
                 </div>
 
-                <select
-                  value={availableTeacherClasses.includes(targetClassName) ? targetClassName : (targetClassName ? '__custom__' : '')}
-                  onChange={e => {
-                    if (e.target.value === '__custom__') {
-                      // custom
-                    } else {
-                      setTargetClassName(e.target.value);
-                    }
-                  }}
-                  className="w-full px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600 mb-2"
-                >
-                  <option value="">🌐 Toàn bộ học sinh (Áp dụng tất cả các lớp)</option>
-                  <optgroup label="Danh sách các lớp trong hệ thống">
-                    {availableTeacherClasses.map((cls) => (
-                      <option key={cls} value={cls}>
-                        🏫 Lớp {cls}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
+                <div className="relative">
+                  {/* Dropdown Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsClassDropdownOpen(!isClassDropdownOpen)}
+                    className="w-full px-4 py-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 hover:border-slate-300 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-between shadow-xs transition-all outline-none focus:ring-2 focus:ring-indigo-600/20"
+                  >
+                    <span className="flex items-center gap-2">
+                      {targetClassName ? (
+                        <>
+                          <span className="text-base">🏫</span>
+                          <span>Lớp {targetClassName}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-base">🌐</span>
+                          <span>Toàn bộ học sinh (Áp dụng tất cả các lớp)</span>
+                        </>
+                      )}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isClassDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
 
-                {availableTeacherClasses.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-                    {availableTeacherClasses.map((clsTitle) => {
-                      const isSelected = targetClassName === clsTitle;
-                      return (
+                  {/* Dropdown Menu Popup */}
+                  {isClassDropdownOpen && (
+                    <>
+                      {/* Backdrop to close */}
+                      <div 
+                        className="fixed inset-0 z-40" 
+                        onClick={() => setIsClassDropdownOpen(false)} 
+                      />
+                      
+                      <div className="absolute left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 py-1.5 max-h-60 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-1 duration-150">
+                        {/* Option: All students */}
                         <button
-                          key={clsTitle}
                           type="button"
-                          onClick={() => setTargetClassName(isSelected ? '' : clsTitle)}
-                          className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all ${
-                            isSelected
-                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs scale-105'
-                              : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
+                          onClick={() => {
+                            setTargetClassName('');
+                            setIsClassDropdownOpen(false);
+                          }}
+                          className={`w-full px-4 py-2.5 text-left text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${
+                            !targetClassName 
+                              ? 'bg-indigo-50 text-indigo-700' 
+                              : 'text-slate-700 hover:bg-slate-50'
                           }`}
                         >
-                          {clsTitle}
+                          <span className="flex items-center gap-2">
+                            <span>🌐</span>
+                            <span>Toàn bộ học sinh (Áp dụng tất cả các lớp)</span>
+                          </span>
+                          {!targetClassName && <Check className="w-4 h-4 text-indigo-600" />}
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
+
+                        <div className="border-t border-slate-100 my-1" />
+
+                        {/* Optgroup Header */}
+                        <div className="px-4 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                          Danh sách các lớp trong hệ thống
+                        </div>
+
+                        {/* Class options */}
+                        {availableTeacherClasses.map((cls) => {
+                          const isSelected = targetClassName === cls;
+                          return (
+                            <button
+                              key={cls}
+                              type="button"
+                              onClick={() => {
+                                setTargetClassName(cls);
+                                setIsClassDropdownOpen(false);
+                              }}
+                              className={`w-full px-4 py-2.5 text-left text-xs sm:text-sm font-bold flex items-center justify-between transition-colors ${
+                                isSelected 
+                                  ? 'bg-indigo-50 text-indigo-700' 
+                                  : 'text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2">
+                                <span>🏫</span>
+                                <span>Lớp {cls}</span>
+                              </span>
+                              {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-800 flex gap-2">
