@@ -613,6 +613,7 @@ export function AssignmentsView({
 
     const baseList = assignments.filter(a => {
       if (!isTeacher && !isAdmin && a.isPublished === false) return false;
+      if (!isTeacher && !isAdmin && a.className && a.className.trim() !== user.className.trim()) return false;
       return true;
     });
 
@@ -634,7 +635,7 @@ export function AssignmentsView({
       unsubmitted,
       overdue
     };
-  }, [assignments, submissions, user.id, isTeacher, isAdmin]);
+  }, [assignments, submissions, user.id, isTeacher, isAdmin, user.className]);
 
   // Chat với giáo viên states
   const [showChatModal, setShowChatModal] = useState(false);
@@ -3788,14 +3789,16 @@ export function AssignmentsView({
                               >
                                 {/* Front */}
                                 <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-lg flex flex-col justify-between p-4 sm:p-7 transition-colors overflow-hidden">
-                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
-                                    {(activeCard.frontImage || activeCard.image) && (
-                                      <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
-                                        <img src={activeCard.frontImage || activeCard.image} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                  <div className="flex-1 flex flex-col items-center justify-start text-center py-3 px-1 overflow-y-auto custom-scrollbar">
+                                    <div className="my-auto w-full flex flex-col items-center justify-center">
+                                      {(activeCard.frontImage || activeCard.image) && (
+                                        <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
+                                          <img src={activeCard.frontImage || activeCard.image} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                        </div>
+                                      )}
+                                      <div className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
+                                        <MarkdownMath content={activeCard.front || (activeCard.frontImage || activeCard.image ? '' : '(Trống)')} />
                                       </div>
-                                    )}
-                                    <div className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
-                                      <MarkdownMath content={activeCard.front || (activeCard.frontImage || activeCard.image ? '' : '(Trống)')} />
                                     </div>
                                   </div>
                                   <div className="pt-2 border-t border-indigo-50 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">
@@ -3804,14 +3807,16 @@ export function AssignmentsView({
                                 </div>
                                 {/* Back */}
                                 <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col justify-between p-4 sm:p-7 rotate-y-180 overflow-hidden">
-                                  <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
-                                    {activeCard.backImage && (
-                                      <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
-                                        <img src={activeCard.backImage} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                  <div className="flex-1 flex flex-col items-center justify-start text-center py-3 px-1 overflow-y-auto custom-scrollbar">
+                                    <div className="my-auto w-full flex flex-col items-center justify-center">
+                                      {activeCard.backImage && (
+                                        <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
+                                          <img src={activeCard.backImage} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
+                                        </div>
+                                      )}
+                                      <div className="text-base sm:text-xl font-medium text-slate-800 leading-relaxed">
+                                        <MarkdownMath content={activeCard.back || (activeCard.backImage || activeCard.image ? '' : '(Trống)')} />
                                       </div>
-                                    )}
-                                    <div className="text-base sm:text-xl font-medium text-slate-800 leading-relaxed">
-                                      <MarkdownMath content={activeCard.back || (activeCard.backImage || activeCard.image ? '' : '(Trống)')} />
                                     </div>
                                   </div>
                                   <div className="pt-2 border-t border-indigo-100 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">

@@ -125,6 +125,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     const next24h = now + 24 * 60 * 60 * 1000;
     
     return assignments.filter(a => {
+      if (a.isPublished === false) return false;
+      if (a.className && user.className && a.className.trim() !== user.className.trim()) return false;
       if (!a.dueDate) return false;
       const dueTime = new Date(a.dueDate).getTime();
       if (dueTime < now || dueTime > next24h) return false;
@@ -132,7 +134,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       const hasSubmitted = submissions?.some(s => s.assignmentId === a.id && s.studentId === user.id);
       return !hasSubmitted;
     });
-  }, [assignments, submissions, isTeacher, user.id]);
+  }, [assignments, submissions, isTeacher, user.id, user.className]);
 
   interface PopupAlert {
     id: string;
@@ -226,6 +228,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       if (assignments && assignments.length > 0) {
         for (const assignment of assignments) {
           try {
+            if (assignment.isPublished === false) continue;
+            if (assignment.className && user.className && assignment.className.trim() !== user.className.trim()) continue;
             if (!assignment.dueDate) continue;
             const due = new Date(assignment.dueDate).getTime();
             const alertId = `assign_${assignment.id}`;

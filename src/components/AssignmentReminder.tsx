@@ -78,6 +78,8 @@ export function AssignmentReminder({ user, assignments, submissions }: Assignmen
       const now = Date.now();
       
       assignments.forEach(assignment => {
+        if (assignment.isPublished === false) return;
+        if (assignment.className && user.className && assignment.className.trim() !== user.className.trim()) return;
         if (!assignment.dueDate) return;
         
         const dueTimeMs = new Date(assignment.dueDate).getTime();

@@ -190,7 +190,12 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   const assignments = React.useMemo(() => {
     if (isAdmin) return rawAssignments;
     if (user.role === 'teacher') return rawAssignments.filter(a => !a.teacherId || a.teacherId === user.id);
-    return rawAssignments;
+    // Student: Filter out unpublished (isPublished === false) and filter by className
+    return rawAssignments.filter(a => {
+      if (a.isPublished === false) return false;
+      if (a.className && user.className && a.className.trim() !== user.className.trim()) return false;
+      return true;
+    });
   }, [rawAssignments, user, isAdmin]);
 
   const classes = React.useMemo(() => {
