@@ -32,6 +32,19 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
   const [isFullscreen, setIsFullscreen] = useState(false);
   const simContainerRef = useRef<HTMLDivElement>(null);
 
+  const availableClasses = React.useMemo(() => {
+    const classSet = new Set<string>();
+    if (user.className) classSet.add(user.className.trim());
+    initialSims.forEach(s => {
+      if (s.className) classSet.add(s.className.trim());
+    });
+    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
+    defaults.forEach(d => classSet.add(d));
+    return Array.from(classSet).filter(Boolean).sort((a, b) => 
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [user.className, initialSims]);
+
   // Auto scroll to top when selecting simulation or category
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -501,13 +514,57 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Lớp áp dụng (Tùy chọn):</label>
-                      <input 
-                        type="text"
-                        value={formClassName} onChange={e => setFormClassName(e.target.value)}
-                        className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                        placeholder="VD: 10A1 (Để trống nếu áp dụng toàn trường)"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block font-bold text-slate-700">Lớp áp dụng (Tùy chọn):</label>
+                        {formClassName && (
+                          <button
+                            type="button"
+                            onClick={() => setFormClassName('')}
+                            className="text-[11px] text-slate-400 hover:text-rose-500 font-bold transition-colors"
+                          >
+                            Toàn trường
+                          </button>
+                        )}
+                      </div>
+                      <select
+                        value={availableClasses.includes(formClassName) ? formClassName : (formClassName ? '__custom__' : '')}
+                        onChange={e => {
+                          if (e.target.value === '__custom__') {
+                            // keep
+                          } else {
+                            setFormClassName(e.target.value);
+                          }
+                        }}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-semibold"
+                      >
+                        <option value="">🌐 Toàn bộ học sinh (Áp dụng toàn trường)</option>
+                        <optgroup label="Danh sách các lớp trong hệ thống">
+                          {availableClasses.map((cls) => (
+                            <option key={cls} value={cls}>
+                              🏫 Lớp {cls}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {availableClasses.map((clsTitle) => {
+                          const isSelected = formClassName === clsTitle;
+                          return (
+                            <button
+                              key={clsTitle}
+                              type="button"
+                              onClick={() => setFormClassName(isSelected ? '' : clsTitle)}
+                              className={`px-2 py-0.5 text-[10px] rounded-lg font-bold border transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-600 border-indigo-600 text-white'
+                                  : 'bg-white border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'
+                              }`}
+                            >
+                              {clsTitle}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 

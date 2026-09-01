@@ -97,6 +97,19 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
   const [newPerk, setNewPerk] = useState({ title: '', cost: 100, description: '', perkDetail: '', icon: '🌟', className: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const availableClasses = React.useMemo(() => {
+    const classSet = new Set<string>();
+    if (user.className) classSet.add(user.className.trim());
+    fullCatalog.forEach(i => {
+      if (i.className) classSet.add(i.className.trim());
+    });
+    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
+    defaults.forEach(d => classSet.add(d));
+    return Array.from(classSet).filter(Boolean).sort((a, b) => 
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [user.className, fullCatalog]);
+
   // Modal celebration state for unlocked item or mystery box
   const [celebratingItem, setCelebratingItem] = useState<{
     item: StoreItem;
@@ -318,8 +331,57 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
                 <input value={newPerk.icon} onChange={e => setNewPerk({...newPerk, icon: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="VD: 🎫, 🍔..." />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Lớp áp dụng (Tùy chọn)</label>
-                <input value={newPerk.className} onChange={e => setNewPerk({...newPerk, className: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="VD: 10A1 (Để trống nếu áp dụng toàn trường)" />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-600">Lớp áp dụng (Tùy chọn)</label>
+                  {newPerk.className && (
+                    <button
+                      type="button"
+                      onClick={() => setNewPerk({ ...newPerk, className: '' })}
+                      className="text-[11px] text-slate-400 hover:text-rose-500 font-bold transition-colors"
+                    >
+                      Toàn trường
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={availableClasses.includes(newPerk.className || '') ? newPerk.className : (newPerk.className ? '__custom__' : '')}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      // keep
+                    } else {
+                      setNewPerk({ ...newPerk, className: e.target.value });
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold mb-1"
+                >
+                  <option value="">🌐 Toàn bộ học sinh (Áp dụng toàn trường)</option>
+                  <optgroup label="Danh sách các lớp trong hệ thống">
+                    {availableClasses.map((cls) => (
+                      <option key={cls} value={cls}>
+                        🏫 Lớp {cls}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+                <div className="flex flex-wrap gap-1">
+                  {availableClasses.map((clsTitle) => {
+                    const isSelected = newPerk.className === clsTitle;
+                    return (
+                      <button
+                        key={clsTitle}
+                        type="button"
+                        onClick={() => setNewPerk({ ...newPerk, className: isSelected ? '' : clsTitle })}
+                        className={`px-2 py-0.5 text-[10px] rounded-lg font-bold border transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600'
+                        }`}
+                      >
+                        {clsTitle}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl">

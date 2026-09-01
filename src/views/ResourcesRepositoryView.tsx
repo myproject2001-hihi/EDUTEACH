@@ -209,6 +209,40 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
   }, [previewingAssignment]);
 
   // Filter lists
+  const availableTeacherClasses = React.useMemo(() => {
+    const classSet = new Set<string>();
+
+    // 1. Classes from teacher's sessions (or all sessions for admin)
+    classList.forEach((c: any) => {
+      if (isAdmin || c.teacherId === user.id || c.teacherName === user.name) {
+        if (c.className && typeof c.className === 'string') classSet.add(c.className.trim());
+        if (c.title && typeof c.title === 'string') {
+          classSet.add(c.title.trim());
+        }
+      }
+    });
+
+    // 2. Class from teacher's own profile
+    if (user.className && typeof user.className === 'string') {
+      classSet.add(user.className.trim());
+    }
+
+    // 3. Classes from assignments
+    assignments.forEach(a => {
+      if (a.className && typeof a.className === 'string') {
+        classSet.add(a.className.trim());
+      }
+    });
+
+    // Default standard classes
+    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
+    defaults.forEach(d => classSet.add(d));
+
+    return Array.from(classSet).filter(Boolean).sort((a, b) => 
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [classList, user, isAdmin, assignments]);
+
   const myClasses = React.useMemo(() => {
     return classList.filter(c => c.teacherId === user.id || isAdmin);
   }, [classList, user, isAdmin]);
@@ -486,9 +520,10 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                   className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
                 >
                   <option value="all">🏫 Tất cả Khối lớp</option>
-                  <option value="Khối 10">Khối 10</option>
-                  <option value="Khối 11">Khối 11</option>
-                  <option value="Khối 12">Khối 12</option>
+                  {Array.from({ length: 12 }, (_, i) => `Khối ${i + 1}`).map(g => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                  <option value="Khác">Khác</option>
                 </select>
 
                 {/* Author filter */}
@@ -842,53 +877,112 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
 
               {/* Grade select */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Chọn Khối lớp nhận:</label>
-                <select
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn / Nhập Khối (1 - 12):</label>
+                  {targetGrade && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetGrade('')}
+                      className="text-[11px] text-slate-400 hover:text-rose-500 font-bold transition-colors"
+                    >
+                      Xóa
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
                   value={targetGrade}
-                  onChange={e => setTargetGrade(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const numOnly = val.replace(/\D/g, '');
+                    if (numOnly && !val.startsWith('Khối') && Number(numOnly) >= 1 && Number(numOnly) <= 12) {
+                      setTargetGrade(`Khối ${numOnly}`);
+                    } else {
+                      setTargetGrade(val);
+                    }
+                  }}
+                  placeholder="Điền số 1 - 12 (VD: 10) hoặc bấm chọn..."
                   className="w-full px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600"
-                >
-                  <option value="">-- Chọn Khối --</option>
-                  <option value="Khối 10">Khối 10</option>
-                  <option value="Khối 11">Khối 11</option>
-                  <option value="Khối 12">Khối 12</option>
-                  <option value="Khác">Khác</option>
-                </select>
+                />
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((gNum) => {
+                    const gStr = `Khối ${gNum}`;
+                    const isSelected = targetGrade === gStr || targetGrade === `${gNum}`;
+                    return (
+                      <button
+                        key={gNum}
+                        type="button"
+                        onClick={() => setTargetGrade(isSelected ? '' : gStr)}
+                        className={`px-2 py-0.5 text-[11px] rounded-lg font-bold border transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs scale-105'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
+                        }`}
+                      >
+                        K{gNum}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Class select */}
               <div>
-                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Chọn Lớp đang dạy nhận:</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={targetClassName}
-                    onChange={e => setTargetClassName(e.target.value)}
-                    placeholder="VD: 10A1, 12C5..."
-                    className="w-full px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600 placeholder:text-slate-400"
-                  />
-                  {myClasses.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {Array.from(new Set(myClasses.map(c => c.title))).map((clsTitle: any) => {
-                        if (!clsTitle) return null;
-                        return (
-                          <button
-                            key={clsTitle}
-                            type="button"
-                            onClick={() => setTargetClassName(clsTitle)}
-                            className={`px-2.5 py-0.5 text-[10px] rounded-lg font-bold border transition-all ${
-                              targetClassName === clsTitle
-                                ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
-                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            {clsTitle}
-                          </button>
-                        );
-                      })}
-                    </div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn Lớp đang dạy nhận:</label>
+                  {targetClassName && (
+                    <button
+                      type="button"
+                      onClick={() => setTargetClassName('')}
+                      className="text-[11px] text-slate-400 hover:text-rose-500 font-bold transition-colors"
+                    >
+                      Toàn trường (Tất cả)
+                    </button>
                   )}
                 </div>
+
+                <select
+                  value={availableTeacherClasses.includes(targetClassName) ? targetClassName : (targetClassName ? '__custom__' : '')}
+                  onChange={e => {
+                    if (e.target.value === '__custom__') {
+                      // custom
+                    } else {
+                      setTargetClassName(e.target.value);
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600 mb-2"
+                >
+                  <option value="">🌐 Toàn bộ học sinh (Áp dụng tất cả các lớp)</option>
+                  <optgroup label="Danh sách các lớp trong hệ thống">
+                    {availableTeacherClasses.map((cls) => (
+                      <option key={cls} value={cls}>
+                        🏫 Lớp {cls}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+
+                {availableTeacherClasses.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                    {availableTeacherClasses.map((clsTitle) => {
+                      const isSelected = targetClassName === clsTitle;
+                      return (
+                        <button
+                          key={clsTitle}
+                          type="button"
+                          onClick={() => setTargetClassName(isSelected ? '' : clsTitle)}
+                          className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all ${
+                            isSelected
+                              ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs scale-105'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
+                          }`}
+                        >
+                          {clsTitle}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-800 flex gap-2">

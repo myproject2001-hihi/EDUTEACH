@@ -754,6 +754,47 @@ export function AssignmentsView({
     return classList.filter(c => c.teacherId === user.id || user.role === 'admin');
   }, [classList, user]);
 
+  const availableTeacherClasses = React.useMemo(() => {
+    const classSet = new Set<string>();
+
+    // 1. Classes from teacher's sessions (or all sessions for admin)
+    classList.forEach((c: any) => {
+      if (user.role === 'admin' || c.teacherId === user.id || c.teacherName === user.name) {
+        if (c.className && typeof c.className === 'string') classSet.add(c.className.trim());
+        if (c.title && typeof c.title === 'string') {
+          classSet.add(c.title.trim());
+        }
+      }
+    });
+
+    // 2. Classes from students registered in the system
+    usersList.forEach(u => {
+      if (u.role === 'student' && u.className && typeof u.className === 'string') {
+        classSet.add(u.className.trim());
+      }
+    });
+
+    // 3. Class from teacher's own profile
+    if (user.className && typeof user.className === 'string') {
+      classSet.add(user.className.trim());
+    }
+
+    // 4. Classes from teacher's existing assignments
+    assignments.forEach(a => {
+      if (a.className && typeof a.className === 'string') {
+        classSet.add(a.className.trim());
+      }
+    });
+
+    // Default standard classes if empty
+    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
+    defaults.forEach(d => classSet.add(d));
+
+    return Array.from(classSet).filter(Boolean).sort((a, b) => 
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+  }, [classList, usersList, user, assignments]);
+
 
 
   // Teacher Create Assignment Form State
@@ -960,19 +1001,8 @@ export function AssignmentsView({
       if (found) {
         setSelectedAssignment(found);
         
-        // Auto-start for students
-        if (!isTeacher) {
-          if (found.type === 'online_test' || found.type === 'lesson_check') {
-            setIsExamStarted(true);
-            enterFullscreen();
-          } else if (found.type === 'game') {
-            setShowGamePreview(true);
-          } else if (found.type === 'flashcard') {
-            setShowFlashcardPreview(true);
-          } else if (found.type === 'simulation') {
-            setShowEmbeddedSim(true);
-          }
-        }
+        // Auto-start is removed to let students read the assignment details before starting.
+        // The user complained about seeing black modals directly on load.
       }
       if (onClearInitialSelectedAssignmentId) {
         onClearInitialSelectedAssignmentId();
@@ -3758,12 +3788,6 @@ export function AssignmentsView({
                               >
                                 {/* Front */}
                                 <div className="absolute w-full h-full backface-hidden bg-white border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-lg flex flex-col justify-between p-4 sm:p-7 transition-colors overflow-hidden">
-                                  <div className="flex justify-between items-center border-b border-indigo-50 pb-2">
-                                    <span className="text-indigo-600 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
-                                      ✨ Mặt trước
-                                    </span>
-                                    <span className="text-xs font-mono text-slate-400 font-bold">#{activeCardIndex + 1}</span>
-                                  </div>
                                   <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
                                     {(activeCard.frontImage || activeCard.image) && (
                                       <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
@@ -3780,12 +3804,6 @@ export function AssignmentsView({
                                 </div>
                                 {/* Back */}
                                 <div className="absolute w-full h-full backface-hidden bg-gradient-to-b from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-3xl shadow-lg flex flex-col justify-between p-4 sm:p-7 rotate-y-180 overflow-hidden">
-                                  <div className="flex justify-between items-center border-b border-indigo-100 pb-2">
-                                    <span className="text-indigo-600 text-xs sm:text-sm font-bold uppercase tracking-widest flex items-center gap-1.5">
-                                      🎯 Mặt sau
-                                    </span>
-                                    <span className="text-xs font-mono text-indigo-400 font-bold">#{activeCardIndex + 1}</span>
-                                  </div>
                                   <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
                                     {activeCard.backImage && (
                                       <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
@@ -4961,52 +4979,114 @@ export function AssignmentsView({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Chọn Khối lớp:</label>
-                        <select
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Khối lớp (1 - 12):</label>
+                          {newGrade && (
+                            <button
+                              type="button"
+                              onClick={() => setNewGrade('')}
+                              className="text-[11px] text-slate-400 hover:text-rose-500 font-bold transition-colors"
+                            >
+                              Xóa
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="text"
                           value={newGrade}
-                          onChange={e => setNewGrade(e.target.value)}
-                          className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow"
-                        >
-                          <option value="">-- Chọn Khối --</option>
-                          <option value="Khối 10">Khối 10</option>
-                          <option value="Khối 11">Khối 11</option>
-                          <option value="Khối 12">Khối 12</option>
-                          <option value="Khác">Khác</option>
-                        </select>
+                          onChange={e => {
+                            const val = e.target.value;
+                            const numOnly = val.replace(/\D/g, '');
+                            if (numOnly && !val.startsWith('Khối') && Number(numOnly) >= 1 && Number(numOnly) <= 12) {
+                              setNewGrade(`Khối ${numOnly}`);
+                            } else {
+                              setNewGrade(val);
+                            }
+                          }}
+                          placeholder="Điền số 1 - 12 (VD: 10) hoặc chọn..."
+                          className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow placeholder:text-slate-400 placeholder:font-normal"
+                        />
+                        {/* Quick Selection Buttons 1 to 12 */}
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {Array.from({ length: 12 }, (_, i) => i + 1).map((gNum) => {
+                            const gStr = `Khối ${gNum}`;
+                            const isSelected = newGrade === gStr || newGrade === `${gNum}`;
+                            return (
+                              <button
+                                key={gNum}
+                                type="button"
+                                onClick={() => setNewGrade(isSelected ? '' : gStr)}
+                                className={`px-2 py-0.5 text-[11px] rounded-lg font-bold border transition-all ${
+                                  isSelected
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs scale-105'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200'
+                                }`}
+                              >
+                                K{gNum}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Chọn Lớp đang dạy:</label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={newClassName}
-                            onChange={e => setNewClassName(e.target.value)}
-                            placeholder="VD: 10A1, 12C5..."
-                            className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow placeholder:text-slate-400 font-normal"
-                          />
-                          {teacherClasses.length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {Array.from(new Set(teacherClasses.map(c => c.title))).map((clsTitle: any) => {
-                                if (!clsTitle) return null;
-                                return (
-                                  <button
-                                    key={clsTitle}
-                                    type="button"
-                                    onClick={() => setNewClassName(clsTitle)}
-                                    className={`px-2 py-0.5 text-[10px] rounded-lg font-bold border transition-all ${
-                                      newClassName === clsTitle
-                                        ? 'bg-blue-50 border-blue-400 text-blue-700'
-                                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    {clsTitle}
-                                  </button>
-                                );
-                              })}
-                            </div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Chọn Lớp đang dạy:</label>
+                          {newClassName && (
+                            <button
+                              type="button"
+                              onClick={() => setNewClassName('')}
+                              className="text-[11px] text-slate-400 hover:text-rose-500 font-bold transition-colors"
+                            >
+                              Toàn trường (Tất cả)
+                            </button>
                           )}
                         </div>
+                        
+                        {/* Select dropdown from system classes */}
+                        <select
+                          value={availableTeacherClasses.includes(newClassName) ? newClassName : (newClassName ? '__custom__' : '')}
+                          onChange={e => {
+                            if (e.target.value === '__custom__') {
+                              // keep current or leave empty to type
+                            } else {
+                              setNewClassName(e.target.value);
+                            }
+                          }}
+                          className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow mb-2"
+                        >
+                          <option value="">🌐 Toàn bộ học sinh (Áp dụng tất cả các lớp)</option>
+                          <optgroup label="Danh sách các lớp trong hệ thống">
+                            {availableTeacherClasses.map((cls) => (
+                              <option key={cls} value={cls}>
+                                🏫 Lớp {cls}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+
+                        {/* Quick Selection Buttons */}
+                        {availableTeacherClasses.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                            {availableTeacherClasses.map((clsTitle) => {
+                              const isSelected = newClassName === clsTitle;
+                              return (
+                                <button
+                                  key={clsTitle}
+                                  type="button"
+                                  onClick={() => setNewClassName(isSelected ? '' : clsTitle)}
+                                  className={`px-2.5 py-1 text-[11px] rounded-lg font-bold border transition-all ${
+                                    isSelected
+                                      ? 'bg-blue-600 border-blue-600 text-white shadow-xs scale-105'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200'
+                                  }`}
+                                >
+                                  {clsTitle}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
 
