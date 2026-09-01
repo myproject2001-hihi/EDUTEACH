@@ -97,6 +97,10 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
   const [newPerk, setNewPerk] = useState({ title: '', cost: 100, description: '', perkDetail: '', icon: '🌟', className: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // For Teacher Edit
+  const [editingPerk, setEditingPerk] = useState<StoreItem | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const fullCatalog = [...DEFAULT_CATALOG, ...customPerks];
 
   const availableClasses = React.useMemo(() => {
@@ -278,6 +282,30 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
     }
   };
 
+  const handleUpdatePerk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPerk || !editingPerk.title.trim() || editingPerk.cost <= 0) return;
+    setIsUpdating(true);
+    try {
+      await updateDoc(doc(db, 'privilege_cards', editingPerk.id), {
+        title: editingPerk.title,
+        cost: editingPerk.cost,
+        description: editingPerk.description,
+        perkDetail: editingPerk.perkDetail || '',
+        icon: editingPerk.icon,
+        className: editingPerk.className?.trim() || null
+      });
+      setEditingPerk(null);
+      fetchPerks();
+      alert('Cập nhật thẻ đặc quyền thành công!');
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi khi cập nhật thẻ đặc quyền.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   if (isTeacher) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in duration-300">
@@ -391,33 +419,75 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {fullCatalog.filter(i => i.category === 'perk').map(item => (
-            <div key={item.id} className={`reward-card-item group relative bg-white rounded-3xl border-2 border-slate-100 p-5 shadow-sm hover:shadow-xl hover:border-emerald-200 transition-all flex flex-col h-full`}>
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.color} flex items-center justify-center text-2xl shadow-lg transform group-hover:scale-110 transition-transform`}>
-                  {item.icon}
-                </div>
-                <div className="flex flex-col items-end">
-                  <div className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-black flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 fill-current" />
-                    <span>{item.cost}</span>
+          {fullCatalog.filter(i => i.category === 'perk').map(item => {
+            const isCustom = item.id.length > 15;
+            return (
+              <div key={item.id} className={`reward-card-item group relative bg-white rounded-3xl border-2 ${isCustom ? 'border-indigo-100 shadow-sm' : 'border-slate-100 bg-slate-50/50'} p-5 shadow-xs hover:shadow-xl hover:border-indigo-200 transition-all flex flex-col h-full`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.color || 'from-emerald-500 to-teal-600'} flex items-center justify-center text-2xl shadow-lg transform group-hover:scale-110 transition-transform`}>
+                    {item.icon}
                   </div>
-                  {item.id.length > 15 && (
-                    <button onClick={() => handleDeletePerk(item.id)} className="mt-3 p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors flex items-center gap-1 border border-red-200" title="Xóa thẻ đặc quyền này">
-                      <Trash2 className="w-4 h-4" />
-                      <span className="text-xs font-bold">Xóa</span>
-                    </button>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-xs font-black flex items-center gap-1">
+                      <Star className="w-3.5 h-3.5 fill-current" />
+                      <span>{item.cost}</span>
+                    </div>
+                    {item.className ? (
+                      <span className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-black rounded-md">
+                        🏫 Lớp {item.className}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-black rounded-md">
+                        🌐 Toàn trường
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <h3 className="font-extrabold text-slate-800 text-lg leading-tight mb-2 group-hover:text-indigo-700 transition-colors">
+                  {item.title}
+                </h3>
+                
+                <p className="text-slate-500 text-xs font-medium leading-relaxed mb-4 flex-1">
+                  {item.description}
+                </p>
+
+                {item.perkDetail && (
+                  <div className="mb-4 p-2.5 bg-slate-50/80 rounded-xl border border-slate-100 text-[11px] font-semibold text-slate-500">
+                    💡 {item.perkDetail}
+                  </div>
+                )}
+
+                {/* Edit & Delete Action Buttons */}
+                <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                  {!isCustom ? (
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-1 rounded-md">
+                      Mặc định hệ thống
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-2 w-full justify-end">
+                      <button 
+                        onClick={() => setEditingPerk(item)} 
+                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all flex items-center gap-1.5 border border-indigo-100 text-xs font-bold"
+                        title="Chỉnh sửa thẻ đặc quyền này"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Sửa</span>
+                      </button>
+                      <button 
+                        onClick={() => handleDeletePerk(item.id)} 
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all flex items-center gap-1.5 border border-rose-100 text-xs font-bold" 
+                        title="Xóa thẻ đặc quyền này"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Xóa</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
-              <h3 className="font-extrabold text-slate-800 text-lg leading-tight mb-2 group-hover:text-emerald-700 transition-colors">
-                {item.title}
-              </h3>
-              <p className="text-slate-500 text-xs font-medium leading-relaxed mb-4 flex-1">
-                {item.description}
-              </p>
-            </div>
-          ))}
+            );
+          })}
           {isLoadingPerks && <div className="col-span-full text-center py-10 text-slate-500 font-medium text-sm">Đang tải thẻ đặc quyền...</div>}
         </div>
       </div>
@@ -711,6 +781,123 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
             >
               Tuyệt vời!
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PERK MODAL */}
+      {editingPerk && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-2xl relative text-left overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2 pb-3 border-b border-slate-100">
+              <Pencil className="w-5 h-5 text-indigo-600" />
+              <span>Chỉnh Sửa Thẻ Đặc Quyền</span>
+            </h3>
+
+            <form onSubmit={handleUpdatePerk} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Tên thẻ đặc quyền <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  value={editingPerk.title}
+                  onChange={e => setEditingPerk({ ...editingPerk, title: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  placeholder="VD: Phiếu miễn bài kiểm tra..."
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Giá trị điểm <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    value={editingPerk.cost}
+                    onChange={e => setEditingPerk({ ...editingPerk, cost: Number(e.target.value) })}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Biểu tượng (Emoji)
+                  </label>
+                  <input
+                    value={editingPerk.icon}
+                    onChange={e => setEditingPerk({ ...editingPerk, icon: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    placeholder="VD: 🎫, 🎁..."
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Mô tả ngắn
+                </label>
+                <textarea
+                  value={editingPerk.description}
+                  onChange={e => setEditingPerk({ ...editingPerk, description: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20 h-20 resize-none"
+                  placeholder="Mô tả công dụng của thẻ đặc quyền..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Chi tiết sử dụng (Tùy chọn)
+                </label>
+                <input
+                  value={editingPerk.perkDetail || ''}
+                  onChange={e => setEditingPerk({ ...editingPerk, perkDetail: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  placeholder="VD: Xuất trình phiếu cho Giáo viên bộ môn..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Lớp áp dụng (Tùy chọn)
+                </label>
+                <select
+                  value={editingPerk.className || ''}
+                  onChange={e => setEditingPerk({ ...editingPerk, className: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="">🌐 Toàn bộ học sinh (Áp dụng toàn trường)</option>
+                  {availableClasses.map((cls) => (
+                    <option key={cls} value={cls}>
+                      🏫 Lớp {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingPerk(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-sm"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2"
+                >
+                  {isUpdating ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span>Lưu Thay Đổi</span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
