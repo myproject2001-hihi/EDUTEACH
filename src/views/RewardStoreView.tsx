@@ -97,6 +97,8 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
   const [newPerk, setNewPerk] = useState({ title: '', cost: 100, description: '', perkDetail: '', icon: '🌟', className: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const fullCatalog = [...DEFAULT_CATALOG, ...customPerks];
+
   const availableClasses = React.useMemo(() => {
     const classSet = new Set<string>();
     if (user.className) classSet.add(user.className.trim());
@@ -148,8 +150,6 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
   useEffect(() => {
     fetchPerks();
   }, []);
-
-  const fullCatalog = [...DEFAULT_CATALOG, ...customPerks];
 
   const userPoints = user.points || 0;
   const userRedeemed = user.redeemedRewards || [];
