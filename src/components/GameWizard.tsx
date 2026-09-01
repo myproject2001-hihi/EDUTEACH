@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2 } from 'lucide-react';
+import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2, Lock, Radio, Sparkles, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
+import { useGameStatuses } from '../lib/gameConfig';
+import { User } from '../types';
 
 const FORMAT_TEMPLATES: Record<string, string> = {
   multiple_choice: "Câu 1: Thủ đô của Việt Nam là gì?\nA. Hà Nội\nB. TP. Hồ Chí Minh\nC. Đà Nẵng\nD. Huế\nĐáp án: A",
@@ -104,6 +106,9 @@ interface GameWizardProps {
   rawQuestionCode: string;
   setRawQuestionCode: (code: string) => void;
   setShowGamePreview: (show: boolean) => void;
+  tugOfWarMode?: 'bot' | 'pvp';
+  setTugOfWarMode?: (mode: 'bot' | 'pvp') => void;
+  user?: User;
 }
 
 export const GameWizard: React.FC<GameWizardProps> = ({
@@ -120,7 +125,14 @@ export const GameWizard: React.FC<GameWizardProps> = ({
   rawQuestionCode,
   setRawQuestionCode,
   setShowGamePreview,
+  tugOfWarMode = 'bot',
+  setTugOfWarMode,
+  user
 }) => {
+  const { gameStatuses, toggleGameStatus } = useGameStatuses();
+  const isAdmin = user?.role === 'admin';
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'on_air' | 'coming_soon'>('all');
   const [questionBlocks, setQuestionBlocks] = useState<Record<string, string>>({});
   const [activeFormat, setActiveFormat] = useState<string>('');
 
@@ -206,6 +218,10 @@ export const GameWizard: React.FC<GameWizardProps> = ({
     if (selectedGameCategory !== 'all' && game.category !== selectedGameCategory) {
       return false;
     }
+    const st = gameStatuses[game.id] || 'coming_soon';
+    if (statusFilter !== 'all' && st !== statusFilter) {
+      return false;
+    }
     if (gameSearchQuery && !game.name.toLowerCase().includes(gameSearchQuery.toLowerCase()) && !game.desc.toLowerCase().includes(gameSearchQuery.toLowerCase())) {
       return false;
     }
@@ -269,7 +285,28 @@ export const GameWizard: React.FC<GameWizardProps> = ({
               transition={{ duration: 0.22, ease: "easeInOut" }}
               className="flex-1 min-h-0 flex flex-col space-y-3"
             >
-              {/* Search & Categories - Compact */}
+              {/* Toast Notice Banner for Teachers */}
+              {toastNotice && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-amber-500 text-white p-3 rounded-2xl shadow-lg border border-amber-600 flex items-center justify-between gap-3 text-xs font-bold"
+                >
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    <span>{toastNotice}</span>
+                  </div>
+                  <button 
+                    onClick={() => setToastNotice(null)}
+                    className="bg-black/20 hover:bg-black/30 text-white p-1 rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+
+              {/* Search & Categories & Status Filter - Compact */}
               <div className="flex flex-col sm:flex-row gap-2 shrink-0 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="relative w-full sm:max-w-xs shrink-0">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400 text-xs">🔍</span>
@@ -316,6 +353,31 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                     );
                   })}
                 </div>
+
+                {/* Filter by Status */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all ${statusFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('on_air')}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${statusFilter === 'on_air' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                  >
+                    <Radio className="w-2.5 h-2.5" /> On Air
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('coming_soon')}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${statusFilter === 'coming_soon' ? 'bg-amber-500 text-white shadow-xs' : 'text-amber-700 hover:bg-amber-50'}`}
+                  >
+                    <Lock className="w-2.5 h-2.5" /> Coming Soon
+                  </button>
+                </div>
               </div>
 
               {/* Grid List */}
@@ -325,38 +387,73 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                     const isSelected = newGameType === game.id;
                     const supportedFormats = supportMap[game.id] || ['multiple_choice'];
                     const isSingleFormat = supportedFormats.length === 1;
+                    const st = gameStatuses[game.id] || 'coming_soon';
+                    const isComingSoon = st === 'coming_soon';
+
+                    const handleCardClick = () => {
+                      if (!isAdmin && isComingSoon) {
+                        setToastNotice(`Trò chơi "${game.name}" đang ở chế độ Coming Soon (Sắp ra mắt)! Admin đang thử nghiệm và sẽ bật On Air sớm cho Giáo viên.`);
+                        setTimeout(() => setToastNotice(null), 5000);
+                        return;
+                      }
+
+                      setNewGameType(game.id);
+                      if (isSingleFormat) {
+                        setNewGameFormats(supportedFormats);
+                        setGameSubStep(3);
+                      } else {
+                        setNewGameFormats([supportedFormats[0]]);
+                        setGameSubStep(2);
+                      }
+                    };
 
                     return (
                       <motion.div 
                         key={game.id}
-                        whileHover={{ y: -4, transition: { duration: 0.12 } }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          setNewGameType(game.id);
-                          if (isSingleFormat) {
-                            setNewGameFormats(supportedFormats);
-                            setGameSubStep(3);
-                          } else {
-                            setNewGameFormats([supportedFormats[0]]);
-                            setGameSubStep(2);
-                          }
-                        }}
-                        className={`group cursor-pointer p-3.5 rounded-2xl border-2 transition-all duration-300 flex items-start gap-3 ${game.color} ${
-                          isSelected 
+                        whileHover={{ y: !isAdmin && isComingSoon ? 0 : -4, transition: { duration: 0.12 } }}
+                        whileTap={{ scale: !isAdmin && isComingSoon ? 1 : 0.98 }}
+                        onClick={handleCardClick}
+                        className={`group cursor-pointer p-3.5 rounded-2xl border-2 transition-all duration-300 flex flex-col justify-between gap-2.5 relative ${game.color} ${
+                          !isAdmin && isComingSoon
+                            ? 'opacity-85 bg-slate-50/90 border-amber-200 hover:border-amber-300'
+                            : isSelected 
                             ? 'border-indigo-600 bg-indigo-50/50 shadow-md ring-2 ring-indigo-500/20' 
                             : 'border-slate-100 bg-white shadow-sm hover:shadow-md'
                         }`}
                       >
-                        <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-2xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform shrink-0">
-                          {game.emoji}
+                        <div className="flex items-start gap-3 w-full">
+                          <div className="w-11 h-11 rounded-xl bg-white flex items-center justify-center text-2xl shadow-sm border border-slate-100 group-hover:scale-110 transition-transform shrink-0">
+                            {game.emoji}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1 flex-wrap">
+                              <h5 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight flex items-center gap-1.5">
+                                <span>{game.name}</span>
+                              </h5>
+
+                              {/* Status Badge */}
+                              {isComingSoon ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2 py-0.5 rounded-full shrink-0">
+                                  <Lock className="w-2.5 h-2.5 text-amber-600" />
+                                  <span>Coming Soon</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded-full shrink-0">
+                                  <Radio className="w-2.5 h-2.5 text-emerald-600 animate-pulse" />
+                                  <span>On Air</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="text-[10px] text-slate-500 font-medium mt-1 leading-normal line-clamp-2">
+                              {game.desc}
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <h5 className="font-extrabold text-slate-800 text-xs sm:text-sm leading-tight">{game.name}</h5>
-                          <p className="text-[10px] text-slate-500 font-medium mt-1 leading-normal line-clamp-2">
-                            {game.desc}
-                          </p>
-                          
-                          <div className="flex flex-wrap gap-1 mt-2.5">
+
+                        {/* Card Footer: Formats & Admin Action */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 w-full mt-auto">
+                          <div className="flex flex-wrap gap-1">
                             {supportedFormats.map(fmtId => {
                               const fmtLabel = 
                                 fmtId === 'multiple_choice' ? 'Trắc nghiệm' :
@@ -370,6 +467,35 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                               );
                             })}
                           </div>
+
+                          {/* Admin Toggle Switch on Card */}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleGameStatus(game.id);
+                              }}
+                              className={`text-[9px] font-extrabold px-2.5 py-1 rounded-xl transition-all shadow-xs border flex items-center gap-1 shrink-0 ${
+                                isComingSoon
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 hover:shadow-emerald-200'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                              }`}
+                              title={isComingSoon ? "Bật On Air cho Giáo viên sử dụng" : "Chuyển về trạng thái Coming Soon"}
+                            >
+                              {isComingSoon ? (
+                                <>
+                                  <Radio className="w-2.5 h-2.5 text-white" />
+                                  <span>Bật On Air</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock className="w-2.5 h-2.5 text-amber-700" />
+                                  <span>Khóa CS</span>
+                                </>
+                              )}
+                            </button>
+                          )}
                         </div>
                       </motion.div>
                     );
@@ -458,6 +584,70 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                       );
                     })}
                   </div>
+
+                  {/* Tug of War Game Mode Setting (Teacher Only) */}
+                  {newGameType === 'keo_co' && setTugOfWarMode && (
+                    <div className="my-3 p-3.5 bg-gradient-to-r from-orange-50 to-amber-50 rounded-2xl border-2 border-orange-200 shadow-sm">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-base">🪢</span>
+                        <span className="text-xs font-black text-orange-950 uppercase tracking-wide">
+                          Thiết lập chế độ Kéo Co (Chỉ Giáo viên quyết định):
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-orange-800 font-medium mb-3">
+                        Học sinh khi nhận bài sẽ tuân theo chế độ thầy/cô đã định sẵn và không thể tự ý thay đổi.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div
+                          onClick={() => setTugOfWarMode('bot')}
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                            tugOfWarMode === 'bot'
+                              ? 'border-orange-600 bg-white shadow-md ring-2 ring-orange-500/20'
+                              : 'border-orange-200 bg-white/70 hover:bg-white'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0 ${
+                            tugOfWarMode === 'bot' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100'
+                          }`}>
+                            🤖
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-slate-800">Đấu Với Máy (Bot AI)</span>
+                              {tugOfWarMode === 'bot' && <span className="text-[10px] font-black text-orange-600">✓ Đã chọn</span>}
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                              1 học sinh tự luyện tập, hệ thống bot AI đóng vai Đội Đỏ đối kháng.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div
+                          onClick={() => setTugOfWarMode('pvp')}
+                          className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-2.5 ${
+                            tugOfWarMode === 'pvp'
+                              ? 'border-orange-600 bg-white shadow-md ring-2 ring-orange-500/20'
+                              : 'border-orange-200 bg-white/70 hover:bg-white'
+                          }`}
+                        >
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg shrink-0 ${
+                            tugOfWarMode === 'pvp' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100'
+                          }`}>
+                            👥
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-slate-800">Đối Kháng 2 Đội / 2 Người</span>
+                              {tugOfWarMode === 'pvp' && <span className="text-[10px] font-black text-orange-600">✓ Đã chọn</span>}
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                              2 học sinh hoặc 2 nhóm thi đấu trực tiếp cùng lúc trên một thiết bị.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 shrink-0">

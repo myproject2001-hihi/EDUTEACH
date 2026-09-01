@@ -265,6 +265,13 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   // Quick Filter for On Air/Draft in Teacher Dashboard
   const [onAirFilter, setOnAirFilter] = React.useState<'all' | 'on-air' | 'draft'>('all');
 
+  // Auto scroll to top when filters change
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [unfinishedFilterType, onAirFilter]);
+
   const filteredOnAirAssignments = React.useMemo(() => {
     return assignments.filter(a => {
       if (onAirFilter === 'on-air') return a.isPublished === true;

@@ -1,15 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { Save, Settings, CheckCircle, AlertCircle, Sparkles, HelpCircle, Camera, LayoutGrid, List } from 'lucide-react';
-import { db } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import React, { useState, useEffect, useRef } from 'react';
+import { Save, Settings, CheckCircle, AlertCircle, Sparkles, Camera, LayoutGrid, List, Upload, Check, Image as ImageIcon } from 'lucide-react';
+import { db, handleFirestoreError, OperationType } from '../firebase';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { User } from '../types';
 import { CameraCapture } from '../components/CameraCapture';
 
 interface SettingsViewProps {
   user: User;
+  onUpdateUser?: (user: User) => void;
 }
 
-export function SettingsView({ user }: SettingsViewProps) {
+const DEFAULT_AVATARS = [
+  { id: 'av_1', label: '🎓 Siêu trí tuệ', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_2', label: '🚀 Khám phá', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_3', label: '🎨 Sáng tạo', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_4', label: '🐱 Mèo thông thái', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_5', label: '🦊 Cáo cần mẫn', url: 'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_6', label: '🦁 Sư tử can đảm', url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_7', label: '🐼 Gấu chăm chỉ', url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_8', label: '🦉 Cú tri thức', url: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?auto=format&fit=crop&q=80&w=200' },
+  { id: 'av_9', label: '🤖 Smart Bot', url: 'https://api.dicebear.com/7.x/bottts/svg?seed=SmartBot' },
+  { id: 'av_10', label: '🦸 Siêu học sinh', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=HeroStudent' },
+  { id: 'av_11', label: '🌟 Ngôi sao xanh', url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=BrightStar' },
+  { id: 'av_12', label: '🌱 Mầm tri thức', url: 'https://api.dicebear.com/7.x/adventurer/svg?seed=GreenSprout' },
+];
+
+const compressAndResizeImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 250;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX) {
+            height = Math.round((height * MAX) / width);
+            width = MAX;
+          }
+        } else {
+          if (height > MAX) {
+            width = Math.round((width * MAX) / height);
+            height = MAX;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        } else {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
+export function SettingsView({ user, onUpdateUser }: SettingsViewProps) {
   const [academicYear, setAcademicYear] = useState(() => {
     return localStorage.getItem('academic_year') || 'Khóa 2024 - 2025';
   });
@@ -22,6 +77,8 @@ export function SettingsView({ user }: SettingsViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -46,21 +103,67 @@ export function SettingsView({ user }: SettingsViewProps) {
     loadConfig();
   }, [user]);
 
-  const handleCaptureAvatar = async (dataUrl: string) => {
+  // Save new avatar to Firestore immediately and sync local state
+  const saveAvatarToFirestore = async (newAvatarUrl: string, sourceName: string) => {
     setIsLoading(true);
     setNotification(null);
     try {
-      await updateDoc(doc(db, 'users', user.id), {
-        avatar: dataUrl
+      const userRef = doc(db, 'users', user.id);
+      await updateDoc(userRef, {
+        avatar: newAvatarUrl,
+        updatedAt: new Date().toISOString()
       });
-      setNotification({ message: 'Cập nhật ảnh đại diện mới thành công!', type: 'success' });
+      if (onUpdateUser) {
+        onUpdateUser({ ...user, avatar: newAvatarUrl });
+      }
+      setNotification({ message: `Cập nhật ảnh đại diện mới thành công (${sourceName})!`, type: 'success' });
     } catch (err) {
-      console.error("Lỗi cập nhật ảnh đại diện:", err);
-      setNotification({ message: 'Có lỗi xảy ra khi cập nhật ảnh đại diện.', type: 'error' });
+      console.error("Lỗi cập nhật Firestore avatar:", err);
+      try {
+        await setDoc(doc(db, 'users', user.id), { avatar: newAvatarUrl }, { merge: true });
+        if (onUpdateUser) {
+          onUpdateUser({ ...user, avatar: newAvatarUrl });
+        }
+        setNotification({ message: `Cập nhật ảnh đại diện thành công (${sourceName})!`, type: 'success' });
+      } catch (e2) {
+        handleFirestoreError(e2, OperationType.UPDATE, `users/${user.id}`);
+        setNotification({ message: 'Không thể cập nhật ảnh đại diện vào hệ thống.', type: 'error' });
+      }
     } finally {
       setIsLoading(false);
-      setShowCamera(false);
     }
+  };
+
+  const handleCaptureAvatar = async (dataUrl: string) => {
+    setShowCamera(false);
+    await saveAvatarToFirestore(dataUrl, 'Chụp từ Camera');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setNotification({ message: 'Vui lòng chọn tệp định dạng hình ảnh (PNG, JPG, WEBP, GIF).', type: 'error' });
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setNotification({ message: 'Kích thước ảnh vượt quá 8MB. Vui lòng chọn tệp nhỏ hơn.', type: 'error' });
+      return;
+    }
+
+    try {
+      const dataUrl = await compressAndResizeImage(file);
+      await saveAvatarToFirestore(dataUrl, 'Tải lên từ thiết bị');
+    } catch (err) {
+      console.error("Lỗi đọc file ảnh:", err);
+      setNotification({ message: 'Không thể đọc tệp ảnh đã chọn.', type: 'error' });
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleSelectDefaultAvatar = async (avatarUrl: string, label: string) => {
+    await saveAvatarToFirestore(avatarUrl, label);
   };
 
   const handleSaveConfig = async () => {
@@ -69,7 +172,6 @@ export function SettingsView({ user }: SettingsViewProps) {
     try {
       localStorage.setItem('academic_year', academicYear);
       localStorage.setItem('layout_density', layoutDensity);
-      // Dispatch storage event to update layout instantly across views
       window.dispatchEvent(new Event('storage'));
 
       if (user.role === 'teacher' || user.role === 'admin') {
@@ -80,9 +182,10 @@ export function SettingsView({ user }: SettingsViewProps) {
         });
       }
 
-      setNotification({ message: 'Lưu cài đặt hệ thống thành công!', type: 'success' });
+      setNotification({ message: 'Lưu cài đặt thành công!', type: 'success' });
     } catch (err) {
       console.error(err);
+      handleFirestoreError(err, OperationType.UPDATE, `users/${user.id}`);
       setNotification({ message: 'Có lỗi xảy ra khi lưu cấu hình.', type: 'error' });
     } finally {
       setIsLoading(false);
@@ -91,18 +194,24 @@ export function SettingsView({ user }: SettingsViewProps) {
 
   return (
     <div className="max-w-4xl mx-auto pb-10 space-y-6">
+      {/* Header banner */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Settings className="w-7 h-7 text-indigo-600" />
-            Cấu hình Hệ thống
+            {user.role === 'student' ? 'Cài đặt Cá nhân & Ảnh đại diện' : 'Cấu hình Hệ thống'}
           </h2>
-          <p className="text-slate-500 text-sm mt-0.5">Quản lý niên khóa, thông tin lớp học và các thông số chung của hệ thống.</p>
+          <p className="text-slate-500 text-sm mt-0.5">
+            {user.role === 'student'
+              ? 'Tùy chỉnh ảnh đại diện, giao diện học tập và thông tin cá nhân của bạn.'
+              : 'Quản lý niên khóa, thông tin lớp học và các thông số chung của hệ thống.'}
+          </p>
         </div>
       </div>
 
+      {/* Alert / Notification banner */}
       {notification && (
-        <div className={`p-4 rounded-2xl border flex items-start gap-3 ${
+        <div className={`p-4 rounded-2xl border flex items-start gap-3 transition-all animate-fadeIn ${
           notification.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
         }`}>
           {notification.type === 'success' ? <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" /> : <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />}
@@ -113,64 +222,142 @@ export function SettingsView({ user }: SettingsViewProps) {
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 space-y-6">
           
-          {/* Section 1: Ảnh đại diện & Thông tin cá nhân */}
-          <div className="space-y-4">
+          {/* Section 1: Avatar & Personal Info */}
+          <div className="space-y-5">
             <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
               <span>👤</span> 1. Ảnh đại diện & Thông tin tài khoản
             </h3>
             
-            <div className="flex flex-col sm:flex-row items-center gap-6 bg-slate-50 p-5 rounded-2xl border border-slate-100">
-              <div className="relative group">
-                <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-4 border-white shadow-md bg-slate-100 flex items-center justify-center shrink-0">
-                  {user.avatar ? (
-                    <img 
-                      src={user.avatar} 
-                      alt={user.name} 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="text-slate-400 font-extrabold text-3xl">
-                      {user.name?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Floating camera trigger button */}
-                <button
-                  type="button"
-                  onClick={() => setShowCamera(true)}
-                  className="absolute bottom-0 right-0 p-2 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center"
-                  title="Chụp ảnh mới bằng camera"
-                >
-                  <Camera className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <div className="flex-1 text-center sm:text-left space-y-2">
-                <div>
-                  <h4 className="text-base font-extrabold text-slate-900">{user.name}</h4>
-                  <p className="text-xs font-semibold text-slate-500 capitalize mt-0.5">
-                    Vai trò: {user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
-                  </p>
-                </div>
-                <p className="text-xs text-slate-600 max-w-md">
-                  Bạn có thể cập nhật ảnh đại diện của mình bằng cách mở camera thiết bị để chụp một bức ảnh mới ngay lập tức.
-                </p>
-                <div className="pt-1 flex justify-center sm:justify-start">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200/80">
+              {/* Current Avatar preview */}
+              <div className="flex flex-col items-center gap-2 shrink-0">
+                <div className="relative group">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white shadow-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                    {user.avatar ? (
+                      <img 
+                        src={user.avatar} 
+                        alt={user.name} 
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="text-indigo-600 font-extrabold text-4xl">
+                        {user.name?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  
                   <button
                     type="button"
                     onClick={() => setShowCamera(true)}
-                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2"
+                    className="absolute bottom-1 right-1 p-2 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center"
+                    title="Chụp ảnh mới bằng camera"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full mt-1 flex items-center gap-1">
+                  <Check className="w-3 h-3" /> Đã cập nhật
+                </span>
+              </div>
+              
+              {/* Action buttons & info */}
+              <div className="flex-1 text-center md:text-left space-y-3">
+                <div>
+                  <h4 className="text-lg font-extrabold text-slate-900">{user.name}</h4>
+                  <p className="text-xs font-semibold text-slate-500 capitalize mt-0.5">
+                    Vai trò: {user.role === 'admin' ? 'Quản trị viên' : user.role === 'teacher' ? 'Giáo viên' : 'Học sinh'}
+                    {user.className ? ` • Lớp: ${user.className}` : ''}
+                  </p>
+                </div>
+
+                <p className="text-xs text-slate-600 max-w-lg leading-relaxed">
+                  Thay đổi ảnh đại diện cá nhân bằng cách tải ảnh lên từ thiết bị, chụp ảnh mới qua Camera, hoặc chọn từ bộ Avatar mặc định ấn tượng bên dưới. Ảnh sẽ được tự động đồng bộ ngay vào cơ sở dữ liệu Firestore.
+                </p>
+
+                {/* Upload from file input */}
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileUpload} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
+
+                <div className="pt-1 flex flex-wrap justify-center md:justify-start gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 disabled:opacity-60"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Tải ảnh từ máy tính / ĐT
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCamera(true)}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 active:scale-95 disabled:opacity-60"
                   >
                     <Camera className="w-4 h-4 text-indigo-500" />
-                    Chụp ảnh đại diện bằng Camera
+                    Chụp bằng Camera
                   </button>
                 </div>
               </div>
             </div>
+
+            {/* Default Avatar Gallery */}
+            <div className="bg-slate-50/70 p-5 rounded-2xl border border-slate-200/70 space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-indigo-600" />
+                  Bộ Avatar Mặc Định Hệ Thống (Chọn 1-touch để cập nhật ngay)
+                </h4>
+                <span className="text-[11px] font-semibold text-slate-500">12 lựa chọn độc đáo</span>
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 pt-1">
+                {DEFAULT_AVATARS.map((av) => {
+                  const isSelected = user.avatar === av.url;
+                  return (
+                    <button
+                      key={av.id}
+                      type="button"
+                      onClick={() => handleSelectDefaultAvatar(av.url, av.label)}
+                      disabled={isLoading}
+                      className={`group relative p-2 rounded-2xl border-2 transition-all flex flex-col items-center gap-1.5 text-center bg-white ${
+                        isSelected 
+                          ? 'border-indigo-600 ring-2 ring-indigo-600/20 shadow-md bg-indigo-50/50' 
+                          : 'border-slate-200 hover:border-indigo-300 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="w-14 h-14 rounded-full overflow-hidden border border-slate-100 bg-slate-50 shrink-0">
+                        <img 
+                          src={av.url} 
+                          alt={av.label} 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <span className="text-[10px] font-extrabold text-slate-700 truncate w-full px-1">
+                        {av.label}
+                      </span>
+
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 w-4 h-4 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-xs">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
+          {/* Section 2: Layout & Display settings */}
           <div className="space-y-4 pt-4 border-t border-slate-100">
             <h3 className="text-lg font-bold text-slate-900 border-b pb-2 flex items-center justify-between">
               <span>2. Thông tin chung & Mật độ hiển thị</span>
@@ -281,6 +468,7 @@ export function SettingsView({ user }: SettingsViewProps) {
               </div>
             </div>
           )}
+
           <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
             <button
               onClick={handleSaveConfig}

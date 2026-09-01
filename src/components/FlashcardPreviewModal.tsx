@@ -281,10 +281,11 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                             alt="Front Illustration" 
                             referrerPolicy="no-referrer"
                             className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg"
+                            style={{ imageRendering: '-webkit-optimize-contrast' as any }}
                           />
                         </div>
                       )}
-                      {activeCard.front && (
+                      {activeCard.front && activeCard.front.trim().length > 0 && (
                         <div className="shrink-0 text-base sm:text-2xl md:text-3xl font-extrabold text-white leading-relaxed drop-shadow-sm px-2">
                           <MarkdownMath 
                             content={activeCard.front} 
@@ -292,7 +293,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                           />
                         </div>
                       )}
-                      {!activeCard.front && !(activeCard.frontImage || activeCard.image) && (
+                      {!activeCard.front?.trim() && !(activeCard.frontImage || activeCard.image) && (
                         <div className="shrink-0 text-base sm:text-2xl font-extrabold text-white leading-relaxed drop-shadow-sm opacity-50">
                           (Chưa nhập nội dung mặt trước)
                         </div>
@@ -318,10 +319,11 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                             alt="Back Illustration" 
                             referrerPolicy="no-referrer"
                             className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg"
+                            style={{ imageRendering: '-webkit-optimize-contrast' as any }}
                           />
                         </div>
                       )}
-                      {activeCard.back && (
+                      {activeCard.back && activeCard.back.trim().length > 0 && (
                         <div className="shrink-0 text-base sm:text-xl md:text-2xl font-bold text-amber-200 leading-relaxed drop-shadow-sm px-2">
                           <MarkdownMath 
                             content={activeCard.back} 
@@ -329,7 +331,7 @@ export function FlashcardPreviewModal({ flashcards, title = 'Xem trước bộ F
                           />
                         </div>
                       )}
-                      {!activeCard.back && !(activeCard.backImage || activeCard.image) && (
+                      {!activeCard.back?.trim() && !(activeCard.backImage || activeCard.image) && (
                         <div className="shrink-0 text-base sm:text-xl font-bold text-amber-200 leading-relaxed drop-shadow-sm opacity-50">
                           (Chưa nhập nội dung mặt sau)
                         </div>

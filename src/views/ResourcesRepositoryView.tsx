@@ -36,8 +36,14 @@ import {
   Award,
   HelpCircle,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Eye,
+  Shuffle,
+  Maximize2,
+  Minimize2,
+  Radio
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { db } from '../firebase';
 import { Assignment, User as UserType, ClassSession } from '../types';
 import confetti from 'canvas-confetti';
@@ -79,16 +85,27 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
   const [filterType, setFilterType] = useState('all');
   const [filterGrade, setFilterGrade] = useState('all');
   const [filterAuthor, setFilterAuthor] = useState('all');
+  const [filterOnAir, setFilterOnAir] = useState('all');
 
   // Request & Preview modals
   const [requestingAssignment, setRequestingAssignment] = useState<Assignment | null>(null);
   const [targetGrade, setTargetGrade] = useState('');
   const [targetClassName, setTargetClassName] = useState('');
   const [previewingAssignment, setPreviewingAssignment] = useState<Assignment | null>(null);
+
+  useEffect(() => {
+    if (previewingAssignment) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  }, [previewingAssignment]);
   
   // Flashcard playing state in preview
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [shuffledOrder, setShuffledOrder] = useState<number[]>([]);
 
   // Interactive Sandbox states
   const [sandboxTab, setSandboxTab] = useState<'student' | 'teacher'>('student');
@@ -106,6 +123,45 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
       utterance.lang = lang;
       utterance.rate = 0.95;
       window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // Get combined / normalized flashcards
+  const displayFlashcards = React.useMemo(() => {
+    if (!previewingAssignment) return [];
+    if (previewingAssignment.flashcards && previewingAssignment.flashcards.length > 0) {
+      return previewingAssignment.flashcards;
+    }
+    if (previewingAssignment.subFlashcardSets && previewingAssignment.subFlashcardSets.length > 0) {
+      return previewingAssignment.subFlashcardSets.flatMap(s => s.flashcards || []);
+    }
+    return [];
+  }, [previewingAssignment]);
+
+  // Actual flashcards list respecting shuffle mode
+  const activeFlashcardList = React.useMemo(() => {
+    if (!isShuffled || shuffledOrder.length !== displayFlashcards.length) {
+      return displayFlashcards;
+    }
+    return shuffledOrder.map(idx => displayFlashcards[idx]).filter(Boolean);
+  }, [displayFlashcards, isShuffled, shuffledOrder]);
+
+  const handleToggleShuffle = () => {
+    if (isShuffled) {
+      setIsShuffled(false);
+      setShuffledOrder([]);
+      setActiveCardIndex(0);
+      setIsCardFlipped(false);
+    } else {
+      const order = Array.from({ length: displayFlashcards.length }, (_, i) => i);
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      setShuffledOrder(order);
+      setIsShuffled(true);
+      setActiveCardIndex(0);
+      setIsCardFlipped(false);
     }
   };
 
@@ -144,6 +200,8 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
       setSandboxCorrectCount(0);
       setActiveCardIndex(0);
       setIsCardFlipped(false);
+      setIsShuffled(false);
+      setShuffledOrder([]);
       setSandboxTab('student');
       setFlashcardSubMode('study');
     }
@@ -191,9 +249,15 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
         if (a.teacherName !== filterAuthor) return false;
       }
 
+      // On Air Filter
+      if (filterOnAir !== 'all') {
+        if (filterOnAir === 'on_air' && a.isPublished === false) return false;
+        if (filterOnAir === 'draft' && a.isPublished !== false) return false;
+      }
+
       return true;
     });
-  }, [assignments, searchQuery, filterType, filterGrade, filterAuthor, user, isAdmin]);
+  }, [assignments, searchQuery, filterType, filterGrade, filterAuthor, filterOnAir, user, isAdmin]);
 
   // Request assignment modal open
   const handleOpenRequestModal = (assignment: Assignment) => {
@@ -377,60 +441,76 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
         {activeTab === 'all' ? (
           <div className="space-y-6">
             {/* Filters Bar */}
-            <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-3.5">
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3">
               {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Tìm theo tên, tác giả..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-indigo-600 outline-none"
+                  className="w-full pl-9 pr-8 py-2.5 text-xs bg-slate-50 border border-slate-200 focus:border-indigo-400 focus:bg-white focus:ring-1 focus:ring-indigo-400 rounded-xl transition-all font-medium text-slate-800 outline-none"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-2.5 p-0.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              {/* Type filter */}
-              <div>
+              <div className="flex flex-wrap sm:flex-nowrap gap-2">
+                {/* Type filter */}
                 <select
                   value={filterType}
                   onChange={e => setFilterType(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-600 outline-none"
+                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
                 >
-                  <option value="all">Tất cả loại hình</option>
-                  <option value="online_test">Trắc nghiệm Online</option>
-                  <option value="file_upload">Tự luận / Đính kèm PDF</option>
-                  <option value="simulation">Mô phỏng Khoa học</option>
-                  <option value="game">Trò chơi học tập</option>
-                  <option value="flashcard">Học liệu Flashcard</option>
+                  <option value="all">📂 Tất cả loại hình</option>
+                  <option value="online_test">📝 Trắc nghiệm Online</option>
+                  <option value="file_upload">📄 Tự luận / PDF</option>
+                  <option value="simulation">🔬 Mô phỏng Khoa học</option>
+                  <option value="game">🎮 Trò chơi học tập</option>
+                  <option value="flashcard">🎴 Học liệu Flashcard</option>
                 </select>
-              </div>
 
-              {/* Grade filter */}
-              <div>
+                {/* Grade filter */}
                 <select
                   value={filterGrade}
                   onChange={e => setFilterGrade(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-600 outline-none"
+                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
                 >
-                  <option value="all">Tất cả Khối lớp</option>
+                  <option value="all">🏫 Tất cả Khối lớp</option>
                   <option value="Khối 10">Khối 10</option>
                   <option value="Khối 11">Khối 11</option>
                   <option value="Khối 12">Khối 12</option>
                 </select>
-              </div>
 
-              {/* Author filter */}
-              <div>
+                {/* Author filter */}
                 <select
                   value={filterAuthor}
                   onChange={e => setFilterAuthor(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-indigo-600 outline-none"
+                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
                 >
-                  <option value="all">Tất cả giáo viên</option>
+                  <option value="all">👤 Tất cả giáo viên</option>
                   {authors.map(name => (
                     <option key={name} value={name}>{name}</option>
                   ))}
+                </select>
+
+                {/* On Air filter */}
+                <select
+                  value={filterOnAir}
+                  onChange={e => setFilterOnAir(e.target.value)}
+                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
+                >
+                  <option value="all">📻 Tất cả On Air</option>
+                  <option value="on_air">🟢 Đã On Air</option>
+                  <option value="draft">🟡 Bản Nháp</option>
                 </select>
               </div>
             </div>
@@ -455,7 +535,7 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                       className="bg-white rounded-2xl border border-slate-200/95 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col h-full"
                     >
                       {/* Top banner type-specific */}
-                      <div className={`px-4 py-3 border-b border-slate-100 flex items-center justify-between ${
+                      <div className={`px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 ${
                         resource.type === 'game' ? 'bg-amber-50/50' : 
                         resource.type === 'flashcard' ? 'bg-rose-50/50' : 
                         resource.type === 'online_test' ? 'bg-blue-50/50' : 'bg-slate-50/50'
@@ -473,11 +553,38 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                              resource.type === 'simulation' ? 'Mô phỏng' : 'Tự luận / File'}
                           </span>
                         </div>
-                        {isMine && (
-                          <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded-lg">
-                            Tài nguyên của tôi
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* On Air Status Badge */}
+                          <button
+                            type="button"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (isMine || isAdmin) {
+                                const newStatus = resource.isPublished === false ? true : false;
+                                try {
+                                  await setDoc(doc(db, 'assignments', resource.id), { isPublished: newStatus }, { merge: true });
+                                } catch (err) {
+                                  alert('Lỗi cập nhật trạng thái On Air');
+                                }
+                              }
+                            }}
+                            disabled={!isMine && !isAdmin}
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border flex items-center gap-1 transition-all ${
+                              resource.isPublished !== false 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                            } ${(isMine || isAdmin) ? 'hover:scale-105 cursor-pointer shadow-2xs' : 'cursor-default'}`}
+                            title={(isMine || isAdmin) ? "Nhấn để bật/tắt On Air" : "Trạng thái On Air"}
+                          >
+                            <Radio className={`w-3 h-3 ${resource.isPublished !== false ? 'text-emerald-600 animate-pulse' : 'text-amber-600'}`} />
+                            <span>{resource.isPublished !== false ? 'On Air' : 'Bản nháp'}</span>
+                          </button>
+                          {isMine && (
+                            <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-150 px-2 py-0.5 rounded-lg">
+                              Của tôi
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Info body */}
@@ -1121,6 +1228,7 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                         <GamePreview
                           gameType={previewingAssignment.gameType || 'do_min'}
                           questions={previewingAssignment.questions && previewingAssignment.questions.length > 0 ? previewingAssignment.questions : []}
+                          tugOfWarMode={previewingAssignment.tugOfWarMode || 'bot'}
                           isStudentMode={true}
                           onClose={() => {
                             setPreviewingAssignment(null);
@@ -1144,104 +1252,228 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                   {previewingAssignment.type === 'flashcard' && (
                     <div className="space-y-4">
                       {/* Submode togglers */}
-                      <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl max-w-xs shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setFlashcardSubMode('study')}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            flashcardSubMode === 'study'
-                              ? 'bg-white text-slate-900 shadow-sm'
-                              : 'text-slate-650 hover:bg-slate-50'
-                          }`}
-                        >
-                          🎴 Thẻ lật học tập
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFlashcardSubMode('quiz')}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                            flashcardSubMode === 'quiz'
-                              ? 'bg-white text-slate-900 shadow-sm'
-                              : 'text-slate-650 hover:bg-slate-50'
-                          }`}
-                        >
-                          📝 Đề thi kiểm tra
-                        </button>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl max-w-xs shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setFlashcardSubMode('study')}
+                            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                              flashcardSubMode === 'study'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            🎴 Thẻ lật học tập
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFlashcardSubMode('quiz')}
+                            className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all ${
+                              flashcardSubMode === 'quiz'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            📝 Đề thi kiểm tra
+                          </button>
+                        </div>
+
+                        {flashcardSubMode === 'study' && activeFlashcardList.length > 1 && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleToggleShuffle}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                isShuffled
+                                  ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                              }`}
+                              title={isShuffled ? "Tắt xáo trộn thẻ" : "Xáo trộn thứ tự thẻ"}
+                            >
+                              <Shuffle className="w-3.5 h-3.5" />
+                              <span>{isShuffled ? 'Đã xáo trộn' : 'Xáo thẻ'}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {flashcardSubMode === 'study' ? (
                         <div className="space-y-5">
-                          {previewingAssignment.flashcards && previewingAssignment.flashcards.length > 0 ? (
+                          {activeFlashcardList && activeFlashcardList.length > 0 ? (
                             <div className="space-y-4">
-                              {/* Interactive Flip Card */}
-                              <div 
-                                onClick={() => setIsCardFlipped(!isCardFlipped)}
-                                className="relative w-full h-64 rounded-3xl cursor-pointer overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-slate-300 border-2 border-slate-200 flex flex-col items-center justify-center p-6 bg-gradient-to-b from-slate-50 to-slate-100 shadow-md group"
-                              >
-                                <div className="absolute top-4 right-4 flex gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const activeCard = previewingAssignment.flashcards![activeCardIndex];
-                                      const textToSpeak = isCardFlipped ? activeCard.back : activeCard.front;
-                                      handleSpeakText(textToSpeak, 'vi-VN');
-                                    }}
-                                    className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 rounded-full shadow-sm transition-all active:scale-95"
-                                    title="Phát âm tiếng"
-                                  >
-                                    <Volume2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-
-                                <div className="text-center space-y-4 max-w-md">
-                                  <span className={`inline-block px-2.5 py-1 text-[9px] font-black tracking-wider uppercase rounded-full ${
-                                    isCardFlipped ? 'bg-indigo-100 text-indigo-800' : 'bg-rose-100 text-rose-800'
-                                  }`}>
-                                    {isCardFlipped ? 'Mặt Sau (Ý nghĩa / Giải nghĩa)' : 'Mặt Trước (Từ vựng / Khái niệm)'}
-                                  </span>
-                                  <p className="text-lg sm:text-2xl font-black text-slate-800 tracking-tight leading-normal">
-                                    {isCardFlipped 
-                                      ? previewingAssignment.flashcards[activeCardIndex]?.back 
-                                      : previewingAssignment.flashcards[activeCardIndex]?.front}
-                                  </p>
-                                  <p className="text-[10px] text-slate-450 italic">
-                                    (Bấm vào bất cứ đâu trên thẻ để lật ngược)
-                                  </p>
-                                </div>
+                              {/* Progress bar */}
+                              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                <div 
+                                  className="bg-indigo-600 h-full transition-all duration-300 rounded-full"
+                                  style={{ width: `${((activeCardIndex + 1) / activeFlashcardList.length) * 100}%` }}
+                                />
                               </div>
 
-                              {/* Pagination */}
-                              <div className="flex items-center justify-between px-2">
+                              {/* Interactive Flip Card with 3D animation, Math & Images */}
+                              <div 
+                                onClick={() => setIsCardFlipped(!isCardFlipped)}
+                                className="relative w-full h-[380px] sm:h-[460px] perspective-1000 cursor-pointer group select-none my-2"
+                              >
+                                <motion.div 
+                                  animate={{ rotateY: isCardFlipped ? 180 : 0 }}
+                                  transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+                                  className="relative w-full h-full transform-style-3d"
+                                >
+                                  {/* FRONT SIDE */}
+                                  <div className="absolute inset-0 w-full h-full backface-hidden bg-gradient-to-b from-white to-slate-50 border-2 border-slate-200 group-hover:border-indigo-400 rounded-3xl shadow-md flex flex-col justify-between p-4 sm:p-5 overflow-hidden">
+                                    {/* Top Floating Header */}
+                                    <div className="flex justify-between items-center w-full z-10 shrink-0">
+                                      <span className="inline-flex items-center gap-1 px-3 py-1 text-[10px] sm:text-xs font-black tracking-wider uppercase rounded-full bg-rose-100 text-rose-800 shadow-xs">
+                                        Mặt Trước #{activeCardIndex + 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const activeCard = activeFlashcardList[activeCardIndex];
+                                          if (activeCard && activeCard.front) {
+                                            handleSpeakText(activeCard.front, 'vi-VN');
+                                          }
+                                        }}
+                                        className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 rounded-full shadow-xs transition-all active:scale-95"
+                                        title="Phát âm tiếng"
+                                      >
+                                        <Volume2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+
+                                    {/* Center Image & Content - Maximize Space */}
+                                    <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center text-center my-auto overflow-hidden gap-2 p-1">
+                                      {(activeFlashcardList[activeCardIndex]?.frontImage || activeFlashcardList[activeCardIndex]?.image) && (
+                                        <div className="flex-1 min-h-0 w-full h-full rounded-2xl overflow-hidden bg-slate-50/50 p-1 flex items-center justify-center">
+                                          <img
+                                            src={activeFlashcardList[activeCardIndex]?.frontImage || activeFlashcardList[activeCardIndex]?.image}
+                                            alt="Mặt trước flashcard"
+                                            referrerPolicy="no-referrer"
+                                            className="max-w-full max-h-full w-auto h-auto object-contain rounded-xl"
+                                          />
+                                        </div>
+                                      )}
+
+                                      {/* Show text ONLY IF text exists and is non-empty */}
+                                      {activeFlashcardList[activeCardIndex]?.front && activeFlashcardList[activeCardIndex]?.front.trim().length > 0 && (
+                                        <div className="shrink-0 text-base sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight leading-relaxed px-2">
+                                          <MarkdownMath content={activeFlashcardList[activeCardIndex]?.front || ''} />
+                                        </div>
+                                      )}
+
+                                      {/* Only show fallback message if BOTH image and text are completely missing */}
+                                      {!activeFlashcardList[activeCardIndex]?.front?.trim() && !(activeFlashcardList[activeCardIndex]?.frontImage || activeFlashcardList[activeCardIndex]?.image) && (
+                                        <div className="shrink-0 text-sm font-semibold text-slate-400 italic">
+                                          (Chưa nhập nội dung mặt trước)
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Bottom Hint */}
+                                    <div className="text-center pt-1 z-10 shrink-0">
+                                      <p className="text-[11px] font-bold text-slate-400 group-hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
+                                        <RotateCw className="w-3.5 h-3.5" />
+                                        <span>Chạm để lật mặt sau</span>
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* BACK SIDE */}
+                                  <div className="absolute inset-0 w-full h-full backface-hidden bg-gradient-to-b from-indigo-50/90 to-purple-50/90 border-2 border-indigo-200 group-hover:border-indigo-400 rounded-3xl shadow-md flex flex-col justify-between p-4 sm:p-5 rotate-y-180 overflow-hidden">
+                                    {/* Top Floating Header */}
+                                    <div className="flex justify-between items-center w-full z-10 shrink-0">
+                                      <span className="inline-flex items-center gap-1 px-3 py-1 text-[10px] sm:text-xs font-black tracking-wider uppercase rounded-full bg-indigo-100 text-indigo-800 shadow-xs">
+                                        Mặt Sau #{activeCardIndex + 1}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const activeCard = activeFlashcardList[activeCardIndex];
+                                          if (activeCard && activeCard.back) {
+                                            handleSpeakText(activeCard.back, 'vi-VN');
+                                          }
+                                        }}
+                                        className="p-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 hover:text-indigo-600 rounded-full shadow-xs transition-all active:scale-95"
+                                        title="Phát âm tiếng"
+                                      >
+                                        <Volume2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+
+                                    {/* Center Image & Content - Maximize Space */}
+                                    <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center text-center my-auto overflow-hidden gap-2 p-1">
+                                      {(activeFlashcardList[activeCardIndex]?.backImage || activeFlashcardList[activeCardIndex]?.image) && (
+                                        <div className="flex-1 min-h-0 w-full h-full rounded-2xl overflow-hidden bg-white/70 p-1 flex items-center justify-center">
+                                          <img
+                                            src={activeFlashcardList[activeCardIndex]?.backImage || activeFlashcardList[activeCardIndex]?.image}
+                                            alt="Mặt sau flashcard"
+                                            referrerPolicy="no-referrer"
+                                            className="max-w-full max-h-full w-auto h-auto object-contain rounded-xl"
+                                          />
+                                        </div>
+                                      )}
+
+                                      {/* Show text ONLY IF text exists and is non-empty */}
+                                      {activeFlashcardList[activeCardIndex]?.back && activeFlashcardList[activeCardIndex]?.back.trim().length > 0 && (
+                                        <div className="shrink-0 text-base sm:text-xl md:text-2xl font-black text-slate-850 tracking-tight leading-relaxed px-2">
+                                          <MarkdownMath content={activeFlashcardList[activeCardIndex]?.back || ''} />
+                                        </div>
+                                      )}
+
+                                      {/* Only show fallback message if BOTH image and text are completely missing */}
+                                      {!activeFlashcardList[activeCardIndex]?.back?.trim() && !(activeFlashcardList[activeCardIndex]?.backImage || activeFlashcardList[activeCardIndex]?.image) && (
+                                        <div className="shrink-0 text-sm font-semibold text-slate-400 italic">
+                                          (Chưa nhập nội dung mặt sau)
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Bottom Hint */}
+                                    <div className="text-center pt-1 z-10 shrink-0">
+                                      <p className="text-[11px] font-bold text-slate-400 group-hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
+                                        <RotateCw className="w-3.5 h-3.5" />
+                                        <span>Chạm để quay lại mặt trước</span>
+                                      </p>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              </div>
+
+                              {/* Pagination Controls */}
+                              <div className="flex items-center justify-between px-1">
                                 <button
                                   disabled={activeCardIndex === 0}
                                   onClick={() => {
                                     setActiveCardIndex(prev => prev - 1);
                                     setIsCardFlipped(false);
                                   }}
-                                  className="px-4 py-2 text-xs font-black border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-50 transition-all flex items-center gap-1"
+                                  className="px-4 py-2 text-xs font-black border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 transition-all flex items-center gap-1 shadow-xs active:scale-95"
                                 >
                                   <ChevronLeft className="w-4 h-4" />
-                                  Trước đó
+                                  <span>Trước đó</span>
                                 </button>
-                                <span className="text-xs font-black text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">
-                                  Thẻ {activeCardIndex + 1} / {previewingAssignment.flashcards.length}
+
+                                <span className="text-xs font-black text-slate-700 bg-slate-100 px-4 py-1.5 rounded-full border border-slate-200/60 shadow-xs">
+                                  Thẻ {activeCardIndex + 1} / {activeFlashcardList.length}
                                 </span>
+
                                 <button
-                                  disabled={activeCardIndex === previewingAssignment.flashcards.length - 1}
+                                  disabled={activeCardIndex === activeFlashcardList.length - 1}
                                   onClick={() => {
                                     setActiveCardIndex(prev => prev + 1);
                                     setIsCardFlipped(false);
                                   }}
-                                  className="px-4 py-2 text-xs font-black border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-50 transition-all flex items-center gap-1"
+                                  className="px-4 py-2 text-xs font-black border border-slate-300 rounded-xl bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 transition-all flex items-center gap-1 shadow-xs active:scale-95"
                                 >
-                                  Kế tiếp
+                                  <span>Kế tiếp</span>
                                   <ChevronRight className="w-4 h-4" />
                                 </button>
                               </div>
                             </div>
                           ) : (
-                            <p className="text-xs text-slate-400 italic">Bộ flashcard này không chứa thẻ nào.</p>
+                            <p className="text-xs text-slate-400 italic py-6 text-center">Bộ flashcard này không chứa thẻ nào.</p>
                           )}
                         </div>
                       ) : (
@@ -1249,7 +1481,7 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                         <div className="w-full h-[520px] bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-sm">
                           <FlashcardQuizGame
                             assignmentTitle={previewingAssignment.title}
-                            flashcards={previewingAssignment.flashcards || []}
+                            flashcards={displayFlashcards}
                             questions={previewingAssignment.questions || []}
                             studentName={user.name}
                             onFinish={(score, correctCount, answersMap) => {
@@ -1277,21 +1509,62 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                     <div className="space-y-4">
                       <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 font-semibold flex items-center gap-2">
                         <Library className="w-4 h-4 text-rose-600" />
-                        <span>Danh sách thẻ học tập ({previewingAssignment.flashcards?.length || 0} thẻ)</span>
+                        <span>Danh sách thẻ học tập ({displayFlashcards.length} thẻ)</span>
                       </div>
 
-                      {previewingAssignment.flashcards && previewingAssignment.flashcards.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-1">
-                          {previewingAssignment.flashcards.map((card, idx) => (
-                            <div key={card.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Thẻ {idx + 1}</p>
-                              <div>
-                                <p className="text-xs text-slate-500 font-bold">Mặt trước (Thuật ngữ):</p>
-                                <p className="text-sm font-semibold text-slate-800">{card.front}</p>
+                      {displayFlashcards.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[380px] overflow-y-auto pr-1">
+                          {displayFlashcards.map((card, idx) => (
+                            <div key={card.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 shadow-xs">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Thẻ {idx + 1}</p>
+                                {(card.frontImage || card.backImage || card.image) && (
+                                  <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
+                                    Có hình ảnh
+                                  </span>
+                                )}
                               </div>
-                              <div className="pt-2 border-t border-slate-200/50">
-                                <p className="text-xs text-slate-500 font-bold">Mặt sau (Giải thích):</p>
-                                <p className="text-sm font-medium text-slate-750">{card.back}</p>
+
+                              {/* Front */}
+                              <div className="space-y-1">
+                                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Mặt trước (Khái niệm):</p>
+                                {(card.frontImage || card.image) && (
+                                  <img 
+                                    src={card.frontImage || card.image} 
+                                    alt="Mặt trước" 
+                                    className="max-h-24 rounded-lg object-contain border border-slate-200 bg-white p-1 mb-1" 
+                                  />
+                                )}
+                                {card.front && card.front.trim() ? (
+                                  <div className="text-sm font-bold text-slate-850">
+                                    <MarkdownMath content={card.front} />
+                                  </div>
+                                ) : !(card.frontImage || card.image) ? (
+                                  <div className="text-sm font-bold text-slate-400 italic">
+                                    (Trống)
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {/* Back */}
+                              <div className="pt-2.5 border-t border-slate-200/60 space-y-1">
+                                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Mặt sau (Giải thích):</p>
+                                {(card.backImage || card.image) && (
+                                  <img 
+                                    src={card.backImage || card.image} 
+                                    alt="Mặt sau" 
+                                    className="max-h-24 rounded-lg object-contain border border-slate-200 bg-white p-1 mb-1" 
+                                  />
+                                )}
+                                {card.back && card.back.trim() ? (
+                                  <div className="text-sm font-semibold text-slate-750">
+                                    <MarkdownMath content={card.back} />
+                                  </div>
+                                ) : !(card.backImage || card.image) ? (
+                                  <div className="text-sm font-semibold text-slate-400 italic">
+                                    (Trống)
+                                  </div>
+                                ) : null}
                               </div>
                             </div>
                           ))}
@@ -1302,51 +1575,114 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                     </div>
                   )}
 
-                  {/* For online tests or games */}
-                  {(previewingAssignment.type === 'online_test' || previewingAssignment.type === 'game') && (
-                    <div className="space-y-4">
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-800 font-semibold flex items-center gap-2">
+                  {/* Danh sách Bộ đề & Đáp án (cho tất cả loại bài tập / flashcard / game) */}
+                  <div className="space-y-4 pt-2">
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 font-semibold flex items-center justify-between">
+                      <div className="flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-blue-600" />
-                        <span>Danh sách câu hỏi & đáp án ({previewingAssignment.questions?.length || 0} câu)</span>
+                        <span className="font-bold">
+                          Khung Bộ Đề & Đáp Án Trắc Nghiệm ({previewingAssignment.questions?.length || displayFlashcards.length} câu)
+                        </span>
                       </div>
-
-                      {previewingAssignment.questions && previewingAssignment.questions.length > 0 ? (
-                        <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
-                          {previewingAssignment.questions.map((q, idx) => (
-                            <div key={q.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                              <p className="text-xs font-black text-slate-800">
-                                Câu {idx + 1}: {q.question}
-                              </p>
-                              {q.options && q.options.length > 0 && (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2">
-                                  {q.options.map((opt, oIdx) => (
-                                    <div 
-                                      key={oIdx} 
-                                      className={`p-2.5 rounded-xl text-xs font-semibold border flex items-center justify-between ${
-                                        q.correctAnswer === oIdx 
-                                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold' 
-                                          : 'bg-white border-slate-200 text-slate-600'
-                                      }`}
-                                    >
-                                      <span>{['A', 'B', 'C', 'D'][oIdx]}. {opt}</span>
-                                      {q.correctAnswer === oIdx && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                              {q.solutionText && (
-                                <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[11px] text-indigo-750 italic leading-relaxed">
-                                  <strong>Lời giải:</strong> {q.solutionText}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-400 italic">Học liệu này chưa được thiết lập câu hỏi.</p>
-                      )}
+                      <span className="text-[10px] bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full font-black uppercase tracking-wider">
+                        {previewingAssignment.questions && previewingAssignment.questions.length > 0 ? 'Đề Trắc Nghiệm' : 'Đề Từ Flashcard'}
+                      </span>
                     </div>
-                  )}
+
+                    {previewingAssignment.questions && previewingAssignment.questions.length > 0 ? (
+                      <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                        {previewingAssignment.questions.map((q, idx) => (
+                          <div key={q.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 shadow-xs">
+                            <div className="text-xs font-black text-slate-800 flex items-start gap-1.5">
+                              <span className="shrink-0 bg-indigo-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]">
+                                {idx + 1}
+                              </span>
+                              <div className="flex-1">
+                                <MarkdownMath content={q.question} />
+                              </div>
+                            </div>
+                            {q.options && q.options.length > 0 && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-2">
+                                {q.options.map((opt, oIdx) => (
+                                  <div 
+                                    key={oIdx} 
+                                    className={`p-2.5 rounded-xl text-xs font-semibold border flex items-center justify-between ${
+                                      q.correctAnswer === oIdx 
+                                        ? 'bg-emerald-50 border-emerald-300 text-emerald-800 font-bold' 
+                                        : 'bg-white border-slate-200 text-slate-600'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-1.5 flex-1">
+                                      <span className="font-bold shrink-0">{['A', 'B', 'C', 'D'][oIdx]}.</span>
+                                      <div className="flex-1">
+                                        <MarkdownMath content={opt} />
+                                      </div>
+                                    </div>
+                                    {q.correctAnswer === oIdx && <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0 ml-1" />}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {q.solutionText && (
+                              <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 text-[11px] text-indigo-750 italic leading-relaxed">
+                                <strong>Lời giải:</strong> <MarkdownMath content={q.solutionText} />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : displayFlashcards && displayFlashcards.length > 0 ? (
+                      /* Q&A derived from Flashcards */
+                      <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                        {displayFlashcards.map((card, idx) => (
+                          <div key={card.id || idx} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 shadow-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="shrink-0 bg-indigo-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-black">
+                                {idx + 1}
+                              </span>
+                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                                Câu hỏi / Đề bài {idx + 1}
+                              </span>
+                            </div>
+
+                            {/* Front = Question */}
+                            <div className="pl-7 space-y-1">
+                              {(card.frontImage || card.image) && (
+                                <img 
+                                  src={card.frontImage || card.image} 
+                                  alt="Hình đề bài" 
+                                  className="max-h-24 rounded-lg object-contain border border-slate-200 bg-white p-1 mb-1" 
+                                />
+                              )}
+                              <div className="text-xs sm:text-sm font-bold text-slate-900">
+                                <MarkdownMath content={card.front && card.front.trim() ? card.front : (card.frontImage || card.image ? '' : '(Nội dung câu hỏi trống)')} />
+                              </div>
+                            </div>
+
+                            {/* Back = Answer */}
+                            <div className="pl-7 pt-2 border-t border-slate-200/60 space-y-1">
+                              <div className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider flex items-center gap-1">
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Đáp án chuẩn / Lời giải:</span>
+                              </div>
+                              {(card.backImage || card.image) && (
+                                <img 
+                                  src={card.backImage || card.image} 
+                                  alt="Hình đáp án" 
+                                  className="max-h-24 rounded-lg object-contain border border-slate-200 bg-white p-1 mb-1" 
+                                />
+                              )}
+                              <div className="text-xs sm:text-sm font-semibold text-emerald-900 bg-emerald-50/70 p-2.5 rounded-xl border border-emerald-200/80">
+                                <MarkdownMath content={card.back && card.back.trim() ? card.back : (card.backImage || card.image ? '' : '(Nội dung đáp án trống)')} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">Học liệu này chưa được thiết lập câu hỏi và đáp án.</p>
+                    )}
+                  </div>
                 </div>
               )}
 

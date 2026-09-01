@@ -3,7 +3,8 @@ import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotificatio
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History } from 'lucide-react';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History, Gamepad2, Radio } from 'lucide-react';
+import { useGameStatuses } from '../lib/gameConfig';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { UserAvatar, combineName, getFirstName, getLastName } from '../components/UserAvatar';
 import { NotificationsManagerView } from './NotificationsManagerView';
@@ -58,7 +59,10 @@ interface AdminConsoleViewProps {
 }
 
 export function AdminConsoleView({ user, assignments, classes, simulations, submissions, loveLetters = [] }: AdminConsoleViewProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications' | 'letters' | 'logs'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications' | 'letters' | 'logs' | 'games'>('users');
+  const { gameStatuses, toggleGameStatus } = useGameStatuses();
+  const [adminGameSearch, setAdminGameSearch] = useState('');
+  const [adminGameStatusFilter, setAdminGameStatusFilter] = useState<'all' | 'on_air' | 'coming_soon'>('all');
   const [usersList, setUsersList] = useState<User[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -73,6 +77,13 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   const [resSortOrder, setResSortOrder] = useState<'newest' | 'oldest' | 'title'>('newest');
   const [resDisplayMode, setResDisplayMode] = useState<'table' | 'cards'>('table');
   const [inspectItem, setInspectItem] = useState<AuditItem | null>(null);
+
+  // Auto scroll to top when changing admin tabs or inspecting items
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab, inspectItem]);
   const [deleteConfirmResource, setDeleteConfirmResource] = useState<{ id: string; title: string; collectionName: string } | null>(null);
   const [deletingResource, setDeletingResource] = useState(false);
 
@@ -826,6 +837,18 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
             <History className="w-4 h-4 text-indigo-500" />
             Lịch Sử Thao Tác
           </button>
+
+          <button
+            onClick={() => setActiveTab('games')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'games'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Gamepad2 className="w-4 h-4 text-emerald-500" />
+            Quản Lý Game On Air
+          </button>
         </div>
 
         <button
@@ -1480,6 +1503,197 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
         <ActivityLogsView
           currentUser={user}
         />
+      )}
+
+      {/* TAB 7: GAME STATUS MANAGEMENT */}
+      {activeTab === 'games' && (
+        <div className="space-y-6">
+          {/* Header Dashboard Banner */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-indigo-900/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black uppercase tracking-wider rounded-full flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5 animate-pulse" /> Control Center
+                </span>
+                <span className="px-3 py-1 bg-white/10 text-white/80 text-xs font-bold rounded-full">
+                  Real-time Sync
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black flex items-center gap-2 text-white">
+                <span>🎮</span> Quản Lý Trạng Thái Game (On Air / Coming Soon)
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+                Admin được quyền **tạo & thử nghiệm tất cả game** (kể cả game Coming Soon). Khi game hoàn thiện thử nghiệm, Admin có thể **Bật On Air** để mở cho Giáo viên sử dụng ngay lập tức.
+              </p>
+            </div>
+
+            {/* Quick Stat Cards */}
+            <div className="flex items-center gap-3 shrink-0 w-full md:w-auto">
+              <div className="flex-1 md:flex-initial bg-white/10 backdrop-blur-md border border-white/10 p-3.5 rounded-2xl text-center min-w-[100px]">
+                <div className="text-2xl font-black text-white">
+                  {Object.keys(gameStatuses).length}
+                </div>
+                <div className="text-[10px] font-bold text-slate-300 uppercase tracking-wider mt-0.5">Tổng số Game</div>
+              </div>
+
+              <div className="flex-1 md:flex-initial bg-emerald-500/20 backdrop-blur-md border border-emerald-500/30 p-3.5 rounded-2xl text-center min-w-[100px]">
+                <div className="text-2xl font-black text-emerald-400 flex items-center justify-center gap-1">
+                  <span>📡</span>
+                  <span>{Object.values(gameStatuses).filter(s => s === 'on_air').length}</span>
+                </div>
+                <div className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider mt-0.5">Đang On Air</div>
+              </div>
+
+              <div className="flex-1 md:flex-initial bg-amber-500/20 backdrop-blur-md border border-amber-500/30 p-3.5 rounded-2xl text-center min-w-[100px]">
+                <div className="text-2xl font-black text-amber-300 flex items-center justify-center gap-1">
+                  <span>🔒</span>
+                  <span>{Object.values(gameStatuses).filter(s => s === 'coming_soon').length}</span>
+                </div>
+                <div className="text-[10px] font-bold text-amber-200 uppercase tracking-wider mt-0.5">Coming Soon</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter & Search Toolbar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Tìm tên game..."
+                value={adminGameSearch}
+                onChange={(e) => setAdminGameSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
+              />
+              {adminGameSearch && (
+                <button onClick={() => setAdminGameSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setAdminGameStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${adminGameStatusFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}`}
+              >
+                Tất cả ({Object.keys(gameStatuses).length})
+              </button>
+              <button
+                onClick={() => setAdminGameStatusFilter('on_air')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${adminGameStatusFilter === 'on_air' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
+              >
+                <Radio className="w-3.5 h-3.5" /> On Air ({Object.values(gameStatuses).filter(s => s === 'on_air').length})
+              </button>
+              <button
+                onClick={() => setAdminGameStatusFilter('coming_soon')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${adminGameStatusFilter === 'coming_soon' ? 'bg-amber-500 text-white border-amber-500 shadow-sm' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`}
+              >
+                <Lock className="w-3.5 h-3.5" /> Coming Soon ({Object.values(gameStatuses).filter(s => s === 'coming_soon').length})
+              </button>
+            </div>
+          </div>
+
+          {/* Games Grid List */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { id: 'quiz_nghieng_dau', name: 'Quiz Nghiêng Đầu', category: 'AI Camera', desc: 'Sử dụng camera nghiêng đầu để chọn đáp án A, B, C, D', emoji: '🧠' },
+              { id: 'cuoc_dua_ngon_tay', name: 'Cuộc Đua Ngón Tay', category: 'Tốc độ', desc: 'Đua xe trả lời đúng để bứt tốc vượt đối thủ', emoji: '🏎️' },
+              { id: 'do_min', name: 'Dò Mìn', category: 'Giải đố', desc: 'Dò mìn an toàn thông qua giải toán', emoji: '💣' },
+              { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức', category: 'Giải đố', desc: 'Đưa đoàn tàu vượt các ga học liệu', emoji: '🚂' },
+              { id: 'keo_co', name: 'Kéo Co Kiến Thức', category: 'Tốc độ', desc: 'Đấu trí kéo co kịch tính', emoji: '🪢' },
+              { id: 'game_map', name: 'Game Map (Bản đồ thử thách)', category: 'Phiêu lưu', desc: 'Bản đồ truy tìm kho báu toán học cổ xưa', emoji: '🗺️' },
+              { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay', category: 'Phiêu lưu', desc: 'Chạm từ chuyển động đúng chính tả', emoji: '🛸' },
+              { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý', category: 'Phiêu lưu', desc: 'Ghép nối vế trái logic với vế phải', emoji: '🔗' },
+              { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật', category: 'Giải đố', desc: 'Giải ô chữ giải mã từ khóa cốt lõi', emoji: '🔐' },
+              { id: 'san_kho_bau', name: 'Săn Kho Báu', category: 'Phiêu lưu', desc: 'Săn rương vàng cổ vật thử thách toán học', emoji: '🏴‍☠️' },
+              { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép', category: 'Giải đố', desc: 'Lật và ghép nối các cặp câu hỏi', emoji: '🧩' },
+              { id: 'domino', name: 'Đấu Trường Domino', category: 'Giải đố', desc: 'Chuỗi ghép nối domino liên tiếp', emoji: '🀄' },
+              { id: 'dao_chu', name: 'Đảo Chữ Anagram', category: 'Giải đố', desc: 'Xáo trộn ký tự xếp thuật ngữ', emoji: '🔠' },
+              { id: 'mo_hop', name: 'Mở Hộp Bí Mật', category: 'Giải đố', desc: 'Hộp quà thử thách toán học bất ngờ', emoji: '🎁' },
+              { id: 'gan_nhan_so_do', name: 'Gắn Nhãn Sơ Đồ', category: 'Phiêu lưu', desc: 'Gắn nhãn vào sơ đồ hình học', emoji: '📊' },
+              { id: 'no_bong_bay', name: 'Nổ Bóng Bay', category: 'Tốc độ', desc: 'Chạm nổ bóng bay đáp án đúng', emoji: '🎈' },
+              { id: 'dap_chuot_chui', name: 'Đập Chuột Chũi', category: 'Tốc độ', desc: 'Đập búa chú chuột mang đáp án đúng', emoji: '🔨' }
+            ].filter(g => {
+              const st = gameStatuses[g.id] || 'coming_soon';
+              if (adminGameStatusFilter !== 'all' && st !== adminGameStatusFilter) return false;
+              if (adminGameSearch && !g.name.toLowerCase().includes(adminGameSearch.toLowerCase()) && !g.desc.toLowerCase().includes(adminGameSearch.toLowerCase())) return false;
+              return true;
+            }).map(g => {
+              const st = gameStatuses[g.id] || 'coming_soon';
+              const isComingSoon = st === 'coming_soon';
+
+              return (
+                <div
+                  key={g.id}
+                  className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between gap-3 ${
+                    isComingSoon
+                      ? 'bg-amber-50/40 border-amber-200 hover:border-amber-300'
+                      : 'bg-emerald-50/30 border-emerald-200 hover:border-emerald-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-2xl shrink-0">
+                      {g.emoji}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <h4 className="font-extrabold text-slate-800 text-sm truncate">{g.name}</h4>
+                        <span className="text-[10px] bg-white border border-slate-200 text-slate-500 font-bold px-2 py-0.5 rounded-md shrink-0">
+                          {g.category}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium mt-1 leading-snug line-clamp-2">
+                        {g.desc}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200/80">
+                    <div className="flex items-center gap-1.5">
+                      {isComingSoon ? (
+                        <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2.5 py-1 rounded-xl">
+                          <Lock className="w-3 h-3 text-amber-600" />
+                          <span>Coming Soon (Khóa đối với GV)</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold px-2.5 py-1 rounded-xl">
+                          <Radio className="w-3 h-3 text-emerald-600 animate-pulse" />
+                          <span>On Air (GV được sử dụng)</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleGameStatus(g.id);
+                        showNotify('success', `Đã chuyển trạng thái game "${g.name}" sang ${isComingSoon ? 'On Air (Cho GV dùng)' : 'Coming Soon'}`);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm border flex items-center gap-1.5 shrink-0 ${
+                        isComingSoon
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 hover:shadow-emerald-200'
+                          : 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-300'
+                      }`}
+                    >
+                      {isComingSoon ? (
+                        <>
+                          <Radio className="w-3.5 h-3.5 text-white" />
+                          <span>Bật On Air</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3.5 h-3.5 text-amber-700" />
+                          <span>Chuyển Coming Soon</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* MODAL: CHANGE ROLE */}

@@ -33,6 +33,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showGuideOnboarding, setShowGuideOnboarding] = useState(false);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+
+  // Scroll to top when active tab or selected assignment changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab, selectedAssignmentId]);
   
   // App states synchronized with Firestore
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -71,7 +78,32 @@ export default function App() {
 
   // 1. Setup Firebase Auth state listener and real-time user profile sync
   useEffect(() => {
+    const offlineUserId = sessionStorage.getItem('offline_user_id');
+    if (offlineUserId) {
+      const unsubscribeUser = onSnapshot(doc(db, 'users', offlineUserId), (docSnap) => {
+        if (docSnap.exists()) {
+          const userData = docSnap.data() as User;
+          setCurrentUser(userData);
+          setRole(userData.role);
+          setIsAuthenticated(true);
+        } else {
+          // Fallback if offline profile doc was removed
+          sessionStorage.removeItem('offline_user_id');
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
+        setInitializingAuth(false);
+      }, (error) => {
+        console.warn("Offline profile sync error:", error);
+        setInitializingAuth(false);
+      });
+      return () => unsubscribeUser();
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (sessionStorage.getItem('offline_user_id')) {
+        return;
+      }
       if (firebaseUser) {
         if (sessionStorage.getItem('isSigningUp') === 'true') {
           return; // Ignore this sign in, AuthView will sign out immediately
@@ -109,8 +141,10 @@ export default function App() {
 
         return () => unsubscribeUser();
       } else {
-        setCurrentUser(null);
-        setIsAuthenticated(false);
+        if (!sessionStorage.getItem('offline_user_id')) {
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }
         setInitializingAuth(false);
       }
     });
@@ -668,8 +702,14 @@ export default function App() {
       });
     }
     sessionStorage.removeItem('session_read_letters');
+    sessionStorage.removeItem('offline_user_id');
     setSessionReadLetters([]);
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('SignOut error ignored:', e);
+    }
+    setCurrentUser(null);
     setIsAuthenticated(false);
   };
 
@@ -808,7 +848,7 @@ export default function App() {
       case 'simulations':
         return <SimulationsView user={activeUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'settings':
-        return isTeacherOrAdmin ? <SettingsView user={activeUser} /> : null;
+        return <SettingsView user={activeUser} onUpdateUser={handleUpdateUser} />;
       default:
         return (
           <DashboardView 

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Sparkles, CheckCircle2, XCircle, ArrowRight, RotateCw, Trophy, Award, BookOpen, X } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Sparkles, CheckCircle2, XCircle, ArrowRight, RotateCw, Trophy, Award, BookOpen, X, Maximize2, Minimize2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { MarkdownMath } from './MarkdownMath';
 
@@ -35,6 +35,7 @@ interface Props {
     quizItems: FlashcardQuizItem[]
   ) => void;
   onExit: () => void;
+  timeLimitRemaining?: number | null;
 }
 
 // Fisher-Yates shuffle
@@ -53,7 +54,8 @@ export function FlashcardQuizGame({
   questions = [],
   studentName,
   onFinish,
-  onExit
+  onExit,
+  timeLimitRemaining
 }: Props) {
   const [quizItems] = useState<FlashcardQuizItem[]>(() => {
     // If structured questions already exist, use them and randomize their option order
@@ -163,6 +165,15 @@ export function FlashcardQuizGame({
 
   const currentQ = quizItems[currentIndex] || quizItems[0];
   const totalQuestions = quizItems.length;
+
+  useEffect(() => {
+    if (timeLimitRemaining === 0 && !isCompleted) {
+      // Auto submit immediately using current state
+      setIsCompleted(true);
+      const score = Math.round((correctCount / totalQuestions) * 10 * 100) / 100;
+      onFinish(score, correctCount, answersMap, totalQuestions, quizItems);
+    }
+  }, [timeLimitRemaining, isCompleted, correctCount, answersMap, totalQuestions, quizItems, onFinish]);
 
   const handleSelectOption = (index: number) => {
     if (isAnswerSubmitted || isCompleted) return;
@@ -287,6 +298,37 @@ export function FlashcardQuizGame({
             </span>
             <button
               type="button"
+              onClick={async () => {
+                const isCurrentlyFS = !!(
+                  document.fullscreenElement ||
+                  (document as any).webkitFullscreenElement
+                );
+                try {
+                  if (!isCurrentlyFS) {
+                    if (document.documentElement.requestFullscreen) {
+                      await document.documentElement.requestFullscreen();
+                    } else if ((document.documentElement as any).webkitRequestFullscreen) {
+                      await (document.documentElement as any).webkitRequestFullscreen();
+                    }
+                  } else {
+                    if (document.exitFullscreen) {
+                      await document.exitFullscreen();
+                    } else if ((document as any).webkitExitFullscreen) {
+                      await (document as any).webkitExitFullscreen();
+                    }
+                  }
+                } catch (e) {
+                  console.warn("Fullscreen toggle error:", e);
+                }
+              }}
+              className="px-2.5 py-1.5 bg-indigo-900/60 hover:bg-indigo-700 text-indigo-200 hover:text-white rounded-xl border border-indigo-700/50 transition-all flex items-center gap-1.5 text-xs font-bold shadow-sm"
+              title="Bật / Tháo Toàn màn hình"
+            >
+              <Maximize2 className="w-3.5 h-3.5 text-indigo-300" />
+              <span className="hidden sm:inline">Toàn màn hình</span>
+            </button>
+            <button
+              type="button"
               onClick={onExit}
               className="p-1.5 bg-slate-800 hover:bg-rose-600 text-slate-400 hover:text-white rounded-full transition-colors"
               title="Thoát kiểm tra"
@@ -319,6 +361,7 @@ export function FlashcardQuizGame({
                   alt="Câu hỏi" 
                   referrerPolicy="no-referrer"
                   className="max-h-[45vh] w-auto object-contain rounded-lg"
+                  style={{ imageRendering: '-webkit-optimize-contrast' as any }}
                 />
               </div>
             )}

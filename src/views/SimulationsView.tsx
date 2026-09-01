@@ -26,6 +26,13 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
   const [isFullscreen, setIsFullscreen] = useState(false);
   const simContainerRef = useRef<HTMLDivElement>(null);
 
+  // Auto scroll to top when selecting simulation or category
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeSim, selectedCategory]);
+
   useEffect(() => {
     setSimList(filteredSimList);
   }, [filteredSimList]);

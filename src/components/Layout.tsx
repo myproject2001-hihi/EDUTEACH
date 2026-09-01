@@ -376,8 +376,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     ...(isAdmin ? [{ id: 'admin', label: 'Quản trị hệ thống', icon: ShieldCheck }] : []),
     ...(isTeacher || isAdmin ? [
       { id: 'resources-repository', label: 'Kho tài nguyên GV', icon: FolderArchive },
-      { id: 'activity-logs', label: 'Lịch sử thao tác', icon: History },
-      { id: 'settings', label: 'Cấu hình hệ thống', icon: Settings }
+      { id: 'activity-logs', label: 'Lịch sử thao tác', icon: History }
     ] : []),
     ...(isTeacher ? [
       { id: 'students', label: 'Học sinh', icon: Users },
@@ -388,9 +387,13 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
     { id: 'games', label: 'Chơi và học', icon: Gamepad2 },
     { id: 'simulations', label: 'Mô phỏng', icon: Microscope },
+    { id: 'settings', label: (isTeacher || isAdmin) ? 'Cấu hình hệ thống' : 'Cài đặt cá nhân', icon: Settings },
   ];
 
   const handleTabClick = (tabId: string) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
     onTabChange(tabId);
   };
 

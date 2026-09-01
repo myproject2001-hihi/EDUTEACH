@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, 
@@ -241,8 +241,8 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setIsDraggingBack(false);
   };
 
-  // Compress and read image as Base64 to ensure size is lightweight for Firestore (< 40KB per image) while keeping sharp text
-  const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.70): Promise<string> => {
+  // Compress and read image as Base64 to ensure sharp, crisp text and high detail while fitting safely in Firestore
+  const compressImage = (file: File, maxWidth = 1400, maxHeight = 1400, quality = 0.90): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -251,6 +251,12 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
+
+          // Keep original size if already small
+          if (width <= maxWidth && height <= maxHeight && file.size < 500 * 1024) {
+            resolve(event.target?.result as string);
+            return;
+          }
 
           // Calculate new dimensions to maintain aspect ratio
           if (width > height) {
@@ -269,9 +275,15 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            // Convert to JPEG to minimize size
-            const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            
+            // Prefer WebP for superior crispness at lower size, fallback to high-quality JPEG
+            let compressedBase64 = canvas.toDataURL('image/webp', quality);
+            if (!compressedBase64 || !compressedBase64.startsWith('data:image/webp')) {
+              compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+            }
             resolve(compressedBase64);
           } else {
             resolve(event.target?.result as string);
@@ -438,6 +450,46 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
     setBackFiles([]);
   };
 
+  // Keyboard shortcut listener for modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showBatchModal) {
+          setShowBatchModal(false);
+          setFrontFiles([]);
+          setBackFiles([]);
+        } else if (showSelectSubSetModal) {
+          setShowSelectSubSetModal(false);
+        } else if (showReorderModal) {
+          setShowReorderModal(false);
+        }
+      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (showBatchModal && pairedItems.length > 0 && !isReadingFiles) {
+          e.preventDefault();
+          executeBatchImport();
+        } else if (showReorderModal) {
+          e.preventDefault();
+          setShowReorderModal(false);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showBatchModal, showSelectSubSetModal, showReorderModal, pairedItems, isReadingFiles]);
+
+  const addNewCard = () => {
+    const newId = `card_${Date.now()}`;
+    updateActiveCards([...newFlashcards, { id: newId, front: '', back: '' }]);
+    setTimeout(() => {
+      const el = document.getElementById(`flashcard-front-${newId}`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+  };
+
   return (
     <div id="flashcard-wizard-container" className="flex-1 flex flex-col md:overflow-hidden bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm">
       {/* Main Single-View Content */}
@@ -468,21 +520,24 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     setActiveSubIndex(0);
                     setShowSelectSubSetModal(true);
                   }}
-                  className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95 shrink-0"
-                  title="Chuyển sang chế độ bài học tổng hợp gồm nhiều bộ con"
+                  className="p-2.5 sm:px-4 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center transition-all shadow-sm shrink-0"
+                  title="Chuyển sang chế độ bài học tổng hợp (gồm nhiều bộ con)"
+                  aria-label="Tạo bài học tổng hợp"
                 >
-                  <Layers className="w-3.5 h-3.5" /> 
+                  <Layers className="w-5 h-5 text-white" /> 
                 </button>
               )}
 
               <button 
                 type="button"
                 onClick={() => setShowFlashcardPreview(true)}
-                className="px-3.5 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm border border-indigo-500 flex items-center gap-1.5 transition-all shadow-md shadow-indigo-100 shrink-0"
-                title="Xem trước trải nghiệm học lật thẻ của học sinh"
+                className="p-2.5 sm:px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-2xl text-xs border border-indigo-500 flex items-center justify-center transition-all shadow-sm shadow-indigo-100 shrink-0"
+                title="Xem trước trải nghiệm học lật thẻ (Esc để đóng)"
+                aria-label="Xem trước thẻ"
               >
-                <Play className="w-3.5 h-3.5" /> 
+                <Play className="w-5 h-5 text-white fill-white/20" /> 
               </button>
+
               <button 
                 type="button"
                 onClick={() => {
@@ -490,39 +545,51 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
                   }
                 }}
-                className="px-2.5 sm:px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 flex items-center gap-1.5 transition-colors shadow-sm active:scale-95 shrink-0"
+                className="p-2.5 sm:px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-2xl text-xs border border-rose-200 flex items-center justify-center transition-colors shadow-xs active:scale-95 shrink-0"
                 title="Xóa nhanh toàn bộ danh sách thẻ"
+                aria-label="Xóa tất cả thẻ"
               >
-                <Trash2 className="w-3.5 h-3.5" /> 
+                <Trash2 className="w-5 h-5 text-rose-600" /> 
               </button>
 
               {/* Smart Batch Upload Button */}
               <button
                 type="button"
                 onClick={() => setShowBatchModal(true)}
-                className="px-3 sm:px-4 py-2 bg-purple-50 text-purple-700 font-extrabold rounded-xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center gap-1.5 transition-colors shrink-0 shadow-sm active:scale-95"
-                title="Ghép hàng loạt ảnh mặt trước và mặt sau cực dễ"
+                className="p-2.5 sm:px-4 bg-purple-50 text-purple-700 font-extrabold rounded-2xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center justify-center transition-colors shrink-0 shadow-xs active:scale-95"
+                title="Ghép ảnh hàng loạt (Smart Batch Importer)"
+                aria-label="Ghép ảnh hàng loạt"
               >
-                <FolderOpen className="w-3.5 h-3.5" /> 
+                <FolderOpen className="w-5 h-5 text-purple-700" /> 
               </button>
 
               <button 
                 type="button" 
                 onClick={handleDownloadSampleFlashcards}
-                className="px-3 sm:px-4 py-2 bg-amber-50 text-amber-700 font-bold rounded-xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center gap-1.5 transition-colors shrink-0"
+                className="p-2.5 sm:px-4 bg-amber-50 text-amber-700 font-bold rounded-2xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center justify-center transition-colors shrink-0 shadow-xs active:scale-95"
+                title="Tải file mẫu flashcard"
+                aria-label="Tải file mẫu"
               >
-                <Download className="w-3.5 h-3.5" /> 
+                <Download className="w-5 h-5 text-amber-700" /> 
               </button>
-              <label className="px-3 sm:px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl text-xs border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center gap-1.5 transition-colors shrink-0">
-                <Upload className="w-3.5 h-3.5" /> 
+
+              <label 
+                className="p-2.5 sm:px-4 bg-slate-100 text-slate-700 font-bold rounded-2xl text-xs border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center justify-center transition-colors shrink-0 shadow-xs active:scale-95"
+                title="Nhập file dữ liệu thẻ (.txt, .csv, .json)"
+                aria-label="Nhập file"
+              >
+                <Upload className="w-5 h-5 text-slate-700" /> 
                 <input type="file" accept=".txt,.csv,.json" hidden onChange={handleImportFlashcards} />
               </label>
+
               <button 
                 type="button" 
-                onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
-                className="px-3 sm:px-4 py-2 bg-blue-600 text-white font-bold rounded-xl text-xs hover:bg-blue-700 flex items-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
+                onClick={addNewCard} 
+                className="p-2.5 sm:px-4 bg-blue-600 text-white font-bold rounded-2xl text-xs hover:bg-blue-700 flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
+                title="Thêm thẻ mới (Phím tắt: Enter tại ô Mặt sau)"
+                aria-label="Thêm thẻ mới"
               >
-                <Plus className="w-3.5 h-3.5" /> 
+                <Plus className="w-5 h-5 text-white" /> 
               </button>
             </div>
           </div>
@@ -739,18 +806,18 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               <button 
                 type="button"
                 onClick={() => setShowFlashcardPreview(true)}
-                className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-sm transition-all active:scale-95 shrink-0 flex items-center justify-center"
-                title="Preview bộ này (Xem trước trải nghiệm lật thẻ)"
+                className="p-2.5 sm:px-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl text-xs flex items-center justify-center transition-all shadow-sm shadow-indigo-100 shrink-0"
+                title="Preview bộ này (Esc để đóng)"
                 aria-label="Preview bộ này"
               >
-                <Play className="w-4 h-4" />
+                <Play className="w-4 h-4 fill-white/20" />
               </button>
 
               {/* Ghép ảnh hàng loạt */}
               <button
                 type="button"
                 onClick={() => setShowBatchModal(true)}
-                className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                className="p-2.5 sm:px-3 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-2xl text-xs font-bold transition-colors shrink-0 active:scale-95 flex items-center justify-center shadow-xs"
                 title="Ghép ảnh hàng loạt cho bộ con này"
                 aria-label="Ghép ảnh hàng loạt"
               >
@@ -766,7 +833,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
                 }}
-                className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                className="p-2.5 sm:px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-2xl text-xs font-bold transition-colors shrink-0 active:scale-95 flex items-center justify-center shadow-xs"
                 title="Soạn câu hỏi trắc nghiệm cho bộ con này (Cuộn xuống dưới)"
                 aria-label="Soạn câu hỏi trắc nghiệm"
               >
@@ -781,7 +848,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
                   }
                 }}
-                className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                className="p-2.5 sm:px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl text-xs font-bold transition-colors shrink-0 active:scale-95 flex items-center justify-center shadow-xs"
                 title="Xóa tất cả thẻ ghi nhớ của bộ con này"
                 aria-label="Xóa tất cả thẻ"
               >
@@ -791,9 +858,9 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               {/* Thêm thẻ mới */}
               <button 
                 type="button" 
-                onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
-                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
-                title="Thêm thẻ mới"
+                onClick={addNewCard} 
+                className="p-2.5 sm:px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-sm transition-colors shrink-0 active:scale-95 flex items-center justify-center"
+                title="Thêm thẻ mới (Enter ở ô Mặt sau)"
                 aria-label="Thêm thẻ mới"
               >
                 <Plus className="w-4 h-4" />
@@ -807,7 +874,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
           <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2 shrink-0">
             <HelpCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div className="leading-relaxed">
-              <span className="font-extrabold text-indigo-900">Mẹo cho Giáo viên:</span> Có thể dùng nút <span className="font-bold text-purple-700">"Ghép ảnh hàng loạt"</span> để tải lên cùng lúc nhiều ảnh mặt trước và mặt sau, hệ thống sẽ tự động bắt cặp khớp theo số thứ tự cực nhanh!
+              <span className="font-extrabold text-indigo-900">Mẹo tạo nhanh:</span> Nhấn <kbd className="px-1.5 py-0.5 bg-white border border-indigo-200 rounded text-[10px] font-mono font-bold text-indigo-700 shadow-xs">Enter</kbd> tại ô <b>Mặt sau</b> để tự động thêm thẻ tiếp theo. Nhấn <kbd className="px-1.5 py-0.5 bg-white border border-indigo-200 rounded text-[10px] font-mono font-bold text-indigo-700 shadow-xs">Esc</kbd> để đóng các hộp thoại.
             </div>
           </div>
         )}
@@ -822,7 +889,7 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               </h5>
               <button 
                 type="button" 
-                onClick={() => updateActiveCards([...newFlashcards, { id: Date.now().toString(), front: '', back: '' }])} 
+                onClick={addNewCard} 
                 className="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors border border-blue-200 active:scale-95 shadow-sm"
               >
                 <Plus className="w-3.5 h-3.5" /> Thêm thẻ
@@ -853,8 +920,15 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">Mặt trước (Câu hỏi / Từ vựng)</label>
                     <textarea 
+                      id={`flashcard-front-${card.id}`}
                       value={card.front} 
                       onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, front: e.target.value } : c))} 
+                      onKeyDown={(e) => {
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                          e.preventDefault();
+                          addNewCard();
+                        }
+                      }}
                       className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
                       placeholder="Nhập nội dung mặt trước..." 
                     />
@@ -862,10 +936,17 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                   <div>
                     <label className="block text-xs font-bold text-slate-500 mb-1">Mặt sau (Đáp án / Giải nghĩa)</label>
                     <textarea 
+                      id={`flashcard-back-${card.id}`}
                       value={card.back} 
                       onChange={(e) => updateActiveCards(newFlashcards.map(c => c.id === card.id ? { ...c, back: e.target.value } : c))} 
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          addNewCard();
+                        }
+                      }}
                       className="w-full p-3 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500 resize-none h-20 bg-white" 
-                      placeholder="Nhập nội dung mặt sau..." 
+                      placeholder="Nhập nội dung mặt sau (Bấm Enter để thêm thẻ mới)..." 
                     />
                   </div>
                 </div>

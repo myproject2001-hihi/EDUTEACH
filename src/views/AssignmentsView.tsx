@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -600,6 +600,39 @@ export function AssignmentsView({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterDueDate, setFilterDueDate] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'unsubmitted' | 'overdue' | 'submitted'>('all');
+  const [filterOnAir, setFilterOnAir] = useState<'all' | 'on_air' | 'draft'>('all');
+
+  // Status counts for current student / overall
+  const statusCounts = useMemo(() => {
+    let submitted = 0;
+    let unsubmitted = 0;
+    let overdue = 0;
+
+    const baseList = assignments.filter(a => {
+      if (!isTeacher && !isAdmin && a.isPublished === false) return false;
+      return true;
+    });
+
+    baseList.forEach(a => {
+      const isPastDue = new Date(a.dueDate) < new Date();
+      const mySub = submissions.find(s => s.assignmentId === a.id && s.studentId === user.id);
+      if (mySub) {
+        submitted++;
+      } else if (isPastDue) {
+        overdue++;
+      } else {
+        unsubmitted++;
+      }
+    });
+
+    return {
+      all: baseList.length,
+      submitted,
+      unsubmitted,
+      overdue
+    };
+  }, [assignments, submissions, user.id, isTeacher, isAdmin]);
 
   // Chat với giáo viên states
   const [showChatModal, setShowChatModal] = useState(false);
@@ -621,9 +654,11 @@ export function AssignmentsView({
         if (!titleMatch && !descMatch && !sessionMatch) return false;
       }
 
-      // 2. Filter by Type Match
+      // 2. Filter by Category / Type Match
       if (filterType !== 'all') {
-        if (assignment.type !== filterType) return false;
+        const matchesCategory = assignment.category === filterType;
+        const matchesType = assignment.type === filterType;
+        if (!matchesCategory && !matchesType) return false;
       }
 
       // 3. Filter by Due Date Match
@@ -633,11 +668,39 @@ export function AssignmentsView({
         if (filterDueDate === 'overdue' && !isPastDue) return false;
       }
 
+      // 4. Filter by Status (Đã nộp, Chưa nộp, Quá hạn)
+      if (filterStatus !== 'all') {
+        const isPastDue = new Date(assignment.dueDate) < new Date();
+        const mySub = submissions.find(s => s.assignmentId === assignment.id && s.studentId === user.id);
+        const isSub = Boolean(mySub);
+
+        if (filterStatus === 'submitted') {
+          if (!isSub) return false;
+        } else if (filterStatus === 'unsubmitted') {
+          if (isSub || isPastDue) return false;
+        } else if (filterStatus === 'overdue') {
+          if (isSub || !isPastDue) return false;
+        }
+      }
+
+      // 5. Filter by On Air status (Teacher mode)
+      if (isTeacher && filterOnAir !== 'all') {
+        if (filterOnAir === 'on_air' && assignment.isPublished === false) return false;
+        if (filterOnAir === 'draft' && assignment.isPublished !== false) return false;
+      }
+
       return true;
     });
-  }, [assignments, searchQuery, filterType, filterDueDate]);
+  }, [assignments, searchQuery, filterType, filterDueDate, filterStatus, filterOnAir, submissions, user.id, isTeacher, isAdmin]);
 
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+
+  // Auto scroll to top when selecting or navigating assignments
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [selectedAssignment]);
 
   const [layoutDensity, setLayoutDensity] = useState<'comfortable' | 'compact'>(() => {
     return (localStorage.getItem('layout_density') as 'comfortable' | 'compact') || 'comfortable';
@@ -700,6 +763,7 @@ export function AssignmentsView({
   const [newSimUrl, setNewSimUrl] = useState('');
   const [selectedSimId, setSelectedSimId] = useState<string>('');
   const [newGameType, setNewGameType] = useState('quiz_nghieng_dau');
+  const [newTugOfWarMode, setNewTugOfWarMode] = useState<'bot' | 'pvp'>('bot');
   const [gameSubStep, setGameSubStep] = useState<1 | 2 | 3>(1);
   const [flashcardSubStep, setFlashcardSubStep] = useState<1 | 2>(1);
   const [selectedGameCategory, setSelectedGameCategory] = useState<string>('all');
@@ -786,6 +850,8 @@ export function AssignmentsView({
   const [newIsMandatory, setNewIsMandatory] = useState(false);
   const [newIsPublished, setNewIsPublished] = useState(false);
   const [newMaxAttempts, setNewMaxAttempts] = useState<number>(0); // 0 = vĩnh viễn (không giới hạn)
+  const [newTimeLimit, setNewTimeLimit] = useState<number>(0);
+  const [newShuffleQuestions, setNewShuffleQuestions] = useState<boolean>(false);
   const [isRetryingUpload, setIsRetryingUpload] = useState(false);
   const [isSavingAssignment, setIsSavingAssignment] = useState(false);
   const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
@@ -816,6 +882,7 @@ export function AssignmentsView({
 
   // Student Online Test Answer State
   const [studentQuizAnswers, setStudentQuizAnswers] = useState<Record<string, number>>({});
+  const [shuffledExamQuestions, setShuffledExamQuestions] = useState<QuizQuestion[] | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [flippedCards, setFlippedCards] = useState<Set<string>>(new Set());
   const [viewedCards, setViewedCards] = useState<Set<string>>(new Set());
@@ -843,7 +910,7 @@ export function AssignmentsView({
   const [isExamStarted, setIsExamStarted] = useState(false);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [showCheatWarning, setShowCheatWarning] = useState(false);
-  const [examTimeRemaining, setExamTimeRemaining] = useState(900); // 15 mins (900s)
+  const [examTimeRemaining, setExamTimeRemaining] = useState<number | null>(null); // null = unlimited
   const [isNotFullscreen, setIsNotFullscreen] = useState(false);
   const [showSubmitConfirmModal, setShowSubmitConfirmModal] = useState(false);
   const [showStandardSubmitModal, setShowStandardSubmitModal] = useState(false);
@@ -913,11 +980,22 @@ export function AssignmentsView({
     setTabSwitchCount(0);
     setShowCheatWarning(false);
     setIsNotFullscreen(false);
-    setExamTimeRemaining(900);
+    setExamTimeRemaining(selectedAssignment?.timeLimit ? selectedAssignment.timeLimit * 60 : null);
+    setShuffledExamQuestions(null);
     setFlippedCards(new Set());
     setViewedCards(new Set());
     setActiveCardIndex(0);
-  }, [selectedAssignment?.id]);
+  }, [selectedAssignment?.id, selectedAssignment?.timeLimit]);
+
+  useEffect(() => {
+    if ((isExamStarted || showFlashcardQuizTest) && selectedAssignment && selectedAssignment.questions) {
+      if (selectedAssignment.shuffleQuestions) {
+        setShuffledExamQuestions([...selectedAssignment.questions].sort(() => Math.random() - 0.5));
+      } else {
+        setShuffledExamQuestions(selectedAssignment.questions);
+      }
+    }
+  }, [isExamStarted, showFlashcardQuizTest, selectedAssignment]);
 
   useEffect(() => {
     if (selectedAssignment?.type === 'flashcard' && selectedAssignment.flashcards) {
@@ -930,12 +1008,13 @@ export function AssignmentsView({
 
   useEffect(() => {
     let timerInterval: any = null;
-    if (isExamStarted && examTimeRemaining > 0) {
+    const isTimerActive = isExamStarted || showFlashcardQuizTest;
+    
+    if (isTimerActive && examTimeRemaining !== null && examTimeRemaining > 0) {
       timerInterval = setInterval(() => {
         setExamTimeRemaining(prev => {
+          if (prev === null) return null;
           if (prev <= 1) {
-            clearInterval(timerInterval);
-            handleAutoSubmitExam();
             return 0;
           }
           return prev - 1;
@@ -945,7 +1024,18 @@ export function AssignmentsView({
     return () => {
       if (timerInterval) clearInterval(timerInterval);
     };
-  }, [isExamStarted, examTimeRemaining]);
+  }, [isExamStarted, showFlashcardQuizTest, examTimeRemaining !== null && examTimeRemaining > 0]);
+
+  // Effect to handle auto-submission when time reaches 0
+  useEffect(() => {
+    if (isExamStarted && examTimeRemaining === 0) {
+      // NOTE: We only call handleAutoSubmitExam for online_test mode here.
+      // Game and Flashcard modes handle their own auto-submit via timeLimitRemaining prop.
+      if (selectedAssignment?.type === 'online_test') {
+        handleAutoSubmitExam();
+      }
+    }
+  }, [isExamStarted, examTimeRemaining, selectedAssignment]);
 
   const enterFullscreen = async () => {
     try {
@@ -1087,14 +1177,18 @@ export function AssignmentsView({
         }
       });
     }
-    onSubmitWork({
-      assignmentId: selectedAssignment!.id,
-      studentId: user.id,
-      studentName: user.name,
-      content: `Nộp bài tự động (Hết giờ làm bài). Giám sát: Phát hiện chuyển tab hoặc rời màn hình ${tabSwitchCount} lần.`,
-      quizAnswers: studentQuizAnswers,
-      grade: earnedPoints
-    });
+    if (isTeacher) {
+      alert(`[XEM TRƯỚC - TỰ ĐỘNG NỘP] Bài làm đã được nộp! Điểm của bạn: ${earnedPoints}`);
+    } else {
+      onSubmitWork({
+        assignmentId: selectedAssignment!.id,
+        studentId: user.id,
+        studentName: user.name,
+        content: `Nộp bài tự động (Hết giờ làm bài). Giám sát: Phát hiện chuyển tab hoặc rời màn hình ${tabSwitchCount} lần.`,
+        quizAnswers: studentQuizAnswers,
+        grade: earnedPoints
+      });
+    }
     setTabSwitchCount(0);
     setIsNotFullscreen(false);
   };
@@ -1110,19 +1204,24 @@ export function AssignmentsView({
         }
       });
     }
-    onSubmitWork({
-      assignmentId: selectedAssignment!.id,
-      studentId: user.id,
-      studentName: user.name,
-      content: `Đã hoàn thành làm bài trắc nghiệm trực tuyến. Giám sát: Ghi nhận ${tabSwitchCount} lần chuyển tab hoặc rời toàn màn hình.`,
-      quizAnswers: studentQuizAnswers,
-      grade: earnedPoints
-    });
+    if (isTeacher) {
+      alert(`[XEM TRƯỚC] Bài làm đã được nộp! Điểm của bạn: ${earnedPoints}`);
+    } else {
+      onSubmitWork({
+        assignmentId: selectedAssignment!.id,
+        studentId: user.id,
+        studentName: user.name,
+        content: `Đã hoàn thành làm bài trắc nghiệm trực tuyến. Giám sát: Ghi nhận ${tabSwitchCount} lần chuyển tab hoặc rời toàn màn hình.`,
+        quizAnswers: studentQuizAnswers,
+        grade: earnedPoints
+      });
+    }
     setTabSwitchCount(0);
     setIsNotFullscreen(false);
   };
 
-  const formatTimeRemaining = (seconds: number) => {
+  const formatTimeRemaining = (seconds: number | null) => {
+    if (seconds === null) return 'Không giới hạn';
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -1371,8 +1470,11 @@ export function AssignmentsView({
     setNewSimUrl('');
     setSelectedSimId('');
     setNewGameType('quiz_nghieng_dau');
+    setNewTugOfWarMode('bot');
     setNewGameFormats(['multiple_choice', 'true_false']);
     setNewIsMandatory(false);
+    setNewTimeLimit(0);
+    setNewShuffleQuestions(false);
     setNewIsPublished(false); // Default to draft for new assignments
     setNewMaxAttempts(0);
     setGameSubStep(1);
@@ -1421,8 +1523,11 @@ export function AssignmentsView({
     setNewPdfUrl(assignment.pdfUrl || '');
     setNewSimUrl(assignment.simulationUrl || '');
     setNewGameType(assignment.gameType || 'quiz_nghieng_dau');
+    setNewTugOfWarMode(assignment.tugOfWarMode || 'bot');
     setNewGameFormats(assignment.gameFormats || ['multiple_choice', 'true_false']);
     setNewIsMandatory(assignment.isMandatory || false);
+    setNewTimeLimit(assignment.timeLimit || 0);
+    setNewShuffleQuestions(assignment.shuffleQuestions || false);
     setNewIsPublished(assignment.isPublished !== false);
     setNewMaxAttempts(assignment.maxAttempts !== undefined ? assignment.maxAttempts : 0);
     setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
@@ -1452,7 +1557,7 @@ export function AssignmentsView({
 
       payloadStr = JSON.stringify(cloned);
 
-      const resizeBase64 = (base64Str: string, maxDim = 500, quality = 0.55): Promise<string> => {
+      const resizeBase64 = (base64Str: string, maxDim = 1200, quality = 0.88): Promise<string> => {
         if (!base64Str || typeof base64Str !== 'string' || !base64Str.startsWith('data:image')) {
           return Promise.resolve(base64Str);
         }
@@ -1461,6 +1566,11 @@ export function AssignmentsView({
           img.onload = () => {
             let width = img.width;
             let height = img.height;
+            // Preserve untouched if image is already within bounds to avoid quality degradation
+            if (width <= maxDim && height <= maxDim && quality >= 0.85) {
+              resolve(base64Str);
+              return;
+            }
             if (width > height) {
               if (width > maxDim) {
                 height = Math.round((height * maxDim) / width);
@@ -1477,8 +1587,14 @@ export function AssignmentsView({
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
               ctx.drawImage(img, 0, 0, width, height);
-              resolve(canvas.toDataURL('image/jpeg', quality));
+              let compressed = canvas.toDataURL('image/webp', quality);
+              if (!compressed || !compressed.startsWith('data:image/webp')) {
+                compressed = canvas.toDataURL('image/jpeg', quality);
+              }
+              resolve(compressed);
             } else {
               resolve(base64Str);
             }
@@ -1504,15 +1620,15 @@ export function AssignmentsView({
         }
       };
 
-      // PASS 1: Moderate compression if payload > 250KB
-      if (payloadStr.length > 250000) {
+      // PASS 1: Gentle high-res compression ONLY if payload exceeds 750KB (Firestore doc limit is ~1MB)
+      if (payloadStr.length > 750000) {
         if (Array.isArray(cloned.flashcards)) {
-          await processCards(cloned.flashcards, 500, 0.55);
+          await processCards(cloned.flashcards, 1200, 0.88);
         }
         if (Array.isArray(cloned.subFlashcardSets)) {
           for (const subSet of cloned.subFlashcardSets) {
             if (Array.isArray(subSet.flashcards)) {
-              await processCards(subSet.flashcards, 500, 0.55);
+              await processCards(subSet.flashcards, 1200, 0.88);
             }
           }
         }
@@ -1520,22 +1636,22 @@ export function AssignmentsView({
           for (let i = 0; i < cloned.questions.length; i++) {
             const q = cloned.questions[i];
             if (q.image && q.image.length > 5000) {
-              q.image = await resizeBase64(q.image, 500, 0.55);
+              q.image = await resizeBase64(q.image, 1200, 0.88);
             }
           }
         }
       }
 
-      // PASS 2: Aggressive compression if still > 600KB
+      // PASS 2: Moderate compression if payload approaches 900KB
       payloadStr = JSON.stringify(cloned);
-      if (payloadStr.length > 600000) {
+      if (payloadStr.length > 900000) {
         if (Array.isArray(cloned.flashcards)) {
-          await processCards(cloned.flashcards, 360, 0.45);
+          await processCards(cloned.flashcards, 950, 0.80);
         }
         if (Array.isArray(cloned.subFlashcardSets)) {
           for (const subSet of cloned.subFlashcardSets) {
             if (Array.isArray(subSet.flashcards)) {
-              await processCards(subSet.flashcards, 360, 0.45);
+              await processCards(subSet.flashcards, 950, 0.80);
             }
           }
         }
@@ -1543,22 +1659,22 @@ export function AssignmentsView({
           for (let i = 0; i < cloned.questions.length; i++) {
             const q = cloned.questions[i];
             if (q.image && q.image.length > 5000) {
-              q.image = await resizeBase64(q.image, 360, 0.45);
+              q.image = await resizeBase64(q.image, 950, 0.80);
             }
           }
         }
       }
 
-      // PASS 3: Maximum compression if still > 850KB
+      // PASS 3: Safe compression if payload touches critical 980KB mark
       payloadStr = JSON.stringify(cloned);
-      if (payloadStr.length > 850000) {
+      if (payloadStr.length > 980000) {
         if (Array.isArray(cloned.flashcards)) {
-          await processCards(cloned.flashcards, 250, 0.35);
+          await processCards(cloned.flashcards, 750, 0.72);
         }
         if (Array.isArray(cloned.subFlashcardSets)) {
           for (const subSet of cloned.subFlashcardSets) {
             if (Array.isArray(subSet.flashcards)) {
-              await processCards(subSet.flashcards, 250, 0.35);
+              await processCards(subSet.flashcards, 750, 0.72);
             }
           }
         }
@@ -1566,7 +1682,7 @@ export function AssignmentsView({
           for (let i = 0; i < cloned.questions.length; i++) {
             const q = cloned.questions[i];
             if (q.image && q.image.length > 5000) {
-              q.image = await resizeBase64(q.image, 250, 0.35);
+              q.image = await resizeBase64(q.image, 750, 0.72);
             }
           }
         }
@@ -1614,7 +1730,10 @@ export function AssignmentsView({
       simulationUrl: newSimUrl || undefined,
       gameType: newType === 'game' ? newGameType : undefined,
       gameFormats: newType === 'game' ? newGameFormats : undefined,
+      tugOfWarMode: newType === 'game' && newGameType === 'keo_co' ? newTugOfWarMode : undefined,
       isMandatory: newIsMandatory,
+      timeLimit: newTimeLimit,
+      shuffleQuestions: newShuffleQuestions,
       isPublished: newIsPublished,
       maxAttempts: newMaxAttempts,
       grade: newGrade || undefined,
@@ -1656,7 +1775,10 @@ export function AssignmentsView({
       setNewGrade('');
       setNewClassName('');
       setNewIsMandatory(false);
+      setNewTimeLimit(0);
+      setNewShuffleQuestions(false);
       setNewGameType('quiz_nghieng_dau');
+      setNewTugOfWarMode('bot');
       setGameSubStep(1);
       setFlashcardSubStep(1);
       setNewGameFormats(['multiple_choice', 'true_false']);
@@ -1688,6 +1810,80 @@ export function AssignmentsView({
       alert("Có lỗi xảy ra khi xóa bài tập!");
     }
   };
+
+  // Keyboard shortcut listener for Assignment creation/editing and confirmation modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. Delete Confirm Modal shortcuts
+      if (deleteConfirmAssignment) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setDeleteConfirmAssignment(null);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          handleDeleteAssignment(deleteConfirmAssignment.id);
+        }
+        return;
+      }
+
+      if (showBulkDeleteConfirm) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowBulkDeleteConfirm(false);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          handleBulkDeleteAssignments();
+        }
+        return;
+      }
+
+      // 2. Main Create Modal shortcuts
+      if (showCreateModal) {
+        if (e.key === 'Escape' && !showFlashcardPreview && !showFlashcardQuizTest && !showGamePreview) {
+          e.preventDefault();
+          setShowCreateModal(false);
+        } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (createStep === 1) {
+            setCreateStep(2);
+          } else {
+            handleSaveAssignment();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    showCreateModal,
+    createStep,
+    deleteConfirmAssignment,
+    showBulkDeleteConfirm,
+    showFlashcardPreview,
+    showFlashcardQuizTest,
+    showGamePreview,
+    isSavingAssignment,
+    newTitle,
+    newDescription,
+    newDueDate,
+    newSessionTitle,
+    newType,
+    newPdfUrl,
+    newSimUrl,
+    newGameType,
+    newGameFormats,
+    newIsMandatory,
+    newIsPublished,
+    newMaxAttempts,
+    newGrade,
+    newClassName,
+    newFlashcards,
+    newSubFlashcardSets,
+    rawQuestionCode,
+    questions,
+    editingAssignment
+  ]);
 
   const handleCombineFlashcards = () => {
     // Merge from bottom to top as requested (reverse list order so earlier/bottom selected items come first)
@@ -1874,23 +2070,37 @@ export function AssignmentsView({
   if (selectedAssignment && selectedAssignment.type === 'game' && isExamStarted) {
     return (
       <div className="fixed inset-0 bg-slate-900/95 z-[9999] flex flex-col justify-center items-center p-1 sm:p-2 overflow-hidden">
-        <div className="w-full h-full max-w-full max-h-full bg-white rounded-2xl overflow-hidden shadow-2xl border border-indigo-100 flex flex-col">
+        {examTimeRemaining !== null && (
+          <div className="absolute top-4 right-4 z-[10000] flex items-center gap-1.5 bg-slate-900/80 backdrop-blur px-4 py-2 rounded-xl shadow-xl border border-slate-700/50">
+            <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
+            <span className="text-amber-400 font-mono font-black text-xl tracking-wider">
+              {formatTimeRemaining(examTimeRemaining)}
+            </span>
+          </div>
+        )}
+        <div className="w-full h-full max-w-full max-h-full bg-white rounded-2xl overflow-hidden shadow-2xl border border-indigo-100 flex flex-col relative">
           <GamePreview
             gameType={selectedAssignment.gameType || 'do_min'}
-            questions={selectedAssignment.questions && selectedAssignment.questions.length > 0 ? selectedAssignment.questions : parseRawCodeToQuestions(rawQuestionCode).parsedQuestions}
+            questions={shuffledExamQuestions || (selectedAssignment.questions && selectedAssignment.questions.length > 0 ? selectedAssignment.questions : parseRawCodeToQuestions(rawQuestionCode).parsedQuestions)}
             isStudentMode={!isTeacher}
+            tugOfWarMode={selectedAssignment.tugOfWarMode || 'bot'}
+            timeLimitRemaining={examTimeRemaining}
             onClose={() => setIsExamStarted(false)}
             onSubmitWork={(finalScore, correctCount, answers) => {
-              const submissionData = {
-                assignmentId: selectedAssignment.id,
-                studentId: user.id,
-                studentName: user.name,
-                content: `Đã hoàn thành trò chơi học tập với điểm số ${finalScore}.`,
-                quizAnswers: answers,
-                grade: Math.min(10, Math.round((correctCount / (selectedAssignment.questions?.length || 1)) * 10)),
-                status: 'submitted' as const
-              };
-              onSubmitWork(submissionData);
+              if (isTeacher) {
+                alert(`[XEM TRƯỚC] Đã hoàn thành trò chơi! Điểm của bạn: ${finalScore}, Số câu đúng: ${correctCount}`);
+              } else {
+                const submissionData = {
+                  assignmentId: selectedAssignment.id,
+                  studentId: user.id,
+                  studentName: user.name,
+                  content: `Đã hoàn thành trò chơi học tập với điểm số ${finalScore}.`,
+                  quizAnswers: answers,
+                  grade: Math.min(10, Math.round((correctCount / (selectedAssignment.questions?.length || 1)) * 10)),
+                  status: 'submitted' as const
+                };
+                onSubmitWork(submissionData);
+              }
               setIsExamStarted(false);
             }}
           />
@@ -1915,6 +2125,40 @@ export function AssignmentsView({
           </div>
           
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                const isCurrentlyFS = !!(
+                  document.fullscreenElement ||
+                  (document as any).webkitFullscreenElement ||
+                  (document as any).mozFullScreenElement ||
+                  (document as any).msFullscreenElement
+                );
+                if (!isCurrentlyFS) {
+                  await enterFullscreen();
+                  setShowCheatWarning(false);
+                  setIsNotFullscreen(false);
+                } else {
+                  await exitFullscreen();
+                  setIsNotFullscreen(true);
+                }
+              }}
+              className="flex items-center gap-1.5 bg-emerald-700/80 hover:bg-emerald-600 active:scale-95 text-white font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-600/60 shadow-sm transition-all"
+              title={isNotFullscreen ? "Bật toàn màn hình" : "Thoát toàn màn hình"}
+            >
+              {isNotFullscreen ? (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                  <span className="hidden sm:inline font-bold">Toàn màn hình</span>
+                </>
+              ) : (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 text-emerald-200" />
+                  <span className="hidden sm:inline font-bold">Thu nhỏ</span>
+                </>
+              )}
+            </button>
+
             <div className="flex items-center gap-1 bg-emerald-950 px-3 py-1.5 rounded-xl text-xs font-mono font-bold text-amber-300 border border-emerald-700/40">
               <Clock className="w-3.5 h-3.5 animate-pulse text-amber-400" />
               {formatTimeRemaining(examTimeRemaining)}
@@ -1954,7 +2198,7 @@ export function AssignmentsView({
                 : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <span>📝</span> Đề Bài ({selectedAssignment.questions?.length || 0} câu)
+            <span>📝</span> Đề Bài ({(shuffledExamQuestions || selectedAssignment.questions)?.length || 0} câu)
           </button>
           <button
             type="button"
@@ -1965,7 +2209,7 @@ export function AssignmentsView({
                 : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <span>🔘</span> Phiếu Làm Bài ({Object.keys(studentQuizAnswers).length}/{selectedAssignment.questions?.length || 0})
+            <span>🔘</span> Phiếu Làm Bài ({Object.keys(studentQuizAnswers).length}/{(shuffledExamQuestions || selectedAssignment.questions)?.length || 0})
           </button>
         </div>
 
@@ -1976,7 +2220,7 @@ export function AssignmentsView({
           <div className={`lg:col-span-2 p-4 sm:p-6 overflow-y-auto space-y-6 bg-white h-full ${
             mobileExamTab === 'questions' ? 'block' : 'hidden lg:block'
           }`}>
-            {selectedAssignment.questions?.map((q, idx) => (
+            {(shuffledExamQuestions || selectedAssignment.questions)?.map((q, idx) => (
               <div key={q.id} className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 shadow-sm">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-sm">
@@ -2032,7 +2276,7 @@ export function AssignmentsView({
               </div>
 
               <div className="space-y-4">
-                {selectedAssignment.questions?.map((q, idx) => (
+                {(shuffledExamQuestions || selectedAssignment.questions)?.map((q, idx) => (
                   <div key={q.id} className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-sm space-y-2">
                     <p className="text-xs font-bold text-slate-700">Câu {idx + 1}:</p>
                     <div className="flex justify-between gap-1.5 sm:gap-2">
@@ -2190,23 +2434,81 @@ export function AssignmentsView({
         </div>
       </div>
 
-      {/* SYNCED CATEGORY FILTER */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
-        <Filter className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
-        {['Tất cả', 'Đại Số', 'Hình Học', 'Vật Lý', 'Hóa Học', 'Khác'].map(cat => (
+      {/* STATUS FILTER PILLS FOR STUDENTS */}
+      {!isTeacher && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
           <button
-            key={cat}
-            onClick={() => setFilterType(cat === 'Tất cả' ? 'all' : cat)}
-            className={`px-4 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap ${
-              (filterType === 'all' && cat === 'Tất cả') || filterType === cat
-                ? 'bg-indigo-600 text-white shadow-sm' 
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            className={`px-3.5 sm:px-4 py-2 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 shrink-0 ${
+              filterStatus === 'all'
+                ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/10'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            {cat}
+            <span>Tất cả</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              filterStatus === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            }`}>
+              {statusCounts.all}
+            </span>
           </button>
-        ))}
-      </div>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('unsubmitted')}
+            className={`px-3.5 sm:px-4 py-2 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 shrink-0 ${
+              filterStatus === 'unsubmitted'
+                ? 'bg-amber-500 text-white shadow-sm shadow-amber-100 ring-2 ring-amber-500/20'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-amber-50/50 hover:text-amber-700'
+            }`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>Chưa nộp</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              filterStatus === 'unsubmitted' ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {statusCounts.unsubmitted}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('overdue')}
+            className={`px-3.5 sm:px-4 py-2 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 shrink-0 ${
+              filterStatus === 'overdue'
+                ? 'bg-rose-600 text-white shadow-sm shadow-rose-100 ring-2 ring-rose-600/20'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-rose-50/50 hover:text-rose-700'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Quá hạn</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              filterStatus === 'overdue' ? 'bg-white/25 text-white' : 'bg-rose-100 text-rose-800'
+            }`}>
+              {statusCounts.overdue}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterStatus('submitted')}
+            className={`px-3.5 sm:px-4 py-2 text-xs font-bold rounded-2xl transition-all flex items-center gap-2 shrink-0 ${
+              filterStatus === 'submitted'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-100 ring-2 ring-emerald-600/20'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-emerald-50/50 hover:text-emerald-700'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Đã nộp</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${
+              filterStatus === 'submitted' ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {statusCounts.submitted}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Main Content Layout */}
       {!selectedAssignment ? (
@@ -2224,7 +2526,33 @@ export function AssignmentsView({
               <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2">
+              {!isTeacher && (
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value as any)}
+                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">📋 Tất cả ({statusCounts.all})</option>
+                  <option value="unsubmitted">⏳ Chưa nộp ({statusCounts.unsubmitted})</option>
+                  <option value="overdue">⏰ Quá hạn ({statusCounts.overdue})</option>
+                  <option value="submitted">✅ Đã nộp ({statusCounts.submitted})</option>
+                </select>
+              )}
+
+              {/* On Air Status Filter for Teachers */}
+              {isTeacher && (
+                <select
+                  value={filterOnAir}
+                  onChange={(e) => setFilterOnAir(e.target.value as any)}
+                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">📻 Trạng thái On Air (Tất cả)</option>
+                  <option value="on_air">🟢 Đã On Air (Hiển thị HS)</option>
+                  <option value="draft">🟡 Bản Nháp (Ẩn với HS)</option>
+                </select>
+              )}
+
               <select
                 value={filterDueDate}
                 onChange={(e) => setFilterDueDate(e.target.value)}
@@ -2249,12 +2577,22 @@ export function AssignmentsView({
                     }}
                     className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
                   />
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Chọn tất cả</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase">CHỌN TẤT CẢ</span>
                 </div>
               )}
 
               {selectedIdsForDeletion.length > 0 && (
                 <div className="flex items-center gap-1.5">
+                  {isTeacher && (
+                    <button
+                      type="button"
+                      onClick={() => handleBulkToggleOnAir()}
+                      className="p-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition-colors flex items-center justify-center shrink-0 shadow-xs"
+                      title={`Bật/Tắt On Air (${selectedIdsForDeletion.length} mục đã chọn)`}
+                    >
+                      <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowBulkDeleteConfirm(true)}
                     className="p-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors"
@@ -2283,9 +2621,42 @@ export function AssignmentsView({
                 <div key={i} className="bg-white rounded-3xl h-64 animate-pulse border border-slate-100" />
               ))
             ) : filteredAssignments.length === 0 ? (
-              <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-slate-300">
-                <div className="text-4xl mb-4">📭</div>
-                <p className="text-slate-500 font-medium">Không tìm thấy bài tập nào phù hợp.</p>
+              <div className="col-span-full py-16 px-6 text-center bg-white rounded-3xl border border-dashed border-slate-300">
+                <div className="text-4xl mb-3">
+                  {filterStatus === 'submitted' ? '📝' : filterStatus === 'overdue' ? '🎉' : filterStatus === 'unsubmitted' ? '🌟' : '📭'}
+                </div>
+                <h4 className="text-sm font-bold text-slate-800 mb-1">
+                  {filterStatus === 'submitted' 
+                    ? 'Chưa có bài tập nào đã nộp' 
+                    : filterStatus === 'overdue' 
+                    ? 'Tuyệt vời! Không có bài tập nào bị quá hạn' 
+                    : filterStatus === 'unsubmitted' 
+                    ? 'Xuất sắc! Em đã hoàn thành hết bài tập còn hạn' 
+                    : 'Không tìm thấy bài tập nào phù hợp.'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {filterStatus === 'submitted'
+                    ? 'Hãy chọn các bài tập chưa nộp để bắt đầu làm bài và tích lũy điểm thưởng nhé!'
+                    : filterStatus === 'overdue'
+                    ? 'Tiến độ làm bài của em rất tốt, hãy tiếp tục duy trì nhé!'
+                    : filterStatus === 'unsubmitted'
+                    ? 'Em có thể xem lại các bài đã nộp hoặc ôn tập các bộ thẻ ghi nhớ.'
+                    : 'Thử tìm kiếm với từ khóa khác hoặc đặt lại các bộ lọc.'}
+                </p>
+                {(filterStatus !== 'all' || searchQuery || filterType !== 'all' || filterDueDate !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterStatus('all');
+                      setSearchQuery('');
+                      setFilterType('all');
+                      setFilterDueDate('all');
+                    }}
+                    className="mt-4 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <span>Đặt lại bộ lọc</span>
+                  </button>
+                )}
               </div>
             ) : (
               filteredAssignments.map(assignment => {
@@ -2390,6 +2761,26 @@ export function AssignmentsView({
                         
                         {isTeacher && (
                           <div className="flex gap-1.5">
+                            <button 
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const newStatus = assignment.isPublished === false ? true : false;
+                                try {
+                                  await setDoc(doc(db, 'assignments', assignment.id), { isPublished: newStatus }, { merge: true });
+                                } catch (err) {
+                                  alert('Lỗi cập nhật trạng thái On Air');
+                                }
+                              }}
+                              className={`p-2.5 rounded-xl transition-colors border ${
+                                assignment.isPublished !== false 
+                                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200' 
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
+                              }`}
+                              title={assignment.isPublished !== false ? "Đang ON AIR (Nhấn để tắt)" : "Đang Bản Nháp (Nhấn để bật ON AIR)"}
+                            >
+                              <Radio className={`w-4 h-4 ${assignment.isPublished !== false ? 'text-emerald-600 animate-pulse' : 'text-amber-600'}`} />
+                            </button>
                             <button 
                               onClick={() => handleOpenEditModal(assignment)}
                               className="p-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl transition-colors border border-amber-200"
@@ -2513,6 +2904,29 @@ export function AssignmentsView({
                         <Copy className="w-4 h-4 text-indigo-600" />
                         Sao chép tóm tắt
                       </button>
+                      {(selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (selectedAssignment.type === 'online_test') {
+                              setIsExamStarted(true);
+                              setExamTimeRemaining(selectedAssignment.timeLimit ? selectedAssignment.timeLimit * 60 : null);
+                              setTabSwitchCount(0);
+                              setStudentQuizAnswers({});
+                              await enterFullscreen();
+                            } else if (selectedAssignment.type === 'game') {
+                              setIsExamStarted(true);
+                            } else if (selectedAssignment.type === 'flashcard') {
+                              setShowFlashcardQuizTest(true);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
+                          title="Xem trước chế độ làm bài"
+                        >
+                          <Eye className="w-4 h-4 text-emerald-600" />
+                          Xem trước
+                        </button>
+                      )}
                     </div>
                   )}
                   {!isTeacher && !isAdmin && (
@@ -2541,6 +2955,14 @@ export function AssignmentsView({
                   <span className="px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-lg">
                     {selectedAssignment.maxAttempts ? `Tối đa ${selectedAssignment.maxAttempts} lần làm` : 'Làm vĩnh viễn (Tự do)'}
                   </span>
+                  {selectedAssignment.timeLimit ? (
+                    <>
+                      <span className="text-slate-300">•</span>
+                      <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 font-bold rounded-lg flex items-center gap-1">
+                        <Timer className="w-3 h-3" /> Thời gian: {selectedAssignment.timeLimit} phút
+                      </span>
+                    </>
+                  ) : null}
                   <span className="text-slate-300">•</span>
                   <span>Hoạt động theo buổi học</span>
                   {selectedAssignment.grade && (
@@ -2790,7 +3212,7 @@ export function AssignmentsView({
                                 onClick={async () => {
                                   if (selectedAssignment.type === 'online_test') {
                                     setIsExamStarted(true);
-                                    setExamTimeRemaining(900);
+                                    setExamTimeRemaining(selectedAssignment.timeLimit ? selectedAssignment.timeLimit * 60 : null);
                                     setTabSwitchCount(0);
                                     setStudentQuizAnswers({});
                                     await enterFullscreen();
@@ -2971,7 +3393,7 @@ export function AssignmentsView({
                           <div className="grid grid-cols-2 gap-x-6 gap-y-4 max-w-md mx-auto text-left py-3 border-t border-b border-slate-200 my-4 relative z-10">
                             <div className="space-y-0.5">
                               <p className="text-[10px] text-slate-400 font-bold uppercase">Thời gian làm bài</p>
-                              <p className="text-sm font-black text-slate-800">15 phút</p>
+                              <p className="text-sm font-black text-slate-800">{selectedAssignment.timeLimit ? `${selectedAssignment.timeLimit} phút` : 'Không giới hạn'}</p>
                             </div>
                             <div className="space-y-0.5">
                               <p className="text-[10px] text-slate-400 font-bold uppercase">Số lượng câu hỏi</p>
@@ -3044,7 +3466,7 @@ export function AssignmentsView({
                             type="button"
                             onClick={async () => {
                               setIsExamStarted(true);
-                              setExamTimeRemaining(900);
+                              setExamTimeRemaining(selectedAssignment.timeLimit ? selectedAssignment.timeLimit * 60 : null);
                               setTabSwitchCount(0);
                               setStudentQuizAnswers({});
                               await enterFullscreen();
@@ -3407,12 +3829,12 @@ export function AssignmentsView({
                                   </div>
                                   <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
                                     {(activeCard.frontImage || activeCard.image) && (
-                                      <div className="max-h-36 sm:max-h-48 md:max-h-56 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
+                                      <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-slate-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
                                         <img src={activeCard.frontImage || activeCard.image} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
                                       </div>
                                     )}
                                     <div className="text-lg sm:text-2xl font-bold text-slate-800 leading-relaxed">
-                                      <MarkdownMath content={activeCard.front || '(Trống)'} />
+                                      <MarkdownMath content={activeCard.front || (activeCard.frontImage || activeCard.image ? '' : '(Trống)')} />
                                     </div>
                                   </div>
                                   <div className="pt-2 border-t border-indigo-50 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">
@@ -3429,12 +3851,12 @@ export function AssignmentsView({
                                   </div>
                                   <div className="flex-1 flex flex-col items-center justify-center text-center py-3 px-1 overflow-y-auto custom-scrollbar">
                                     {activeCard.backImage && (
-                                      <div className="max-h-36 sm:max-h-48 md:max-h-56 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
+                                      <div className="max-h-64 sm:max-h-80 md:max-h-96 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm p-1.5 bg-white mb-3 shrink-0 flex items-center justify-center">
                                         <img src={activeCard.backImage} className="max-h-full max-w-full object-contain" referrerPolicy="no-referrer" />
                                       </div>
                                     )}
                                     <div className="text-base sm:text-xl font-medium text-slate-800 leading-relaxed">
-                                      <MarkdownMath content={activeCard.back || '(Trống)'} />
+                                      <MarkdownMath content={activeCard.back || (activeCard.backImage || activeCard.image ? '' : '(Trống)')} />
                                     </div>
                                   </div>
                                   <div className="pt-2 border-t border-indigo-100 text-center text-xs font-semibold text-indigo-500 flex items-center justify-center gap-1">
@@ -4072,6 +4494,7 @@ export function AssignmentsView({
         <GamePreview 
           gameType={newGameType} 
           questions={parsedQuestionsData.parsedQuestions} 
+          tugOfWarMode={newTugOfWarMode}
           onClose={() => setShowGamePreview(false)} 
         />
       )}
@@ -4085,45 +4508,60 @@ export function AssignmentsView({
       )}
 
       {showFlashcardQuizTest && (
-        <FlashcardQuizGame
-          assignmentTitle={showCreateModal ? (newTitle || 'Xem trước bài kiểm tra Flashcard') : (selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard')}
-          flashcards={showCreateModal ? (newFlashcards.length > 0 ? newFlashcards : (selectedAssignment?.flashcards || [])) : (displayFlashcards.length > 0 ? displayFlashcards : (selectedAssignment?.flashcards || newFlashcards))}
-          questions={
-            showCreateModal
-              ? (parsedQuestionsData.parsedQuestions.length > 0 ? parsedQuestionsData.parsedQuestions : (selectedAssignment?.questions || []))
-              : (selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions)
-          }
-          studentName={user.name}
-          onFinish={(score, correctCount, answersMap, totalQuestions, quizItems) => {
+        <>
+          {examTimeRemaining !== null && (
+            <div className="fixed top-4 right-4 z-[99999] flex items-center gap-1.5 bg-slate-900/80 backdrop-blur px-4 py-2 rounded-xl shadow-xl border border-slate-700/50">
+              <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
+              <span className="text-amber-400 font-mono font-black text-xl tracking-wider">
+                {formatTimeRemaining(examTimeRemaining)}
+              </span>
+            </div>
+          )}
+          <FlashcardQuizGame
+            assignmentTitle={showCreateModal ? (newTitle || 'Xem trước bài kiểm tra Flashcard') : (selectedAssignment?.title || newTitle || 'Bài kiểm tra Flashcard')}
+            flashcards={showCreateModal ? (newFlashcards.length > 0 ? newFlashcards : (selectedAssignment?.flashcards || [])) : (displayFlashcards.length > 0 ? displayFlashcards : (selectedAssignment?.flashcards || newFlashcards))}
+            questions={
+              showCreateModal
+                ? (parsedQuestionsData.parsedQuestions.length > 0 ? parsedQuestionsData.parsedQuestions : (selectedAssignment?.questions || []))
+                : (shuffledExamQuestions || (selectedAssignment ? selectedAssignment.questions : parsedQuestionsData.parsedQuestions))
+            }
+            studentName={user.name}
+            timeLimitRemaining={examTimeRemaining}
+            onFinish={(score, correctCount, answersMap, totalQuestions, quizItems) => {
             setShowFlashcardQuizTest(false);
             if (selectedAssignment && !showCreateModal) {
               const totalQ = totalQuestions || (selectedAssignment.flashcards?.length || selectedAssignment.questions?.length || 1);
-              onSubmitWork({
-                assignmentId: selectedAssignment.id,
-                studentId: user.id,
-                studentName: user.name,
-                content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${totalQ} câu). Điểm: ${score}/10.`,
-                quizAnswers: answersMap,
-                quizDetails: {
-                  totalQuestions: totalQ,
-                  correctCount: correctCount,
-                  score: score,
-                  questions: (quizItems || []).map(item => ({
-                    id: item.id,
-                    question: item.question,
-                    options: item.options,
-                    correctAnswer: item.correctAnswer,
-                    studentAnswer: answersMap[item.id],
-                    isCorrect: answersMap[item.id] === item.correctAnswer,
-                    solutionText: item.solutionText
-                  }))
-                },
-                grade: score
-              });
+              if (isTeacher) {
+                alert(`[XEM TRƯỚC] Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${totalQ} câu). Điểm: ${score}/10.`);
+              } else {
+                onSubmitWork({
+                  assignmentId: selectedAssignment.id,
+                  studentId: user.id,
+                  studentName: user.name,
+                  content: `Đã hoàn thành bài kiểm tra Flashcard (Đúng ${correctCount}/${totalQ} câu). Điểm: ${score}/10.`,
+                  quizAnswers: answersMap,
+                  quizDetails: {
+                    totalQuestions: totalQ,
+                    correctCount: correctCount,
+                    score: score,
+                    questions: (quizItems || []).map(item => ({
+                      id: item.id,
+                      question: item.question,
+                      options: item.options,
+                      correctAnswer: item.correctAnswer,
+                      studentAnswer: answersMap[item.id],
+                      isCorrect: answersMap[item.id] === item.correctAnswer,
+                      solutionText: item.solutionText
+                    }))
+                  },
+                  grade: score
+                });
+              }
             }
           }}
           onExit={() => setShowFlashcardQuizTest(false)}
         />
+        </>
       )}
 
       {showCreateModal && (
@@ -4235,6 +4673,9 @@ export function AssignmentsView({
                       rawQuestionCode={rawQuestionCode}
                       setRawQuestionCode={setRawQuestionCode}
                       setShowGamePreview={setShowGamePreview}
+                      tugOfWarMode={newTugOfWarMode}
+                      setTugOfWarMode={setNewTugOfWarMode}
+                      user={user}
                     />
                   )}
 
@@ -4721,6 +5162,44 @@ export function AssignmentsView({
                         </label>
                       </div>
                     </div>
+
+                    {(newType === 'online_test' || newType === 'game' || newType === 'flashcard') && (
+                      <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-4">
+                        <h4 className="text-xs font-black text-indigo-800 uppercase tracking-wider flex items-center gap-1.5">
+                          <Timer className="w-4 h-4" />
+                          Thiết lập Chế độ thi
+                        </h4>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                              Thời gian làm bài (Phút):
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={newTimeLimit || ''}
+                              onChange={e => setNewTimeLimit(Number(e.target.value))}
+                              placeholder="0 = Không giới hạn"
+                              className="w-full px-3.5 py-2.5 bg-white text-slate-800 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600"
+                            />
+                            <p className="mt-1.5 text-[11px] text-slate-500 font-medium">Để trống hoặc 0 để không giới hạn. Tự động thu bài khi hết giờ.</p>
+                          </div>
+                          
+                          <div className="flex flex-col justify-center">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={newShuffleQuestions}
+                                onChange={e => setNewShuffleQuestions(e.target.checked)}
+                                className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-600 cursor-pointer"
+                              />
+                              <span className="text-sm font-bold text-slate-700">Trộn ngẫu nhiên câu hỏi</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -4728,14 +5207,19 @@ export function AssignmentsView({
 
             {/* PINNED MODAL FOOTER */}
             <div className="px-4 sm:px-6 py-3 sm:py-3.5 border-t border-slate-200 bg-white flex items-center justify-between gap-3 shrink-0">
-              <div>
+              <div className="flex items-center gap-3">
                 <button 
                   type="button"
                   onClick={() => setShowCreateModal(false)}
                   className="px-3.5 sm:px-4 py-2 sm:py-2.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 font-bold text-xs sm:text-sm rounded-xl transition-all active:scale-95"
                 >
-                  Hủy bỏ
+                  Hủy bỏ (Esc)
                 </button>
+                <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-400 font-medium">
+                  <span>Phím tắt:</span>
+                  <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">Esc: Đóng</span>
+                  <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-mono text-slate-600">Ctrl + Enter: Lưu</span>
+                </div>
               </div>
 
               <div className="flex items-center gap-2">
@@ -4744,6 +5228,7 @@ export function AssignmentsView({
                     type="button"
                     onClick={() => setCreateStep(2)}
                     className="px-5 sm:px-8 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-200 transition-all flex items-center gap-1.5 uppercase tracking-wider"
+                    title="Phím tắt: Ctrl + Enter"
                   >
                     <span>Tiếp tục thiết lập</span>
                     <span>→</span>
@@ -4754,6 +5239,7 @@ export function AssignmentsView({
                     disabled={isSavingAssignment}
                     onClick={handleSaveAssignment}
                     className="px-5 sm:px-8 py-2 sm:py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 uppercase tracking-wider disabled:opacity-50"
+                    title="Phím tắt: Ctrl + Enter"
                   >
                     <span>{isSavingAssignment ? 'Đang lưu bài học...' : (editingAssignment ? 'Lưu thay đổi' : 'Tạo & Giao bài ngay')}</span>
                     <span>{isSavingAssignment ? '⏳' : '✓'}</span>

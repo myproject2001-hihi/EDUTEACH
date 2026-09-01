@@ -45,6 +45,13 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'roster' | 'requests'>('roster');
+
+  // Auto scroll to top when selecting a student or switching sub-tabs
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [selectedStudent, activeSubTab]);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [rejectConfirmId, setRejectConfirmId] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState(false);

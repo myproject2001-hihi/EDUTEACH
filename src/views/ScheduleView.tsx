@@ -40,6 +40,13 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
   const [sessions, setSessions] = useState<ClassSession[]>(filteredInitialClasses);
   const [scheduleTab, setScheduleTab] = useState<'upcoming' | 'completed'>('upcoming');
 
+  // Auto scroll to top when switching schedule tabs
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [scheduleTab]);
+
   React.useEffect(() => {
     setSessions(filteredInitialClasses);
   }, [filteredInitialClasses]);

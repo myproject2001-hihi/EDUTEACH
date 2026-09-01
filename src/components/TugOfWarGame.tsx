@@ -9,6 +9,7 @@ export interface TugOfWarGameProps {
   questions: ParsedQuestionItem[];
   onClose: () => void;
   isStudentMode?: boolean;
+  tugOfWarMode?: 'bot' | 'pvp';
   onSubmitWork?: (score: number, correctAnswers: number, answersMap: Record<string, number>) => void;
 }
 
@@ -97,6 +98,7 @@ export function TugOfWarGame({
   questions,
   onClose,
   isStudentMode = false,
+  tugOfWarMode = 'bot',
   onSubmitWork
 }: TugOfWarGameProps) {
   // Parse input questions
@@ -150,8 +152,15 @@ export function TugOfWarGame({
     return list;
   }, [questions]);
 
-  // State
-  const [vsBotMode, setVsBotMode] = useState<boolean>(true); // Default Vs Bot mode
+  // State: For students, strictly use the teacher-defined tugOfWarMode ('bot' or 'pvp')
+  const [vsBotMode, setVsBotMode] = useState<boolean>(() => tugOfWarMode === 'bot');
+
+  // Keep synced if teacher changes prop in preview
+  useEffect(() => {
+    if (tugOfWarMode) {
+      setVsBotMode(tugOfWarMode === 'bot');
+    }
+  }, [tugOfWarMode]);
   const [scoreBlue, setScoreBlue] = useState<number>(0);
   const [scoreRed, setScoreRed] = useState<number>(0);
   const [ropeOffset, setRopeOffset] = useState<number>(0); // Range: -140 (Blue wins) to +140 (Red wins)
@@ -594,16 +603,26 @@ export function TugOfWarGame({
 
             {/* Action Buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Mode Switcher */}
-              <button
-                type="button"
-                onClick={() => setVsBotMode(!vsBotMode)}
-                className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
-                title={vsBotMode ? "Chuyển sang Chế độ Đối Kháng" : "Chuyển sang Chế độ Đấu Với Máy"}
-              >
-                {vsBotMode ? <Bot className="w-4 h-4 text-rose-400" /> : <Users className="w-4 h-4 text-emerald-400" />}
-                <span className="hidden lg:inline">{vsBotMode ? 'Chơi Với Máy' : 'Chơi Đối Kháng'}</span>
-              </button>
+              {/* Mode Switcher: Teacher can switch in preview; Student mode is locked by Teacher */}
+              {!isStudentMode ? (
+                <button
+                  type="button"
+                  onClick={() => setVsBotMode(!vsBotMode)}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition active:scale-95"
+                  title={vsBotMode ? "Chuyển sang Chế độ Đối Kháng" : "Chuyển sang Chế độ Đấu Với Máy"}
+                >
+                  {vsBotMode ? <Bot className="w-4 h-4 text-rose-400" /> : <Users className="w-4 h-4 text-emerald-400" />}
+                  <span className="hidden lg:inline">{vsBotMode ? 'Chơi Với Máy' : 'Chơi Đối Kháng'}</span>
+                </button>
+              ) : (
+                <div
+                  className="px-2.5 py-1.5 bg-slate-800/90 text-slate-300 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 shadow-sm"
+                  title={vsBotMode ? "Chế độ Đấu Với Máy do Giáo viên thiết lập" : "Chế độ Đối Kháng do Giáo viên thiết lập"}
+                >
+                  {vsBotMode ? <Bot className="w-3.5 h-3.5 text-rose-400" /> : <Users className="w-3.5 h-3.5 text-emerald-400" />}
+                  <span className="hidden sm:inline">{vsBotMode ? 'Đấu Máy' : 'Đối Kháng'}</span>
+                </div>
+              )}
 
               {/* Sound */}
               <button

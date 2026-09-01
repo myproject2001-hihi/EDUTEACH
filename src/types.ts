@@ -55,6 +55,7 @@ export interface Assignment {
   simulationUrl?: string;
   gameType?: string; // ID game nếu type là 'game'
   gameFormats?: string[]; // Dạng câu hỏi của game
+  tugOfWarMode?: 'bot' | 'pvp'; // Chế độ Game Kéo Co do GV thiết lập (Đấu máy hoặc Đối kháng)
   isMandatory?: boolean; // Nút bắt buộc
   maxAttempts?: number; // 0 hoặc undefined = Vĩnh viễn (Không giới hạn), 1 = 1 lần, 2, 3, 5, 10
   flashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
@@ -62,6 +63,8 @@ export interface Assignment {
   thumbnail?: string; // Ảnh bìa cho bài tập
   category?: string; // Phân loại (Đại số, Hình học, v.v.)
   rawCode?: string; // Lưu giữ 100% nguyên vẹn mã nguồn đề thi người dùng nhập
+  timeLimit?: number; // Thời gian làm bài (phút), 0 hoặc undefined = không giới hạn
+  shuffleQuestions?: boolean; // Trộn ngẫu nhiên câu hỏi
   createdAt: string;
   teacherId?: string;
   teacherName?: string;

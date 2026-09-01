@@ -93,5 +93,17 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isTeacher();
     }
+    
+    // Resource requests collection
+    match /resource_requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // System config collection (game statuses, global app settings)
+    match /system_config/{configId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
   }
 }

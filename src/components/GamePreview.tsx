@@ -20,7 +20,9 @@ interface Props {
   questions: any[];
   onClose: () => void;
   isStudentMode?: boolean;
+  tugOfWarMode?: 'bot' | 'pvp';
   onSubmitWork?: (score: number, correctAnswers: number, answersMap: Record<string, number>) => void;
+  timeLimitRemaining?: number | null;
 }
 
 
@@ -269,7 +271,7 @@ function LiveCamera({
   );
 }
 
-export function GamePreview({ gameType, questions, onClose, isStudentMode = false, onSubmitWork }: Props) {
+export function GamePreview({ gameType, questions, onClose, isStudentMode = false, tugOfWarMode, onSubmitWork, timeLimitRemaining }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   
@@ -474,6 +476,18 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     });
   }, [fingerCount, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer]);
 
+
+  useEffect(() => {
+    if (timeLimitRemaining === 0 && !isFinished) {
+      setIsFinished(true);
+      const score = gameQuestions.length > 0 ? Math.round((correctAnswersCount / gameQuestions.length) * 10) : 10;
+      if (onSubmitWork) {
+        onSubmitWork(score, correctAnswersCount, answersMap);
+      } else {
+        onClose();
+      }
+    }
+  }, [timeLimitRemaining, isFinished, gameQuestions.length, correctAnswersCount, answersMap, onSubmitWork, onClose]);
 
   const renderGameContent = () => {
     if (isFinished) {
@@ -823,6 +837,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
             questions={gameQuestions}
             onClose={onClose}
             isStudentMode={isStudentMode}
+            tugOfWarMode={tugOfWarMode}
             onSubmitWork={onSubmitWork}
           />
         );
