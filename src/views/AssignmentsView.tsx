@@ -31,6 +31,7 @@ interface AssignmentsProps {
   onAddAssignment: (assignment: Omit<Assignment, 'id' | 'createdAt'>) => Promise<void>;
   onSubmitWork: (submission: Omit<Submission, 'id' | 'submittedAt'>) => void;
   onGrade: (submissionId: string, grade: number, feedback: string) => void;
+  onAwardPoints?: (points: number, reason?: string) => void;
   initialSelectedAssignmentId?: string | null;
   onClearInitialSelectedAssignmentId?: () => void;
   simulations?: HTMLSimulation[];
@@ -472,6 +473,7 @@ export function AssignmentsView({
   onAddAssignment, 
   onSubmitWork: propOnSubmitWork, 
   onGrade,
+  onAwardPoints,
   initialSelectedAssignmentId,
   onClearInitialSelectedAssignmentId,
   simulations,
@@ -637,13 +639,16 @@ export function AssignmentsView({
   // Chat với giáo viên states
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatQuestion, setChatQuestion] = useState('');
-  const [chatType, setChatType] = useState<'system' | 'zalo' | 'both'>('both');
+  const [chatType, setChatType] = useState<'system'>('system');
   const [chatStatus, setChatStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
 
   const filteredAssignments = React.useMemo(() => {
     return assignments.filter(assignment => {
       // 0. Filter out unpublished for students
       if (!isTeacher && !isAdmin && assignment.isPublished === false) return false;
+
+      // 0.5 Filter by class for students
+      if (!isTeacher && !isAdmin && assignment.className && assignment.className !== user.className) return false;
 
       // 1. Search Query Match
       const q = searchQuery.toLowerCase().trim();
@@ -1248,75 +1253,7 @@ export function AssignmentsView({
     }
   };
 
-  // Zalo Bot Integration States
-  const [zaloConfig, setZaloConfig] = useState({
-    oaId: '',
-    accessToken: '',
-    oaLink: '',
-    testPhone: ''
-  });
-  const [showZaloSetup, setShowZaloSetup] = useState(false);
-  const [isSavingZalo, setIsSavingZalo] = useState(false);
-  const [zaloStudentUserId, setZaloStudentUserId] = useState((user as any).zaloUserId || '');
-  const [isLinkingZalo, setIsLinkingZalo] = useState(false);
-  const [zaloSendStatus, setZaloSendStatus] = useState<Record<string, 'idle' | 'sending' | 'success' | 'error'>>({});
 
-  // Subscribe to Zalo config from Firestore
-  useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'settings', 'zalo_oa'), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setZaloConfig({
-          oaId: data.oaId || '',
-          accessToken: data.accessToken || '',
-          oaLink: data.oaLink || '',
-          testPhone: data.testPhone || ''
-        });
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  const handleLinkZalo = async () => {
-    if (!zaloStudentUserId.trim()) {
-      alert('Vui lòng nhập Zalo User ID của bạn.');
-      return;
-    }
-    setIsLinkingZalo(true);
-    try {
-      await setDoc(doc(db, 'users', user.id), {
-        zaloUserId: zaloStudentUserId.trim(),
-        zaloFollowed: true
-      }, { merge: true });
-      alert('Liên kết tài khoản Zalo thành công!');
-    } catch (error) {
-      console.error('Error linking Zalo:', error);
-      alert('Đã xảy ra lỗi khi liên kết. Vui lòng thử lại.');
-    } finally {
-      setIsLinkingZalo(false);
-    }
-  };
-
-  const handleSaveZaloConfig = async () => {
-    setIsSavingZalo(true);
-    try {
-      await setDoc(doc(db, 'settings', 'zalo_oa'), {
-        oaId: zaloConfig.oaId.trim(),
-        accessToken: zaloConfig.accessToken.trim(),
-        oaLink: zaloConfig.oaLink.trim(),
-        testPhone: zaloConfig.testPhone.trim(),
-        updatedAt: new Date().toISOString()
-      });
-      alert('Cấu hình Zalo OA thành công và đã lưu lên hệ thống!');
-    } catch (error) {
-      console.error('Error saving Zalo config:', error);
-      alert('Không thể lưu cấu hình. Vui lòng kiểm tra quyền hạn của bạn.');
-    } finally {
-      setIsSavingZalo(false);
-    }
-  };
-
-  const handleSendViaZalo = async (assignment: Assignment, targetStudentId?: string) => {};
   const handleSendChatQuestion = async () => {
     if (!chatQuestion.trim()) return;
     setChatStatus({ type: 'sending', message: '' });
@@ -6127,33 +6064,6 @@ export function AssignmentsView({
                   />
                 </div>
 
-                {/* Send Method Selector */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-black text-slate-700">Phương thức gửi:</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setChatType('system')}
-                      disabled={chatStatus.type === 'sending' || chatStatus.type === 'success'}
-                      className={`p-3 rounded-xl border text-center transition-all flex flex-col items-center gap-1 ${
-                        chatType === 'system'
-                          ? 'border-indigo-500 bg-indigo-50/80 text-indigo-900 ring-1 ring-indigo-500 font-bold'
-                          : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                      }`}
-                    >
-                      <span className="text-base">🔔</span>
-                      <span className="text-[10px]">Hệ thống</span>
-                    </button>
-
-                    
-
-                    
-                  </div>
-                  <p className="text-[10px] text-slate-500 italic mt-1 leading-relaxed">
-                    * Zalo Bot sẽ gửi tin nhắn trực tiếp qua tài khoản Zalo OA của trường học tới Zalo cá nhân của thầy cô phụ trách.
-                  </p>
-                </div>
-
                 {/* Status alert */}
                 {chatStatus.type !== 'idle' && (
                   <div className={`p-3.5 rounded-2xl text-xs leading-relaxed font-bold flex items-center gap-2 ${
@@ -6173,26 +6083,7 @@ export function AssignmentsView({
 
               {/* Footer / Actions */}
               <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                {/* Fallback Direct Link */}
-                {(() => {
-                  const teacher = usersList.find(u => u.role === 'teacher' || u.role === 'admin');
-                  const phone = (teacher as any)?.teacherZaloPhone || teacher?.phoneStudent || teacher?.phoneParent || '';
-                  const cleanPhone = phone.replace(/[^0-9]/g, '');
-                  if (cleanPhone && cleanPhone.length >= 9) {
-                    return (
-                      <a
-                        href={`https://zalo.me/${cleanPhone}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs font-bold text-emerald-600 hover:text-emerald-800 flex items-center gap-1 self-start sm:self-auto py-1 px-2 hover:bg-emerald-50 rounded-lg transition-all"
-                      >
-                        <MessageCircle className="w-4 h-4 shrink-0" />
-                        Nhắn Zalo trực tiếp cho thầy cô ↗
-                      </a>
-                    );
-                  }
-                  return <div />;
-                })()}
+                <div />
 
                 <div className="flex items-center gap-2 justify-end">
                   <button

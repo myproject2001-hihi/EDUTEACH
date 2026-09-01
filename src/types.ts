@@ -1,5 +1,15 @@
 export type Role = 'admin' | 'teacher' | 'student';
 
+export interface RedeemedRewardItem {
+  id: string;
+  title: string;
+  type: 'badge' | 'frame' | 'perk' | 'mystery';
+  description?: string;
+  icon: string;
+  redeemedAt: string;
+  cost: number;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -14,6 +24,10 @@ export interface User {
   className?: string;
   connectionCode?: string;
   points?: number; // Điểm tích lũy cá nhân
+  unlockedBadges?: string[];
+  redeemedRewards?: RedeemedRewardItem[];
+  activeAvatarFrame?: string;
+  activeBadge?: string;
   readNotifications?: string[]; // IDs of notifications marked as read
   createdAt?: string;
 }
@@ -144,6 +158,7 @@ export interface HTMLSimulation {
   thumbnail: string;
   category?: string;
   hasQuiz?: boolean;
+  className?: string;
   htmlContent?: string;
   createdAt?: string;
   teacherId?: string;

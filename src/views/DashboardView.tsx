@@ -37,7 +37,8 @@ import {
   Shield, 
   Coins, 
   Bell, 
-  BellRing, 
+  BellRing,
+  Gift, 
   Layers, 
   Gamepad2,
   ExternalLink,
@@ -393,6 +394,152 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const selectedDateNote = dashboardNotes[selectedDateStr];
 
+  // Generate 2 Daily Suggestions for Student based on Assignments and Class Schedule
+  const todaySuggestions = React.useMemo(() => {
+    const suggestions: Array<{
+      id: string;
+      type: 'assignment' | 'schedule' | 'reward' | 'practice';
+      badgeText: string;
+      badgeColor: string;
+      icon: React.ReactNode;
+      title: string;
+      description: string;
+      actionLabel: string;
+      onClick: () => void;
+    }> = [];
+
+    const now = new Date();
+
+    // --- SUGGESTION 1: ASSIGNMENTS / SUBMISSIONS FOCUS ---
+    const overdueUnfinished = unfinishedAssignments.filter(a => a.dueDate && new Date(a.dueDate).getTime() < now.getTime());
+    const upcomingDueUnfinished = unfinishedAssignments
+      .filter(a => a.dueDate && new Date(a.dueDate).getTime() >= now.getTime())
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    if (overdueUnfinished.length > 0) {
+      const target = overdueUnfinished[0];
+      suggestions.push({
+        id: 'sug_overdue',
+        type: 'assignment',
+        badgeText: '⚠️ Cần xử lý gấp',
+        badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
+        icon: <AlertCircle className="w-5 h-5 text-rose-600" />,
+        title: `Còn ${overdueUnfinished.length} bài tập quá hạn nộp!`,
+        description: `Bài tập "${target.title}" đã quá hạn. Tranh thủ hoàn thành ngay để không bị đọng bài!`,
+        actionLabel: 'Làm bài ngay',
+        onClick: () => handleStartAssignment(target)
+      });
+    } else if (upcomingDueUnfinished.length > 0) {
+      const target = upcomingDueUnfinished[0];
+      const dueDateObj = new Date(target.dueDate);
+      const isDueToday = isToday(dueDateObj);
+      const formattedTime = format(dueDateObj, 'HH:mm dd/MM', { locale: vi });
+      
+      suggestions.push({
+        id: 'sug_due_soon',
+        type: 'assignment',
+        badgeText: isDueToday ? '🔥 Sắp hết hạn hôm nay' : '⏰ Nhiệm vụ sắp tới hạn',
+        badgeColor: isDueToday ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        icon: <Clock className="w-5 h-5 text-amber-600" />,
+        title: `Còn 1 bài tập sắp hết hạn (${target.title})`,
+        description: `Hạn nộp vào lúc ${formattedTime}. Đừng quên làm bài trước giờ quy định nhé!`,
+        actionLabel: 'Hoàn thành ngay',
+        onClick: () => handleStartAssignment(target)
+      });
+    } else if (unfinishedAssignments.length > 0) {
+      const target = unfinishedAssignments[0];
+      suggestions.push({
+        id: 'sug_unfinished',
+        type: 'assignment',
+        badgeText: '📚 Nhiệm vụ bài học',
+        badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        icon: <BookOpen className="w-5 h-5 text-indigo-600" />,
+        title: `Bạn có ${unfinishedAssignments.length} bài tập chưa hoàn thành`,
+        description: `Bắt đầu với bài tập "${target.title}" để củng cố kiến thức và tích lũy điểm thưởng!`,
+        actionLabel: 'Bắt đầu làm bài',
+        onClick: () => handleStartAssignment(target)
+      });
+    } else {
+      // 100% assignments finished
+      suggestions.push({
+        id: 'sug_all_completed',
+        type: 'reward',
+        badgeText: '🌟 Xuất sắc',
+        badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        icon: <CheckCircle className="w-5 h-5 text-emerald-600" />,
+        title: 'Đã hoàn thành 100% bài tập được giao!',
+        description: 'Tất cả nhiệm vụ học tập đã hoàn tất. Ghé Cửa hàng quà tặng để đổi thẻ đặc quyền nhé!',
+        actionLabel: 'Ghé Cửa hàng quà',
+        onClick: () => onNavigate('rewards-store')
+      });
+    }
+
+    // --- SUGGESTION 2: CLASS SCHEDULE / CLASSROOM FOCUS ---
+    const todayClasses = classes.filter(c => c.startTime && isToday(new Date(c.startTime)));
+    const upcomingClasses = classes
+      .filter(c => c.startTime && new Date(c.startTime).getTime() >= now.getTime())
+      .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+
+    if (todayClasses.length > 0) {
+      const targetClass = todayClasses[0];
+      const timeStr = format(new Date(targetClass.startTime), 'HH:mm');
+      suggestions.push({
+        id: 'sug_class_today',
+        type: 'schedule',
+        badgeText: '🎥 Lịch học trực tuyến',
+        badgeColor: 'bg-[#0068ff]/10 text-[#0068ff] border-[#0068ff]/20',
+        icon: <Video className="w-5 h-5 text-[#0068ff]" />,
+        title: `Đừng quên lịch học lúc ${timeStr} hôm nay`,
+        description: `Buổi học trực tuyến "${targetClass.title || 'Lớp học trực tuyến'}" sẽ diễn ra lúc ${timeStr}. Chuẩn bị bài tốt nhé!`,
+        actionLabel: 'Vào phòng học',
+        onClick: () => onNavigate('schedule')
+      });
+    } else if (upcomingClasses.length > 0) {
+      const targetClass = upcomingClasses[0];
+      const timeStr = format(new Date(targetClass.startTime), 'HH:mm - dd/MM');
+      suggestions.push({
+        id: 'sug_class_upcoming',
+        type: 'schedule',
+        badgeText: '📅 Buổi học tiếp theo',
+        badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
+        icon: <Calendar className="w-5 h-5 text-sky-600" />,
+        title: `Lịch học trực tuyến tiếp theo: ${timeStr}`,
+        description: `Lớp "${targetClass.title || 'Buổi học'}" dự kiến diễn ra lúc ${timeStr}. Theo dõi thời khóa biểu để chủ động thời gian!`,
+        actionLabel: 'Xem thời khóa biểu',
+        onClick: () => onNavigate('schedule')
+      });
+    } else {
+      // No upcoming live classes - suggest practice / revision / flashcards
+      if (flashcardAssignments.length > 0 || gameAssignments.length > 0) {
+        suggestions.push({
+          id: 'sug_practice',
+          type: 'practice',
+          badgeText: '🎮 Ôn tập & Trí tuệ',
+          badgeColor: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+          icon: <Gamepad2 className="w-5 h-5 text-fuchsia-600" />,
+          title: 'Hôm nay không có lịch học: Thử thách Flashcard & Trò chơi',
+          description: 'Luyện tập các bộ thẻ ghi nhớ và game trắc nghiệm để ghi nhớ sâu bài học và tích lũy điểm thưởng.',
+          actionLabel: 'Luyện tập ngay',
+          onClick: () => onNavigate(flashcardAssignments.length > 0 ? 'flashcards' : 'games')
+        });
+      } else {
+        suggestions.push({
+          id: 'sug_schedule_empty',
+          type: 'schedule',
+          badgeText: '☀️ Tự học hôm nay',
+          badgeColor: 'bg-amber-50 text-amber-800 border-amber-200',
+          icon: <Sparkles className="w-5 h-5 text-amber-600" />,
+          title: 'Hôm nay không có lịch học trực tuyến',
+          description: 'Tranh thủ ôn lại lý thuyết bài học cũ và chuẩn bị tinh thần cho các buổi học tiếp theo.',
+          actionLabel: 'Mở Thời khóa biểu',
+          onClick: () => onNavigate('schedule')
+        });
+      }
+    }
+
+    return suggestions.slice(0, 2);
+  }, [unfinishedAssignments, classes, flashcardAssignments, gameAssignments, onNavigate]);
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-12 px-2 sm:px-4">
       
@@ -496,7 +643,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                       className="px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-xl border border-amber-200 text-xs font-bold transition-all flex items-center gap-1"
                     >
                       <BellRing className="w-3.5 h-3.5" />
-                      Nhắc nhở qua Zalo ({unsubmittedStudents.length} HS)
+                      Nhắc nhở nộp bài ({unsubmittedStudents.length} HS)
                     </button>
                   )}
                 </div>
@@ -844,15 +991,35 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
               </div>
 
               {/* Point Card */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between min-h-[140px]">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between min-h-[140px] relative overflow-hidden group">
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider block">Điểm Tích Lũy</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider block">Điểm Tích Lũy</span>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('rewards-store')}
+                      className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-black flex items-center gap-1 transition-all"
+                    >
+                      <Gift className="w-3 h-3 text-amber-600" />
+                      <span>Đổi quà</span>
+                    </button>
+                  </div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="text-3xl font-black text-indigo-600">{currentPoints}</span>
+                    <span className="text-3xl font-black text-indigo-600 font-mono">{currentPoints}</span>
                     <span className="text-xs text-slate-400 font-bold">điểm</span>
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-500 font-bold leading-relaxed">Gửi bài tập trắc nghiệm và hoàn thành trò chơi để gia tăng thứ hạng cá nhân.</p>
+                
+                <div className="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+                  <p className="text-[10px] text-slate-500 font-bold leading-tight">Làm bài tập & tham gia trò chơi để gia tăng điểm.</p>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('rewards-store')}
+                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-extrabold transition-all shrink-0 flex items-center gap-1 shadow-xs"
+                  >
+                    <span>Cửa hàng 🎁</span>
+                  </button>
+                </div>
               </div>
 
               {/* Completion Card */}
@@ -875,6 +1042,62 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 </div>
               </div>
             </div>
+
+            {/* GỢI Ý HÔM NAY (Daily Suggestions Component) */}
+            {todaySuggestions.length > 0 && (
+              <div className="bg-white rounded-3xl border border-indigo-100 p-5 sm:p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 shadow-xs">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base leading-tight">Gợi ý hôm nay</h3>
+                      <p className="text-xs text-slate-500 font-medium">Gợi ý hành động cụ thể dựa trên lịch học & bài tập của bạn</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 shrink-0">
+                    {todaySuggestions.length} Gợi ý
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {todaySuggestions.map((sug) => (
+                    <div
+                      key={sug.id}
+                      className="p-4 rounded-2xl bg-slate-50/80 hover:bg-indigo-50/40 border border-slate-200/80 hover:border-indigo-200 transition-all flex flex-col justify-between space-y-3 group"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${sug.badgeColor}`}>
+                            {sug.badgeText}
+                          </span>
+                        </div>
+                        <div className="flex items-start gap-2.5">
+                          <div className="shrink-0 mt-0.5">{sug.icon}</div>
+                          <div>
+                            <h4 className="font-bold text-slate-800 text-sm group-hover:text-indigo-700 transition-colors leading-snug">
+                              {sug.title}
+                            </h4>
+                            <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed">
+                              {sug.description}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={sug.onClick}
+                        className="w-full py-2 px-3 bg-white hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-indigo-600 text-xs font-bold rounded-xl transition-all shadow-2xs flex items-center justify-center gap-1.5"
+                      >
+                        <span>{sug.actionLabel}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Next class section block */}
             {nextClass && (
@@ -1385,7 +1608,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
         )}
       </AnimatePresence>
 
-      {/* Unsubmitted Zalo reminder detail modal overlay */}
+      {/* Unsubmitted reminder detail modal overlay */}
       {showUnsubmittedModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto space-y-4 relative">
@@ -1401,7 +1624,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                 <BellRing className="w-5 h-5 text-indigo-600" />
                 Mẫu tin nhắn nhắc nhở nộp bài
               </h4>
-              <p className="text-xs text-slate-500">Giáo viên có thể sao chép tin nhắn cá nhân hóa bên dưới để gửi nhắc nhở cho Phụ huynh qua Zalo / SĐT.</p>
+              <p className="text-xs text-slate-500">Giáo viên có thể sao chép tin nhắn cá nhân hóa bên dưới để gửi nhắc nhở cho Phụ huynh / Học sinh.</p>
             </div>
 
             <div className="space-y-3.5 pt-2">

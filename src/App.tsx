@@ -26,6 +26,7 @@ import { checkAndIncrementNewResourceVisits } from './utils/resourceVisits';
 import { ActivityLogsView } from './views/ActivityLogsView';
 import { logActivity } from './lib/activityLogger';
 import { ResourcesRepositoryView } from './views/ResourcesRepositoryView';
+import { RewardStoreView } from './views/RewardStoreView';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -545,7 +546,8 @@ export default function App() {
       // Also update student's cumulative personal points!
       if (submission.studentId) {
         const studentRef = doc(db, 'users', submission.studentId);
-        const pointsToEarn = submission.grade ? Math.round(submission.grade * 10) : 10;
+        const gradeVal = typeof submission.grade === 'number' ? submission.grade : 10;
+        const pointsToEarn = Math.max(10, Math.round(gradeVal * 10));
         await updateDoc(studentRef, {
           points: increment(pointsToEarn)
         });
@@ -557,9 +559,30 @@ export default function App() {
             points: (prev.points || 0) + pointsToEarn
           } : null);
         }
+
+        alert(`🎉 Bài nộp đã ghi nhận! Bạn được tích lũy +${pointsToEarn} điểm vào hệ thống!`);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `submissions/${id}`);
+    }
+  };
+
+  const handleAwardPoints = async (pointsToEarn: number, reasonTitle?: string) => {
+    if (!currentUser?.id || pointsToEarn <= 0) return;
+    try {
+      const userRef = doc(db, 'users', currentUser.id);
+      await updateDoc(userRef, {
+        points: increment(pointsToEarn)
+      });
+      
+      setCurrentUser(prev => prev ? {
+        ...prev,
+        points: (prev.points || 0) + pointsToEarn
+      } : null);
+
+      alert(`🎉 Cộng +${pointsToEarn} điểm tích lũy${reasonTitle ? `: ${reasonTitle}` : ''}!`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${currentUser.id}`);
     }
   };
 
@@ -776,6 +799,7 @@ export default function App() {
             onAddAssignment={handleAddAssignment}
             onSubmitWork={handleSubmitWork}
             onGrade={handleGrade}
+            onAwardPoints={handleAwardPoints}
             initialSelectedAssignmentId={selectedAssignmentId}
             onClearInitialSelectedAssignmentId={() => setSelectedAssignmentId(null)}
             simulations={simulations}
@@ -794,6 +818,7 @@ export default function App() {
             onAddAssignment={handleAddAssignment}
             onSubmitWork={handleSubmitWork}
             onGrade={handleGrade}
+            onAwardPoints={handleAwardPoints}
             initialSelectedAssignmentId={selectedAssignmentId}
             onClearInitialSelectedAssignmentId={() => setSelectedAssignmentId(null)}
             simulations={simulations}
@@ -812,6 +837,7 @@ export default function App() {
             onAddAssignment={handleAddAssignment}
             onSubmitWork={handleSubmitWork}
             onGrade={handleGrade}
+            onAwardPoints={handleAwardPoints}
             initialSelectedAssignmentId={selectedAssignmentId}
             onClearInitialSelectedAssignmentId={() => setSelectedAssignmentId(null)}
             simulations={simulations}
@@ -841,12 +867,22 @@ export default function App() {
           <ResourcesRepositoryView
             user={activeUser}
             assignments={assignments}
+            onAwardPoints={handleAwardPoints}
           />
         ) : null;
       case 'students':
         return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} /> : null;
       case 'simulations':
         return <SimulationsView user={activeUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
+      case 'rewards-store':
+        return (
+          <RewardStoreView
+            user={activeUser}
+            onUpdateUser={handleUpdateUser}
+            onAwardPoints={handleAwardPoints}
+            onNavigateToTab={setActiveTab}
+          />
+        );
       case 'settings':
         return <SettingsView user={activeUser} onUpdateUser={handleUpdateUser} />;
       default:

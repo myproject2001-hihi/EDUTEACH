@@ -581,7 +581,9 @@ export function AuthView({ onLogin }: AuthViewProps) {
                 onLogin(detectedRole);
               }
             } catch (err: any) {
-              console.error(err);
+              if (err.code !== 'auth/user-not-found' && err.code !== 'auth/wrong-password' && err.code !== 'auth/invalid-credential' && err.code !== 'auth/invalid-email') {
+                console.error("Đăng nhập lỗi:", err);
+              }
               let friendlyMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại tài khoản hoặc mật khẩu.';
               if (err.code) {
                 if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
@@ -795,7 +797,9 @@ export function AuthView({ onLogin }: AuthViewProps) {
               setLoginPassword(signupPassword);
               setSuccessMessage('Đăng ký tài khoản thành công! Vui lòng xem bảng hướng dẫn bên trên và nhấn "ĐĂNG NHẬP" để bắt đầu.');
             } catch (err: any) {
-              console.error(err);
+              if (err.code !== 'auth/email-already-in-use' && err.code !== 'auth/weak-password' && err.code !== 'auth/invalid-credential') {
+                console.error("Đăng ký lỗi:", err);
+              }
               let friendlyMessage = 'Đăng ký tài khoản thất bại. Vui lòng thử lại.';
               if (err.code) {
                 if (err.code === 'auth/email-already-in-use') {
@@ -1476,7 +1480,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                       Liên hệ trực tiếp Giáo viên hoặc Admin
                     </h4>
                     <p className="text-xs text-slate-500 leading-relaxed mb-3">
-                      Trong trường hợp khẩn cấp (như cần mật khẩu gấp để vào làm bài thi, nộp bài, hoặc chấm điểm), học sinh, phụ huynh và giáo viên có thể liên hệ trực tiếp với Giáo viên chủ nhiệm hoặc Ban quản trị qua Zalo để được duyệt nhanh nhất.
+                      Trong trường hợp khẩn cấp (như cần mật khẩu gấp để vào làm bài thi, nộp bài, hoặc chấm điểm), học sinh, phụ huynh và giáo viên có thể liên hệ trực tiếp với Giáo viên chủ nhiệm hoặc Ban quản trị để được duyệt nhanh nhất.
                     </p>
                     
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 space-y-2">

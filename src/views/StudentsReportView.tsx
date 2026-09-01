@@ -77,13 +77,13 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     try {
       const timestamp = new Date().toISOString();
       const createPromises = selectedStudents.map(studentId => {
-        const notifId = `zalo_remind_${studentId}_${Date.now()}`;
+        const notifId = `remind_${studentId}_${Date.now()}`;
         return setDoc(doc(db, 'system_notifications', notifId), {
           id: notifId,
           title: '⏳ Nhắc nhở nộp bài',
           content: 'Em hãy nhớ hoàn thành bài tập sớm để được nhận xét nhé!',
           type: 'personal_reminder',
-          badge: 'Nhắc Nhở Zalo',
+          badge: 'Nhắc Nhở Hạn Nộp',
           badgeColor: 'amber',
           targetStudentId: studentId,
           createdAt: timestamp
@@ -93,7 +93,7 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
       await Promise.all(createPromises);
       
       setNotification({
-        message: `Đã gửi thông báo Zalo thành công đến ${selectedStudents.length} học sinh.`,
+        message: `Đã gửi thông báo nhắc nhở thành công đến ${selectedStudents.length} học sinh.`,
         type: 'success'
       });
       setSelectedStudents([]);
@@ -586,10 +586,10 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
                   <button
                     onClick={handleBulkMessage}
                     disabled={isSendingBulk}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0068ff] hover:bg-[#0051d4] active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-blue-100 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-indigo-100 disabled:opacity-50"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
-                    {isSendingBulk ? 'Đang gửi...' : `Nhắc Zalo (${selectedStudents.length})`}
+                    {isSendingBulk ? 'Đang gửi...' : `Nhắc nộp bài (${selectedStudents.length})`}
                   </button>
                 )}
                 {/* Sắp xếp */}

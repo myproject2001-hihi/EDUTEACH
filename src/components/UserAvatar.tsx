@@ -4,6 +4,7 @@ interface UserAvatarProps {
   name?: string;
   firstName?: string;
   avatar?: string;
+  avatarFrame?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
@@ -41,7 +42,7 @@ export function combineName(lastName?: string, firstName?: string): string {
   return l || f || '';
 }
 
-export function UserAvatar({ name = '', firstName, avatar, size = 'md', className = '' }: UserAvatarProps) {
+export function UserAvatar({ name = '', firstName, avatar, avatarFrame, size = 'md', className = '' }: UserAvatarProps) {
   const [imgError, setImgError] = useState(false);
 
   const givenName = getFirstName(name, firstName);
@@ -50,6 +51,18 @@ export function UserAvatar({ name = '', firstName, avatar, size = 'md', classNam
   // Deterministic color assignment based on initial char code
   const charCode = initial.charCodeAt(0) || 0;
   const colorClass = COLOR_CLASSES[charCode % COLOR_CLASSES.length];
+
+  const getFrameRing = () => {
+    if (!avatarFrame) return '';
+    if (avatarFrame === 'frame_diamond') return 'ring-4 ring-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] animate-pulse';
+    if (avatarFrame === 'frame_gold_crown') return 'ring-4 ring-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]';
+    if (avatarFrame === 'frame_neon') return 'ring-4 ring-fuchsia-500 shadow-[0_0_12px_rgba(217,70,239,0.8)]';
+    if (avatarFrame === 'frame_rainbow') return 'ring-4 ring-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]';
+    if (avatarFrame === 'frame_fire') return 'ring-4 ring-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.8)]';
+    return 'ring-4 ring-indigo-400';
+  };
+
+  const frameRingClass = getFrameRing();
 
   const sizeClasses = {
     sm: 'w-8 h-8 text-xs font-bold ring-2 ring-white/50',
@@ -64,14 +77,14 @@ export function UserAvatar({ name = '', firstName, avatar, size = 'md', classNam
         src={avatar}
         alt={name || 'Avatar'}
         onError={() => setImgError(true)}
-        className={`${sizeClasses} rounded-full object-cover border border-slate-200 shadow-sm shrink-0 ${className}`}
+        className={`${sizeClasses} ${frameRingClass} rounded-full object-cover border border-slate-200 shadow-sm shrink-0 ${className}`}
       />
     );
   }
 
   return (
     <div
-      className={`${sizeClasses} rounded-full flex items-center justify-center shadow-md select-none border border-white/30 shrink-0 font-sans tracking-tight ${colorClass} ${className}`}
+      className={`${sizeClasses} ${frameRingClass} rounded-full flex items-center justify-center shadow-md select-none border border-white/30 shrink-0 font-sans tracking-tight ${colorClass} ${className}`}
       title={name || 'User'}
     >
       {initial}

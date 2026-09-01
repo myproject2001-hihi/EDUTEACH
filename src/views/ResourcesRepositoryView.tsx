@@ -54,6 +54,7 @@ import { MarkdownMath } from '../components/MarkdownMath';
 interface ResourcesRepositoryViewProps {
   user: UserType;
   assignments: Assignment[];
+  onAwardPoints?: (points: number, reason?: string) => void;
 }
 
 interface ResourceRequest {
@@ -71,7 +72,7 @@ interface ResourceRequest {
   createdAt: string;
 }
 
-export function ResourcesRepositoryView({ user, assignments }: ResourcesRepositoryViewProps) {
+export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: ResourcesRepositoryViewProps) {
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
   const isAdmin = user.role === 'admin';
 
@@ -1096,6 +1097,10 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                                     spread: 70,
                                     origin: { y: 0.7 }
                                   });
+                                  if (onAwardPoints) {
+                                    const pointsEarned = Math.max(10, calculatedScore * 10);
+                                    onAwardPoints(pointsEarned, `Luyện tập bài tập "${previewingAssignment.title}"`);
+                                  }
                                 }}
                                 className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-lg transition-all uppercase tracking-wider flex items-center gap-1.5"
                               >
@@ -1242,6 +1247,10 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                               spread: 70,
                               origin: { y: 0.7 }
                             });
+                            if (onAwardPoints) {
+                              const pointsEarned = Math.max(10, Math.round(finalScore * 10));
+                              onAwardPoints(pointsEarned, `Luyện tập trò chơi "${previewingAssignment.title}"`);
+                            }
                           }}
                         />
                       </div>
@@ -1493,6 +1502,10 @@ export function ResourcesRepositoryView({ user, assignments }: ResourcesReposito
                                 spread: 70,
                                 origin: { y: 0.7 }
                               });
+                              if (onAwardPoints) {
+                                const pointsEarned = Math.max(10, Math.round(score * 10));
+                                onAwardPoints(pointsEarned, `Luyện tập Flashcard Quiz "${previewingAssignment.title}"`);
+                              }
                             }}
                             onExit={() => setFlashcardSubMode('study')}
                           />

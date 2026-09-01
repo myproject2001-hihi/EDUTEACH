@@ -89,6 +89,12 @@ service cloud.firestore {
       allow update, delete: if isTeacher();
     }
 
+    // Perks collection
+    match /privilege_cards/{cardId} {
+      allow read: if isAuthenticated();
+      allow write: if isTeacher();
+    }
+
     match /settings/{document=**} {
       allow read: if isAuthenticated();
       allow write: if isTeacher();

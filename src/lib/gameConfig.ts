@@ -104,3 +104,89 @@ export function useGameStatuses() {
 
   return { gameStatuses, toggleGameStatus, setGameStatuses };
 }
+
+export function getSampleQuestionsForGame(gameId: string) {
+  if (gameId === 'tu_ngu_biet_bay') {
+    return [
+      {
+        id: 'q1',
+        question: 'Tục ngữ: Học đi đôi với...',
+        suggestedWords: ['hành', 'chơi', 'ngủ', 'nói'],
+        targetWord: 'hành',
+        options: ['hành', 'chơi', 'ngủ', 'nói'],
+        correctAnswer: 0
+      },
+      {
+        id: 'q2',
+        question: 'Điền từ còn thiếu: Ăn quả nhớ kẻ...',
+        suggestedWords: ['trồng cây', 'hái quả', 'bán hàng', 'tưới cây'],
+        targetWord: 'trồng cây',
+        options: ['trồng cây', 'hái quả', 'bán hàng', 'tưới cây'],
+        correctAnswer: 0
+      }
+    ];
+  }
+
+  if (gameId === 'o_chu_khoa' || gameId === 'dao_chu') {
+    return [
+      {
+        id: 'q1',
+        question: 'Thành phố mang tên Bác là gì?',
+        answer: 'HỒ CHÍ MINH',
+        hint: 'Thành phố lớn nhất miền Nam Việt Nam',
+        options: ['HÀ NỘI', 'HỒ CHÍ MINH', 'ĐÀ NẴNG', 'CẦN THƠ'],
+        correctAnswer: 1
+      },
+      {
+        id: 'q2',
+        question: 'Thủ đô của Việt Nam là gì?',
+        answer: 'HÀ NỘI',
+        hint: 'Thành phố nghìn năm văn hiến',
+        options: ['HÀ NỘI', 'HỒ CHÍ MINH', 'HẢI PHÒNG', 'HUẾ'],
+        correctAnswer: 0
+      }
+    ];
+  }
+
+  if (gameId === 'keo_tha_noi_y' || gameId === 'domino' || gameId === 'lat_manh_ghep') {
+    return [
+      {
+        id: 'q1',
+        question: 'Ghép nối các quốc gia với thủ đô tương ứng:',
+        pairs: [
+          { left: 'Việt Nam', right: 'Hà Nội' },
+          { left: 'Nhật Bản', right: 'Tokyo' },
+          { left: 'Pháp', right: 'Paris' },
+          { left: 'Hàn Quốc', right: 'Seoul' }
+        ],
+        options: ['Hà Nội', 'Tokyo', 'Paris', 'Seoul'],
+        correctAnswer: 0
+      }
+    ];
+  }
+
+  return [
+    {
+      id: 'q1',
+      question: 'Câu 1: Thủ đô của Việt Nam là thành phố nào?',
+      options: ['Hà Nội', 'TP. Hồ Chí Minh', 'Đà Nẵng', 'Huế'],
+      correctAnswer: 0,
+      points: 5.0
+    },
+    {
+      id: 'q2',
+      question: 'Câu 2: Số nguyên tố nhỏ nhất là số nào?',
+      options: ['1', '2', '3', '0'],
+      correctAnswer: 1,
+      points: 5.0
+    },
+    {
+      id: 'q3',
+      question: 'Câu 3: Kết quả của phép tính 25 × 4 là?',
+      options: ['50', '80', '100', '120'],
+      correctAnswer: 2,
+      points: 5.0
+    }
+  ];
+}
+

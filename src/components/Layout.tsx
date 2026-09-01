@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot, History, FolderArchive } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot, History, FolderArchive, Gift } from 'lucide-react';
 import { Role, User, Assignment, Submission, SystemNotification, ClassSession } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 import { db } from '../firebase';
@@ -387,6 +387,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     { id: 'assignments', label: 'Bài tập', icon: BookOpen },
     { id: 'games', label: 'Chơi và học', icon: Gamepad2 },
     { id: 'simulations', label: 'Mô phỏng', icon: Microscope },
+    { id: 'rewards-store', label: 'Cửa hàng đổi quà', icon: Gift },
     { id: 'settings', label: (isTeacher || isAdmin) ? 'Cấu hình hệ thống' : 'Cài đặt cá nhân', icon: Settings },
   ];
 
@@ -434,7 +435,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             className="flex flex-col p-2 group-hover:p-3 bg-slate-50 hover:bg-indigo-50/50 rounded-xl border border-slate-100 hover:border-indigo-100 transition-all duration-300 cursor-pointer"
           >
              <div className="flex items-center gap-3">
-               <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
+               <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} avatarFrame={user.activeAvatarFrame} size="md" />
                <div className="flex-1 min-w-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-0 group-hover:w-auto">
                  <p className="text-sm 2xl:text-base font-bold text-slate-900 truncate">{user.name}</p>
                  <p className="text-[11px] 2xl:text-xs font-medium text-slate-500 truncate capitalize mt-0.5">
@@ -792,7 +793,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                   {user.isSuperAdmin ? '👑 Admin & Giáo viên' : activeRole === 'admin' ? 'Quản trị viên & Giáo viên' : activeRole === 'teacher' ? 'Giáo viên' : 'Học sinh'}
                 </p>
               </div>
-              <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} size="md" />
+              <UserAvatar name={user.name} firstName={user.firstName} avatar={user.avatar} avatarFrame={user.activeAvatarFrame} size="md" />
             </div>
           </div>
         </header>

@@ -17,8 +17,14 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
 
   // Filter simList for Teacher vs Admin
   const filteredSimList = React.useMemo(() => {
-    return initialSims;
-  }, [initialSims]);
+    if (isTeacher || user.role === 'admin') {
+      return initialSims;
+    }
+    return initialSims.filter(sim => {
+      if (sim.className && sim.className !== user.className) return false;
+      return true;
+    });
+  }, [initialSims, isTeacher, user]);
 
   const [simList, setSimList] = useState<HTMLSimulation[]>(filteredSimList);
   const [activeSim, setActiveSim] = useState<HTMLSimulation | null>(null);
@@ -76,6 +82,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
   const [formHtmlContent, setFormHtmlContent] = useState('');
   const [formSourceType, setFormSourceType] = useState<'url' | 'html_code'>('url');
   const [formCategory, setFormCategory] = useState('Đại Số');
+  const [formClassName, setFormClassName] = useState('');
   const [formThumbnailSource, setFormThumbnailSource] = useState<'url' | 'upload' | 'default'>('default');
   const [formThumbnailUrl, setFormThumbnailUrl] = useState('');
   const [formThumbnailFile, setFormThumbnailFile] = useState<string | null>(null);
@@ -98,6 +105,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     setFormHtmlContent('');
     setFormSourceType('url');
     setFormCategory('Đại Số');
+    setFormClassName('');
     setFormThumbnailSource('default');
     setFormThumbnailUrl('');
     setFormThumbnailFile(null);
@@ -110,6 +118,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     setFormTitle(sim.title || '');
     setFormDesc(sim.description || '');
     setFormCategory(sim.category || 'Đại Số');
+    setFormClassName(sim.className || '');
     setFormUrl(sim.url || '');
 
     const isHtml = !!sim.htmlContent;
@@ -174,6 +183,7 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
         htmlContent: formSourceType === 'html_code' ? formHtmlContent : '',
         thumbnail: resolvedThumbnail,
         category: formCategory || 'Khác',
+        className: formClassName.trim() || undefined,
         hasQuiz: editingSim ? editingSim.hasQuiz : false,
         teacherId: editingSim ? editingSim.teacherId : (user.id || ''),
         teacherName: editingSim ? editingSim.teacherName : (user.name || 'Giáo viên'),
@@ -478,16 +488,27 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
                     />
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Môn học / Phân loại Toán:</label>
-                    <select 
-                      value={formCategory} onChange={e => setFormCategory(e.target.value)}
-                      className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="Đại Số">Đại Số</option>
-                      <option value="Hình Học">Hình Học</option>
-                      <option value="Khác">Khác</option>
-                    </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Môn học / Phân loại Toán:</label>
+                      <select 
+                        value={formCategory} onChange={e => setFormCategory(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="Đại Số">Đại Số</option>
+                        <option value="Hình Học">Hình Học</option>
+                        <option value="Khác">Khác</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Lớp áp dụng (Tùy chọn):</label>
+                      <input 
+                        type="text"
+                        value={formClassName} onChange={e => setFormClassName(e.target.value)}
+                        className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
+                        placeholder="VD: 10A1 (Để trống nếu áp dụng toàn trường)"
+                      />
+                    </div>
                   </div>
 
                   <div>
