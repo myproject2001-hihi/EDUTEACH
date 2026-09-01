@@ -660,26 +660,6 @@ export function RobotGuide({
         )}
       </AnimatePresence>
 
-      {/* FLOATING ACTION TRIGGER WIDGET (WHEN ROBOT IS CLOSED / MINIMIZED) */}
-      {!isOpen && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          className="fixed bottom-[72px] right-3 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 pointer-events-auto"
-        >
-          {/* Floating Robot Avatar Button */}
-          <button
-            onClick={() => setIsOpen(true)}
-            className="group flex items-center justify-center w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-2xl shadow-indigo-400/50 border-2 border-white transition-all transform hover:scale-105 active:scale-95 cursor-pointer relative min-h-[44px] min-w-[44px]"
-            title="Mở Robot Hướng Dẫn Lễ Tân"
-          >
-            {renderRobotSvg("small")}
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" />
-          </button>
-        </motion.div>
-      )}
-
       {/* Embedded Animations */}
       <style>{`
         @keyframes robot-float {
