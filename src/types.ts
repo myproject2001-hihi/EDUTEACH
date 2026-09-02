@@ -148,6 +148,7 @@ export interface ClassSession {
   isCompleted?: boolean;
   completedNote?: string;
   attendedByStudents?: { studentId: string; studentName: string; clickedAt: string }[];
+  className?: string;
 }
 
 export interface HTMLSimulation {
@@ -193,6 +194,9 @@ export interface SystemNotification {
   badgeColor?: string;
   createdAt: string;
   targetStudentId?: string;
+  targetScope?: 'all' | 'class';
+  targetClass?: string;
+  teacherId?: string;
 }
 
 export interface LoveLetter {

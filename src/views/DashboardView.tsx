@@ -187,14 +187,35 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
     }
   };
 
+  const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+    if (!assignClass || assignClass.trim() === '') return true;
+    const cleanAssign = assignClass.trim().toLowerCase();
+    if (
+      cleanAssign === 'all' || 
+      cleanAssign === 'tất cả' || 
+      cleanAssign === 'tat ca' || 
+      cleanAssign === 'toàn hệ thống' || 
+      cleanAssign === 'toan he thong'
+    ) {
+      return true;
+    }
+    if (!userClass || userClass.trim() === '') return false;
+    const clean = (s: string) => {
+      return s.trim()
+        .toLowerCase()
+        .replace(/^(lớp|lop|class)\s+/gi, '')
+        .replace(/\s+/g, '');
+    };
+    return clean(assignClass) === clean(userClass);
+  };
+
   const assignments = React.useMemo(() => {
     if (isAdmin) return rawAssignments;
     if (user.role === 'teacher') return rawAssignments.filter(a => !a.teacherId || a.teacherId === user.id);
     // Student: Filter out unpublished (isPublished === false) and filter by className
     return rawAssignments.filter(a => {
       if (a.isPublished === false) return false;
-      if (a.className && user.className && a.className.trim() !== user.className.trim()) return false;
-      return true;
+      return isClassMatching(a.className, user.className);
     });
   }, [rawAssignments, user, isAdmin]);
 

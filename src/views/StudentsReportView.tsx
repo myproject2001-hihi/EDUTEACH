@@ -30,17 +30,27 @@ function removeVietnameseTones(str: string): string {
 
 interface StudentsReportProps {
   progressData: StudentProgress[];
+  user?: any;
 }
 
-export function StudentsReportView({ progressData }: StudentsReportProps) {
+export function StudentsReportView({ progressData, user }: StudentsReportProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'grade-desc' | 'grade-asc' | 'completion-desc' | 'completion-asc' | 'attendance-desc' | 'attendance-asc'>('name-asc');
   const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [isSendingBulk, setIsSendingBulk] = useState(false);
 
-  const [className, setClassName] = useState(() => localStorage.getItem('class_name') || '123456');
+  const [className, setClassName] = useState(() => {
+    if (user?.className) return user.className;
+    return localStorage.getItem('class_name') || '123456';
+  });
   const [academicYear, setAcademicYear] = useState(() => localStorage.getItem('academic_year') || 'Khóa 2026 - 2027');
+
+  useEffect(() => {
+    if (user?.className) {
+      setClassName(user.className);
+    }
+  }, [user?.className]);
 
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
@@ -136,6 +146,29 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
     return () => unsubscribe();
   }, []);
 
+  const [teacherClasses, setTeacherClasses] = useState<any[]>([]);
+
+  // Lắng nghe danh sách lớp học của giáo viên này thời gian thực
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'class_sessions'), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.teacherId === user?.id) {
+          list.push(data);
+        }
+      });
+      setTeacherClasses(list);
+    }, (error) => {
+      console.error("Lỗi tải danh sách lớp học của giáo viên:", error);
+    });
+    return () => unsub();
+  }, [user?.id]);
+
+  const teacherClassNames = React.useMemo(() => {
+    return teacherClasses.map(c => (c.className || c.title || '').trim().toLowerCase());
+  }, [teacherClasses]);
+
   // Lọc danh sách học sinh từ bộ sưu tập users
   const studentUsers = React.useMemo(() => {
     return allUsers.filter(u => u.role === 'student');
@@ -147,8 +180,16 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
 
     // Lọc học sinh có mã lớp khớp với bộ lọc (hoặc nếu để trống/Tất cả thì hiện hết)
     const matchedUsers = studentUsers.filter(u => {
-      if (!filterClass || filterClass === 'tất cả') return true;
       const uClass = (u.className || u.connectionCode || '').trim().toLowerCase();
+
+      // Nếu người dùng là Giáo viên, chỉ hiện học sinh thuộc các lớp do giáo viên này quản lý
+      if (user?.role === 'teacher') {
+        if (!teacherClassNames.includes(uClass)) {
+          return false;
+        }
+      }
+
+      if (!filterClass || filterClass === 'tất cả') return true;
       return uClass === filterClass;
     });
 
@@ -434,11 +475,21 @@ export function StudentsReportView({ progressData }: StudentsReportProps) {
             <input 
               type="text"
               value={className}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const val = e.target.value;
                 setClassName(val);
                 localStorage.setItem('class_name', val);
                 window.dispatchEvent(new Event('storage'));
+
+                if (user?.id && (user.role === 'teacher' || user.role === 'admin')) {
+                  try {
+                    await updateDoc(doc(db, 'users', user.id), {
+                      className: val
+                    });
+                  } catch (err) {
+                    console.error('Failed to update user className on Firestore:', err);
+                  }
+                }
               }}
               className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none w-full sm:w-24 text-center"
               placeholder="123456"

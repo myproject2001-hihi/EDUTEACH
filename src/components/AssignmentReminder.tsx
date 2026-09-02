@@ -76,10 +76,21 @@ export function AssignmentReminder({ user, assignments, submissions }: Assignmen
 
     const checkAssignments = () => {
       const now = Date.now();
+      const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+        if (!assignClass || assignClass.trim() === '') return true;
+        if (!userClass || userClass.trim() === '') return false;
+        const clean = (s: string) => {
+          return s.trim()
+            .toLowerCase()
+            .replace(/^(lớp|lop|class)\s+/gi, '')
+            .replace(/\s+/g, '');
+        };
+        return clean(assignClass) === clean(userClass);
+      };
       
       assignments.forEach(assignment => {
         if (assignment.isPublished === false) return;
-        if (assignment.className && user.className && assignment.className.trim() !== user.className.trim()) return;
+        if (!isClassMatching(assignment.className, user.className)) return;
         if (!assignment.dueDate) return;
         
         const dueTimeMs = new Date(assignment.dueDate).getTime();

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Send, Heart, Trash2, Users, User, Sparkles, Plus, Eye, CheckCircle2, Shield, Search, Type } from 'lucide-react';
+import { Mail, Send, Heart, Trash2, Users, User, Sparkles, Plus, Eye, CheckCircle2, Shield, Search, Type, Edit } from 'lucide-react';
 import { LoveLetter, User as UserType } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -29,6 +29,7 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
   showNotify
 }) => {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [fontStyle, setFontStyle] = useState<string>('itim');
@@ -67,10 +68,10 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
     setSending(true);
     try {
       const selectedUserObj = targetType === 'specific_user' ? usersList.find(u => u.id === targetValue) : null;
-      const newLetterId = `letter_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const finalLetterId = editingId || `letter_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       
       const newLetter: LoveLetter = {
-        id: newLetterId,
+        id: finalLetterId,
         senderId: currentUser.id,
         senderName: currentUser.name,
         senderRole: currentUser.role === 'admin' ? 'admin' : 'teacher',
@@ -81,16 +82,17 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
         targetType,
         targetValue: targetValue || '',
         targetUserName: selectedUserObj ? selectedUserObj.name : 'Người nhận',
-        createdAt: new Date().toISOString(),
-        readByUsers: []
+        createdAt: editingId ? (letters.find(l => l.id === editingId)?.createdAt || new Date().toISOString()) : new Date().toISOString(),
+        readByUsers: editingId ? (letters.find(l => l.id === editingId)?.readByUsers || []) : []
       };
 
-      await setDoc(doc(db, 'love_letters', newLetterId), newLetter);
-      showNotify('success', 'Đã tạo và gửi Bức Thư Yêu Thương thành công!');
+      await setDoc(doc(db, 'love_letters', finalLetterId), newLetter);
+      showNotify('success', editingId ? 'Đã cập nhật Bức Thư Yêu Thương thành công!' : 'Đã tạo và gửi Bức Thư Yêu Thương thành công!');
       
       // Reset form
       setTitle('');
       setContent('');
+      setEditingId(null);
       setIsCreating(false);
     } catch (err: any) {
       console.error(err);
@@ -155,7 +157,16 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
         </div>
 
         <button
-          onClick={() => setIsCreating(!isCreating)}
+          onClick={() => {
+            if (isCreating) {
+              setIsCreating(false);
+              setEditingId(null);
+              setTitle('');
+              setContent('');
+            } else {
+              setIsCreating(true);
+            }
+          }}
           className="px-5 py-3 bg-white text-rose-600 hover:bg-rose-50 font-extrabold text-xs rounded-2xl shadow-lg transition-all flex items-center gap-2 shrink-0 transform hover:scale-[1.02]"
         >
           {isCreating ? (
@@ -182,7 +193,9 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
               <Mail className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-slate-900 text-lg">Soạn Bức Thư Yêu Thương</h3>
+              <h3 className="font-extrabold text-slate-900 text-lg">
+                {editingId ? 'Chỉnh Sửa Bức Thư Yêu Thương' : 'Soạn Bức Thư Yêu Thương'}
+              </h3>
               <p className="text-xs text-slate-500">Tùy chỉnh phong cách phong bì, người nhận và dòng chữ viết tay</p>
             </div>
           </div>
@@ -424,7 +437,12 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
               <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsCreating(false)}
+                  onClick={() => {
+                    setIsCreating(false);
+                    setEditingId(null);
+                    setTitle('');
+                    setContent('');
+                  }}
                   className="px-4 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
                 >
                   Hủy bỏ
@@ -443,7 +461,7 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
                   className="px-6 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-rose-200 transition-all flex items-center gap-2 disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{sending ? 'Đang gửi...' : 'Gửi Thư Phong Bì'}</span>
+                  <span>{sending ? 'Đang lưu...' : editingId ? 'Cập Nhật Thư' : 'Gửi Thư Phong Bì'}</span>
                 </button>
               </div>
             </div>
@@ -506,6 +524,24 @@ export const LoveLetterManager: React.FC<LoveLetterManagerProps> = ({
                       </span>
 
                       <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingId(letter.id);
+                            setTitle(letter.title);
+                            setContent(letter.content);
+                            setFontStyle(letter.fontStyle || 'itim');
+                            setEnvelopeStyle(letter.envelopeStyle || 'rose_love');
+                            setTargetType(letter.targetType || 'next_registered');
+                            setTargetValue(letter.targetValue || '');
+                            setIsCreating(true);
+                          }}
+                          className="px-2.5 py-1 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-bold border border-slate-200 hover:border-indigo-200"
+                          title="Chỉnh sửa nội dung thư"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Chỉnh sửa</span>
+                        </button>
+
                         <button
                           onClick={() => setPreviewLetter(letter)}
                           className="px-2.5 py-1 text-slate-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-bold border border-slate-200 hover:border-rose-200"

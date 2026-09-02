@@ -592,24 +592,7 @@ export const LoveLetterModal: React.FC<LoveLetterModalProps> = ({
                 </div>
               </div>
 
-              {/* Font Selector Bar on Opened Letter */}
-              <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar py-0.5 bg-white/70 backdrop-blur-sm p-1 rounded-xl border border-stone-200/80">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider pl-1 shrink-0">KIỂU CHỮ:</span>
-                {HANDWRITING_FONTS.map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => handleSelectFont(f.id)}
-                    className={`px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
-                      selectedFontId === f.id
-                        ? 'bg-rose-500 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-                    }`}
-                    style={{ fontFamily: f.font }}
-                  >
-                    {f.name}
-                  </button>
-                ))}
-              </div>
+
             </div>
 
             {/* Handwritten Content Body - Dynamic height, auto word wrap, genuine Vietnamese handwriting */}

@@ -30,8 +30,16 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
   );
   const [badge, setBadge] = useState(isAdmin ? '🎉 Cập nhật' : '🏆 Huy hiệu');
   const [badgeColor, setBadgeColor] = useState(isAdmin ? 'emerald' : 'indigo');
+  const [targetScope, setTargetScope] = useState<'all' | 'class'>('all');
+  const [targetClass, setTargetClass] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (classesList.length > 0 && !targetClass) {
+      setTargetClass(classesList[0]);
+    }
+  }, [classesList, targetClass]);
 
   const showNotify = (type: 'success' | 'error' | 'info', msg: string) => {
     setMessage({ type: type === 'info' ? 'success' : type, text: msg });
@@ -81,6 +89,9 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
         badge: badge.trim(),
         badgeColor,
         createdAt: new Date().toISOString(),
+        targetScope,
+        targetClass: targetScope === 'class' ? targetClass : '',
+        teacherId: user.id
       };
 
       await setDoc(doc(db, 'system_notifications', newNotif.id), newNotif);
@@ -330,6 +341,67 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
                 placeholder="Ví dụ: 🎉 Cập nhật"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
+            </div>
+
+            {/* Target Audience Area */}
+            <div className="bg-slate-50/50 p-4.5 rounded-2xl border border-slate-100 space-y-3">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                🎯 Đối tượng nhận thông báo
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTargetScope('all')}
+                  className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center ${
+                    targetScope === 'all'
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  🌐 Toàn hệ thống
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetScope('class')}
+                  className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center ${
+                    targetScope === 'class'
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  🏫 Phân vào lớp
+                </button>
+              </div>
+
+              {targetScope === 'class' && (
+                <div className="space-y-1 mt-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase">
+                    Chọn lớp học nhận tin:
+                  </label>
+                  {classesList.length > 0 ? (
+                    <select
+                      value={targetClass}
+                      onChange={(e) => setTargetClass(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-700 bg-white"
+                    >
+                      {classesList.map((cls) => (
+                        <option key={cls} value={cls}>
+                          Lớp {cls}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      required
+                      value={targetClass}
+                      onChange={(e) => setTargetClass(e.target.value)}
+                      placeholder="Nhập tên lớp học (ví dụ: 12A1)..."
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             <button

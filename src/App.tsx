@@ -41,6 +41,8 @@ export default function App() {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   }, [activeTab, selectedAssignmentId]);
+
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   // App states synchronized with Firestore
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -52,7 +54,7 @@ export default function App() {
   const [loveLetters, setLoveLetters] = useState<LoveLetter[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [activeUnreadLetter, setActiveUnreadLetter] = useState<LoveLetter | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
   const [robotOpen, setRobotOpen] = useState(false);
   const [initializingAuth, setInitializingAuth] = useState(true);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(true);
@@ -65,6 +67,16 @@ export default function App() {
       return [];
     }
   });
+
+  // Auto open guide onboarding modal for new/first-time users (both students and teachers)
+  useEffect(() => {
+    if (currentUser) {
+      const dismissed = localStorage.getItem(`guideOnboardingDismissed_${currentUser.id}`) || sessionStorage.getItem(`guideOnboardingDismissed_${currentUser.id}`);
+      if (!dismissed) {
+        setShowGuideOnboarding(true);
+      }
+    }
+  }, [currentUser]);
 
   // 1. Setup Firebase Auth state listener and real-time user profile sync
   useEffect(() => {
@@ -727,13 +739,62 @@ export default function App() {
 
   const filteredNotifications = React.useMemo(() => {
     if (!currentUser) return [];
-    return systemNotifications.filter(notif => {
-      if (currentUser.role === 'teacher' || currentUser.role === 'admin') {
+    
+    const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+      if (!assignClass || assignClass.trim() === '') return true;
+      const cleanAssign = assignClass.trim().toLowerCase();
+      if (
+        cleanAssign === 'all' || 
+        cleanAssign === 'tất cả' || 
+        cleanAssign === 'tat ca' || 
+        cleanAssign === 'toàn hệ thống' || 
+        cleanAssign === 'toan he thong'
+      ) {
         return true;
       }
-      return !notif.targetStudentId || notif.targetStudentId === currentUser.id;
+      if (!userClass || userClass.trim() === '') return false;
+      const clean = (s: string) => {
+        return s.trim()
+          .toLowerCase()
+          .replace(/^(lớp|lop|class)\s+/gi, '')
+          .replace(/\s+/g, '');
+      };
+      return clean(assignClass) === clean(userClass);
+    };
+
+    return systemNotifications.filter(notif => {
+      // If user is Admin, they see all notifications
+      if (role === 'admin') {
+        return true;
+      }
+      
+      // If user is Teacher, they see notifications they created OR system-wide notifications
+      if (role === 'teacher') {
+        return !notif.teacherId || notif.teacherId === currentUser.id || notif.teacherId === 'admin';
+      }
+      
+      // If user is Student, they see notifications targeted to them or their class or system-wide
+      if (notif.targetStudentId) {
+        return notif.targetStudentId === currentUser.id;
+      }
+      
+      if (notif.targetScope === 'class') {
+        return isClassMatching(notif.targetClass, currentUser.className);
+      }
+      
+      // Default: system-wide announcements are visible, unless they were explicitly created by another teacher and not matching the student's class
+      if (notif.teacherId && notif.teacherId !== 'admin') {
+        // Find if this teacher is the student's teacher
+        // (A simple check: if the teacher created a class session that matches student's class, or if they share the same class name)
+        // Since we want strict isolation, if a notification has teacherId and targetScope is all, we default to showing it only if the student belongs to that teacher's class
+        const teacherCode = notif.teacherId.toUpperCase();
+        const studentClass = (currentUser.className || '').toUpperCase();
+        return studentClass === teacherCode;
+      }
+      
+      return true;
     });
-  }, [systemNotifications, currentUser]);
+  }, [systemNotifications, currentUser, role]);
 
   // Display a gorgeous premium loading screen while initializing auth
   if (initializingAuth) {
@@ -749,6 +810,21 @@ export default function App() {
     if (!currentUser) return null;
     const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
     const activeUser = { ...currentUser, role };
+
+    // Calculate unique class names for dropdown selection
+    const uniqueClassNames = (() => {
+      const names = new Set<string>();
+      if (currentUser.className) names.add(currentUser.className);
+      if (currentUser.connectionCode) names.add(currentUser.connectionCode);
+      allUsers.forEach((u) => {
+        if (u.className) names.add(u.className);
+        if (u.connectionCode) names.add(u.connectionCode);
+      });
+      classes.forEach((c) => {
+        if (c.className) names.add(c.className);
+      });
+      return Array.from(names).filter(Boolean).sort();
+    })();
 
     switch (activeTab) {
       case 'dashboard':
@@ -841,7 +917,7 @@ export default function App() {
             user={activeUser}
             loveLetters={loveLetters}
             usersList={allUsers}
-            classesList={classes.map((c) => c.title || c.id)}
+            classesList={uniqueClassNames}
           />
         ) : null;
       case 'activity-logs':
@@ -860,7 +936,7 @@ export default function App() {
           />
         ) : null;
       case 'students':
-        return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} /> : null;
+        return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} user={activeUser} /> : null;
       case 'simulations':
         return <SimulationsView user={activeUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'rewards-store':
@@ -959,8 +1035,10 @@ export default function App() {
               user={currentUser}
               onClose={() => {
                 setShowGuideOnboarding(false);
-                sessionStorage.setItem('onboardingDismissed', 'true');
-                sessionStorage.setItem('guideOnboardingDismissed', 'true');
+                if (currentUser) {
+                  localStorage.setItem(`guideOnboardingDismissed_${currentUser.id}`, 'true');
+                  sessionStorage.setItem(`guideOnboardingDismissed_${currentUser.id}`, 'true');
+                }
               }}
             />
           )}

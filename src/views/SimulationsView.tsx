@@ -20,9 +20,19 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     if (isTeacher || user.role === 'admin') {
       return initialSims;
     }
+    const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+      if (!assignClass || assignClass.trim() === '') return true;
+      if (!userClass || userClass.trim() === '') return false;
+      const clean = (s: string) => {
+        return s.trim()
+          .toLowerCase()
+          .replace(/^(lớp|lop|class)\s+/gi, '')
+          .replace(/\s+/g, '');
+      };
+      return clean(assignClass) === clean(userClass);
+    };
     return initialSims.filter(sim => {
-      if (sim.className && sim.className !== user.className) return false;
-      return true;
+      return isClassMatching(sim.className, user.className);
     });
   }, [initialSims, isTeacher, user]);
 

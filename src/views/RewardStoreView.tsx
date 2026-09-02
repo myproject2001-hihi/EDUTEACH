@@ -160,8 +160,20 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
 
   // Filter items
   const filteredCatalog = fullCatalog.filter(item => {
+    const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+      if (!assignClass || assignClass.trim() === '') return true;
+      if (!userClass || userClass.trim() === '') return false;
+      const clean = (s: string) => {
+        return s.trim()
+          .toLowerCase()
+          .replace(/^(lớp|lop|class)\s+/gi, '')
+          .replace(/\s+/g, '');
+      };
+      return clean(assignClass) === clean(userClass);
+    };
+
     // Hide class-specific items for students if they don't belong to the class
-    if (!isTeacher && user.role !== 'admin' && item.className && item.className !== user.className) return false;
+    if (!isTeacher && user.role !== 'admin' && !isClassMatching(item.className, user.className)) return false;
 
     if (activeTab === 'inventory') return false;
     if (activeTab !== 'all' && item.category !== activeTab) return false;

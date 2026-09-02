@@ -464,6 +464,28 @@ const DEFAULT_THUMBNAILS = {
   default: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=600&q=80'
 };
 
+const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+  if (!assignClass || assignClass.trim() === '') return true;
+  const cleanAssign = assignClass.trim().toLowerCase();
+  if (
+    cleanAssign === 'all' || 
+    cleanAssign === 'tất cả' || 
+    cleanAssign === 'tat ca' || 
+    cleanAssign === 'toàn hệ thống' || 
+    cleanAssign === 'toan he thong'
+  ) {
+    return true;
+  }
+  if (!userClass || userClass.trim() === '') return false;
+  const clean = (s: string) => {
+    return s.trim()
+      .toLowerCase()
+      .replace(/^(lớp|lop|class)\s+/gi, '')
+      .replace(/\s+/g, '');
+  };
+  return clean(assignClass) === clean(userClass);
+};
+
 export function AssignmentsView({ 
   user, 
   assignments: rawAssignments, 
@@ -613,7 +635,7 @@ export function AssignmentsView({
 
     const baseList = assignments.filter(a => {
       if (!isTeacher && !isAdmin && a.isPublished === false) return false;
-      if (!isTeacher && !isAdmin && a.className && a.className.trim() !== user.className.trim()) return false;
+      if (!isTeacher && !isAdmin && !isClassMatching(a.className, user.className)) return false;
       return true;
     });
 
@@ -649,7 +671,7 @@ export function AssignmentsView({
       if (!isTeacher && !isAdmin && assignment.isPublished === false) return false;
 
       // 0.5 Filter by class for students
-      if (!isTeacher && !isAdmin && assignment.className && assignment.className !== user.className) return false;
+      if (!isTeacher && !isAdmin && !isClassMatching(assignment.className, user.className)) return false;
 
       // 1. Search Query Match
       const q = searchQuery.toLowerCase().trim();
@@ -793,6 +815,12 @@ export function AssignmentsView({
       });
     }
 
+    // 5. Fallback from localStorage
+    const localClass = localStorage.getItem('class_name');
+    if (localClass && typeof localClass === 'string' && localClass.trim()) {
+      classSet.add(localClass.trim());
+    }
+
     // Default standard classes ONLY if the list is completely empty, to prevent broken UI
     if (classSet.size === 0) {
       if (user.className) {
@@ -914,7 +942,7 @@ export function AssignmentsView({
   const [showFlashcardPreview, setShowFlashcardPreview] = useState(false);
   const [showFlashcardQuizTest, setShowFlashcardQuizTest] = useState(false);
   const [newIsMandatory, setNewIsMandatory] = useState(false);
-  const [newIsPublished, setNewIsPublished] = useState(false);
+  const [newIsPublished, setNewIsPublished] = useState(true);
   const [newMaxAttempts, setNewMaxAttempts] = useState<number>(0); // 0 = vĩnh viễn (không giới hạn)
   const [newTimeLimit, setNewTimeLimit] = useState<number>(0);
   const [newShuffleQuestions, setNewShuffleQuestions] = useState<boolean>(false);
@@ -1463,7 +1491,7 @@ export function AssignmentsView({
     setNewIsMandatory(false);
     setNewTimeLimit(0);
     setNewShuffleQuestions(false);
-    setNewIsPublished(false); // Default to draft for new assignments
+    setNewIsPublished(true); // Default to published for new assignments
     setNewMaxAttempts(0);
     setGameSubStep(1);
     setFlashcardSubStep(1);
@@ -5028,30 +5056,9 @@ export function AssignmentsView({
                               setNewGrade(val);
                             }
                           }}
-                          placeholder="Điền số 1 - 12 (VD: 10) hoặc chọn..."
+                          placeholder="Điền khối lớp (VD: Khối 10, Khối 11)..."
                           className="w-full px-3.5 sm:px-4 py-2.5 sm:py-3 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600 transition-shadow placeholder:text-slate-400 placeholder:font-normal"
                         />
-                        {/* Quick Selection Buttons 1 to 12 */}
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {Array.from({ length: 12 }, (_, i) => i + 1).map((gNum) => {
-                            const gStr = `Khối ${gNum}`;
-                            const isSelected = newGrade === gStr || newGrade === `${gNum}`;
-                            return (
-                              <button
-                                key={gNum}
-                                type="button"
-                                onClick={() => setNewGrade(isSelected ? '' : gStr)}
-                                className={`px-2 py-0.5 text-[11px] rounded-lg font-bold border transition-all ${
-                                  isSelected
-                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs scale-105'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200'
-                                }`}
-                              >
-                                K{gNum}
-                              </button>
-                            );
-                          })}
-                        </div>
                       </div>
 
                       <div>

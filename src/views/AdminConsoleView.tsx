@@ -756,19 +756,11 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
                 <Shield className="w-3.5 h-3.5" />
                 Trung tâm Quản trị viên
               </span>
-              {superAdminUser ? (
+              {superAdminUser && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100/60 border border-amber-200 text-amber-800 rounded-full text-xs font-black">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                   Quản trị viên chính: {superAdminUser.name}
                 </span>
-              ) : (
-                <button
-                  onClick={handleClaimSuperAdmin}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-full text-xs font-black shadow-md transition-all animate-bounce"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-slate-900" />
-                  Kích hoạt vai trò Quản trị viên chính
-                </button>
               )}
             </div>
             <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">

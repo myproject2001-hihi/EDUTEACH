@@ -239,6 +239,12 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
       }
     });
 
+    // 4. Fallback from localStorage
+    const localClass = localStorage.getItem('class_name');
+    if (localClass && typeof localClass === 'string' && localClass.trim()) {
+      classSet.add(localClass.trim());
+    }
+
     // Default standard classes ONLY if the list is completely empty, to prevent broken UI
     if (classSet.size === 0) {
       if (user.className) {
@@ -919,29 +925,9 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                       setTargetGrade(val);
                     }
                   }}
-                  placeholder="Điền số 1 - 12 (VD: 10) hoặc bấm chọn..."
+                  placeholder="Điền khối lớp (VD: Khối 10, Khối 11)..."
                   className="w-full px-4 py-2.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600"
                 />
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((gNum) => {
-                    const gStr = `Khối ${gNum}`;
-                    const isSelected = targetGrade === gStr || targetGrade === `${gNum}`;
-                    return (
-                      <button
-                        key={gNum}
-                        type="button"
-                        onClick={() => setTargetGrade(isSelected ? '' : gStr)}
-                        className={`px-2 py-0.5 text-[11px] rounded-lg font-bold border transition-all ${
-                          isSelected
-                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs scale-105'
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
-                        }`}
-                      >
-                        K{gNum}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
 
               {/* Class select */}

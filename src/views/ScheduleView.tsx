@@ -28,13 +28,26 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
   const isAdmin = user.role === 'admin';
 
-  // Filter sessions: Teacher only manages their created sessions, Admin sees all
+  const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+    if (!assignClass || assignClass.trim() === '') return true;
+    if (!userClass || userClass.trim() === '') return false;
+    const clean = (s: string) => {
+      return s.trim()
+        .toLowerCase()
+        .replace(/^(lớp|lop|class)\s+/gi, '')
+        .replace(/\s+/g, '');
+    };
+    return clean(assignClass) === clean(userClass);
+  };
+
+  // Filter sessions: Teacher only manages their created sessions, Admin sees all, Student sees their class sessions
   const filteredInitialClasses = React.useMemo(() => {
     if (isAdmin) return initialClasses;
     if (user.role === 'teacher') {
-      return initialClasses.filter(c => !c.teacherId || c.teacherId === user.id);
+      return initialClasses.filter(c => c.teacherId === user.id);
     }
-    return initialClasses;
+    // Student: filter classes matching their class name
+    return initialClasses.filter(c => isClassMatching(c.className || c.title, user.className));
   }, [initialClasses, user, isAdmin]);
 
   const [sessions, setSessions] = useState<ClassSession[]>(filteredInitialClasses);

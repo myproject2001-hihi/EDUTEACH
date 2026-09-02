@@ -48,7 +48,20 @@ function formatRelativeTime(dateString: string): string {
 export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, onOpenRobot, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'unread' | 'all'>('unread');
+  const [showProactiveOverlay, setShowProactiveOverlay] = useState(false);
   const [remindedIds, setRemindedIds] = useState<string[]>([]);
+
+  const unreadNotifications = React.useMemo(() => {
+    return systemNotifications.filter(n => !user.readNotifications?.includes(n.id));
+  }, [systemNotifications, user.readNotifications]);
+
+  React.useEffect(() => {
+    const hasPrompted = sessionStorage.getItem('notified_proactive');
+    if (!hasPrompted && unreadNotifications.length > 0) {
+      setShowProactiveOverlay(true);
+      sessionStorage.setItem('notified_proactive', 'true');
+    }
+  }, [unreadNotifications]);
 
   const handleRequestReminder = async (assignmentId: string, title: string, dueDate: string) => {
     try {
@@ -104,10 +117,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     }
   };
 
-  const unreadNotifications = React.useMemo(() => {
-    return systemNotifications.filter(n => !user.readNotifications?.includes(n.id));
-  }, [systemNotifications, user.readNotifications]);
-
   const displayedNotifications = React.useMemo(() => {
     if (notifFilter === 'unread') {
       return unreadNotifications;
@@ -119,6 +128,18 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
   const isAdmin = activeRole === 'admin';
   const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
 
+  const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+    if (!assignClass || assignClass.trim() === '') return true;
+    if (!userClass || userClass.trim() === '') return false;
+    const clean = (s: string) => {
+      return s.trim()
+        .toLowerCase()
+        .replace(/^(lớp|lop|class)\s+/gi, '')
+        .replace(/\s+/g, '');
+    };
+    return clean(assignClass) === clean(userClass);
+  };
+
   const upcomingAssignments = React.useMemo(() => {
     if (isTeacher || !assignments) return [];
     const now = new Date().getTime();
@@ -126,7 +147,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     
     return assignments.filter(a => {
       if (a.isPublished === false) return false;
-      if (a.className && user.className && a.className.trim() !== user.className.trim()) return false;
+      if (!isClassMatching(a.className, user.className)) return false;
       if (!a.dueDate) return false;
       const dueTime = new Date(a.dueDate).getTime();
       if (dueTime < now || dueTime > next24h) return false;
@@ -229,7 +250,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
         for (const assignment of assignments) {
           try {
             if (assignment.isPublished === false) continue;
-            if (assignment.className && user.className && assignment.className.trim() !== user.className.trim()) continue;
+            if (!isClassMatching(assignment.className, user.className)) continue;
             if (!assignment.dueDate) continue;
             const due = new Date(assignment.dueDate).getTime();
             const alertId = `assign_${assignment.id}`;
@@ -585,30 +606,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                       </div>
 
                       <div className="p-4 space-y-4 max-h-[320px] overflow-y-auto custom-scrollbar">
-                        {/* Simulation Section */}
-                        <div className="p-3 bg-indigo-50/40 border border-indigo-100/50 rounded-xl space-y-2">
-                          <p className="text-[11px] text-indigo-700 font-bold flex items-center gap-1">
-                            <span>💡</span> Thử nghiệm tính năng nhắc lịch:
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
-                            Nhấp nút dưới đây để tạo giả lập 1 lớp học sắp bắt đầu sau 15 phút. Bạn sẽ nhận được thông báo Toast nhắc nhở tức thì.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if ((window as any).simulateClassReminder) {
-                                (window as any).simulateClassReminder("Chuyên đề Toán học: Hình học Oxyz");
-                              } else {
-                                alert("Tính năng nhắc lịch đang được khởi tạo, vui lòng thử lại sau!");
-                              }
-                              setShowNotifications(false);
-                            }}
-                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-indigo-600/10 uppercase tracking-wider active:scale-98"
-                          >
-                            🔔 Giả Lập Nhắc Lịch Học (Trước 15 Phút)
-                          </button>
-                        </div>
-
                         {/* Upcoming Classes Notices */}
                         {upcomingClasses.length > 0 && (
                           <div className="space-y-3">
@@ -1364,6 +1361,80 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
               </button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Proactive Unread Notifications Overlay Modal */}
+      <AnimatePresence>
+        {showProactiveOverlay && unreadNotifications.length > 0 && (
+          <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 md:p-8 animate-fade-in">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="bg-white border border-slate-200/80 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] md:max-h-[80vh]"
+            >
+              {/* Header */}
+              <div className="p-6 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white flex items-center gap-3 shrink-0">
+                <div className="p-2.5 bg-white/10 rounded-2xl">
+                  <BellRing className="w-6 h-6 text-white animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base sm:text-lg tracking-tight">Thông báo mới chưa đọc</h3>
+                  <p className="text-white/80 text-xs mt-0.5 font-medium">Bạn có {unreadNotifications.length} bản tin mới cần cập nhật</p>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-slate-50/50">
+                {unreadNotifications.map((notif) => {
+                  const colorMap: Record<string, string> = {
+                    emerald: 'bg-emerald-50 border-emerald-200/60 text-emerald-800',
+                    indigo: 'bg-indigo-50 border-indigo-200/60 text-indigo-800',
+                    amber: 'bg-amber-50 border-amber-200/60 text-amber-800',
+                    slate: 'bg-slate-50 border-slate-200/60 text-slate-800',
+                  };
+                  const color = notif.badgeColor || 'slate';
+                  const styleClass = colorMap[color] || colorMap.slate;
+
+                  return (
+                    <div key={notif.id} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${styleClass}`}>
+                          {notif.badge}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold ml-auto">
+                          {formatRelativeTime(notif.createdAt)}
+                        </span>
+                      </div>
+                      <h4 className="font-black text-sm text-slate-900 leading-tight">
+                        {notif.title}
+                      </h4>
+                      <p className="text-xs text-slate-600 font-medium leading-relaxed whitespace-pre-wrap">
+                        {notif.content}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer */}
+              <div className="p-5 bg-white border-t border-slate-100 flex gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleMarkAllAsRead();
+                    setShowProactiveOverlay(false);
+                  }}
+                  className="w-full py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-xl transition-all shadow-md shadow-indigo-200 hover:shadow-lg flex items-center justify-center gap-1.5 active:scale-98"
+                >
+                  <Check className="w-4 h-4" />
+                  Đã hiểu & Xác nhận đã đọc tất cả
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
