@@ -214,7 +214,7 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
   const availableTeacherClasses = React.useMemo(() => {
     const classSet = new Set<string>();
 
-    // 1. Classes from teacher's sessions (or all sessions for admin)
+    // 1. Classes from teacher's sessions/classes in database (or all for admin)
     classList.forEach((c: any) => {
       if (isAdmin || c.teacherId === user.id || c.teacherName === user.name) {
         if (c.className && typeof c.className === 'string') classSet.add(c.className.trim());
@@ -229,16 +229,25 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
       classSet.add(user.className.trim());
     }
 
-    // 3. Classes from assignments
+    // 3. Classes from assignments created by this teacher (or all for admin)
     assignments.forEach(a => {
-      if (a.className && typeof a.className === 'string') {
-        classSet.add(a.className.trim());
+      const isOwner = a.teacherId === user.id || a.teacherName === user.name;
+      if (isAdmin || isOwner) {
+        if (a.className && typeof a.className === 'string') {
+          classSet.add(a.className.trim());
+        }
       }
     });
 
-    // Default standard classes
-    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
-    defaults.forEach(d => classSet.add(d));
+    // Default standard classes ONLY if the list is completely empty, to prevent broken UI
+    if (classSet.size === 0) {
+      if (user.className) {
+        classSet.add(user.className.trim());
+      } else {
+        const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
+        defaults.forEach(d => classSet.add(d));
+      }
+    }
 
     return Array.from(classSet)
       .filter(Boolean)
