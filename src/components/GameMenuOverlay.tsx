@@ -27,14 +27,14 @@ export function GameMenuOverlay({ gameType, isOpen, onClose }: GameMenuOverlayPr
       case 'cuoc_dua_ngon_tay':
         return {
           title: '🏎️ Hướng Dẫn: Cuộc Đua Ngón Tay',
-          description: 'Học sinh điều khiển xe đua của mình bằng cách giơ số lượng ngón tay tương ứng để bứt tốc vượt đối thủ!',
+          description: 'Học sinh điều khiển xe đua của mình bằng cách giơ số lượng ngón tay tương ứng hoặc chạm trực tiếp vào đáp án trên màn hình để bứt tốc về đích!',
           rules: [
             { gesture: '☝️ Giơ 1 Ngón Tay (Ngón Trỏ)', action: 'Chọn đáp án A' },
             { gesture: '✌️ Giơ 2 Ngón Tay (Trỏ + Giữa)', action: 'Chọn đáp án B' },
             { gesture: '🤟 Giơ 3 Ngón Tay (Trỏ + Giữa + Áp Út)', action: 'Chọn đáp án C' },
-            { gesture: '✋ Giơ 4 Ngón Tay (Bốn Ngón thẳng)', action: 'Chọn đáp án D' }
+            { gesture: '✋ Giơ 4 Ngón Tay (Bốn Ngón)', action: 'Chọn đáp án D' }
           ],
-          tips: 'Giơ bàn tay cao ngang ngực trước camera rõ ràng. Khi camera nhận diện được số ngón tay chính xác, giữ nguyên vị trí trong vòng 0.3 giây để bứt tốc!'
+          tips: 'Giơ bàn tay ngang ngực trước camera rõ ràng (hoặc chạm trực tiếp vào các nút đáp án nếu chơi trên điện thoại). Trả lời đúng để xe tăng tốc lao nhanh về đích!'
         };
       case 'do_min':
         return {

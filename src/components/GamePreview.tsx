@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle, Maximize2, Minimize2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle, Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
 import { CameraCapture } from './CameraCapture';
 import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { MarkdownMath } from './MarkdownMath';
@@ -14,6 +14,7 @@ import { SecretWordGame } from './SecretWordGame';
 import { MemoryFlipGame } from './MemoryFlipGame';
 import { KnowledgeTrainGame } from './KnowledgeTrainGame';
 import { TugOfWarGame } from './TugOfWarGame';
+import { WhackAMoleGame } from './WhackAMoleGame';
 
 interface Props {
   gameType: string;
@@ -26,39 +27,198 @@ interface Props {
 }
 
 
+function dist2D(p1: { x: number; y: number }, p2: { x: number; y: number }) {
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 /**
  * Hàm xử lý logic nhận diện số lượng ngón tay giơ lên từ danh sách landmark của MediaPipe.
- * Thuật toán so sánh cao độ (trục Y) của đỉnh ngón tay (Finger Tip) với khớp liền kề (PIP Joint)
- * để xác định ngón tay đó đang giơ lên (raised) hay đang cụp xuống.
+ * Hỗ trợ nhận diện chính xác và nhạy cho CẢ TAY TRÁI LẪN TAY PHẢI, ở mọi góc nghiêng tự nhiên.
  * 
- * Sơ đồ các điểm mốc (landmarks) được sử dụng:
- * - Ngón trỏ:  Điểm mốc 8 (Tip)  so với 6 (PIP)
- * - Ngón giữa: Điểm mốc 12 (Tip) so với 10 (PIP)
- * - Ngón áp út:Điểm mốc 16 (Tip) so với 14 (PIP)
- * - Ngón út:   Điểm mốc 20 (Tip) so với 18 (PIP)
- *
- * @param landmarks Danh sách 21 điểm mốc tọa độ bàn tay từ MediaPipe HandLandmarker
- * @returns Trả về kết quả từ 1 đến 4 ngón tay giơ lên, hoặc 'none' nếu không khớp.
+ * Sử dụng kết hợp khoảng cách hình học bất biến (Euclidean Distance từ cổ tay và các khớp)
+ * cùng với cao độ trục Y để nhận diện cử chỉ 1, 2, 3, 4 ngón tay linh hoạt.
  */
 export function countRaisedFingers(landmarks: any[]): number | 'none' {
   if (!landmarks || landmarks.length < 21) return 'none';
 
-  // Xác định các ngón có đang giơ lên hay không (y càng nhỏ nghĩa là càng cao trên màn hình)
-  const indexRaised = landmarks[8].y < landmarks[6].y;
-  const middleRaised = landmarks[12].y < landmarks[10].y;
-  const ringRaised = landmarks[16].y < landmarks[14].y;
-  const pinkyRaised = landmarks[20].y < landmarks[18].y;
+  const wrist = landmarks[0];
 
-  let count = 0;
-  if (indexRaised) count++;
-  if (middleRaised) count++;
-  if (ringRaised) count++;
-  if (pinkyRaised) count++;
+  // Kiểm tra 4 ngón dài (Trỏ: 8, Giữa: 12, Áp út: 16, Út: 20)
+  // Ngón tay được tính là giơ lên khi đầu ngón xa cổ tay hơn các khớp gốc (PIP/MCP) hoặc vươn lên cao
+  const isFingerExtended = (tipIdx: number, pipIdx: number, mcpIdx: number) => {
+    const tip = landmarks[tipIdx];
+    const pip = landmarks[pipIdx];
+    const mcp = landmarks[mcpIdx];
+    const distTipWrist = dist2D(tip, wrist);
+    const distPipWrist = dist2D(pip, wrist);
+    const distMcpWrist = dist2D(mcp, wrist);
+    
+    const distanceExtended = distTipWrist > distPipWrist * 1.12 && distTipWrist > distMcpWrist * 1.22;
+    const verticalExtended = tip.y < pip.y && tip.y < mcp.y;
+    return distanceExtended || verticalExtended;
+  };
 
-  if (count >= 1 && count <= 4) {
-    return count;
+  const indexRaised = isFingerExtended(8, 6, 5);
+  const middleRaised = isFingerExtended(12, 10, 9);
+  const ringRaised = isFingerExtended(16, 14, 13);
+  const pinkyRaised = isFingerExtended(20, 18, 17);
+
+  // Kiểm tra Ngón Cái (Thumb: Tip 4, MCP 2, Pinky Base 17, Index Base 5)
+  // Khoảng cách từ đầu ngón cái (4) đến gốc ngón út (17) hoặc gốc ngón trỏ (5) hoạt động đối xứng cho cả Tay Trái và Tay Phải
+  const thumbTip = landmarks[4];
+  const thumbMcp = landmarks[2];
+  const pinkyMcp = landmarks[17];
+  const indexMcp = landmarks[5];
+  
+  const distThumbToPinky = dist2D(thumbTip, pinkyMcp);
+  const distThumbMcpToPinky = dist2D(thumbMcp, pinkyMcp);
+  const distThumbToWrist = dist2D(thumbTip, wrist);
+  const distThumbMcpToWrist = dist2D(thumbMcp, wrist);
+
+  const thumbRaised = (distThumbToPinky > distThumbMcpToPinky * 1.25) || (distThumbToWrist > distThumbMcpToWrist * 1.2 && dist2D(thumbTip, indexMcp) > 0.08);
+
+  let fourFingerCount = 0;
+  if (indexRaised) fourFingerCount++;
+  if (middleRaised) fourFingerCount++;
+  if (ringRaised) fourFingerCount++;
+  if (pinkyRaised) fourFingerCount++;
+
+  const totalCount = fourFingerCount + (thumbRaised ? 1 : 0);
+
+  // 1. Trường hợp 4 ngón chính giơ rõ ràng (1, 2, 3, 4)
+  if (fourFingerCount >= 1 && fourFingerCount <= 4) {
+    if (fourFingerCount === 4 && thumbRaised) return 4; // Mở cả 5 ngón = Đáp án D (4)
+    return fourFingerCount;
   }
+
+  // 2. Trường hợp giơ kết hợp ngón cái (ví dụ: ngón cái + ngón trỏ = 2, ngón cái = 1)
+  if (totalCount >= 1 && totalCount <= 4) {
+    return totalCount;
+  }
+  if (totalCount === 5) {
+    return 4; // Bàn tay xòe 5 ngón -> tự động khớp đáp án 4 (D)
+  }
+
   return 'none';
+}
+
+function SuperRaceCar({ isSpeeding }: { isSpeeding: boolean }) {
+  return (
+    <div className="relative flex items-center select-none">
+      {/* Nitro Flame Effect behind car when speeding */}
+      {isSpeeding && (
+        <div className="absolute -left-6 sm:-left-10 top-1/2 -translate-y-1/2 flex items-center z-0">
+          <div className="w-10 h-5 sm:w-16 sm:h-8 bg-gradient-to-r from-transparent via-amber-400 to-rose-600 rounded-full blur-[2px] animate-pulse" />
+          <span className="text-xl sm:text-3xl animate-ping -ml-3">🔥</span>
+        </div>
+      )}
+
+      {/* Main Beautiful Sports Racecar Graphic */}
+      <svg 
+        viewBox="0 0 160 70" 
+        className="w-24 h-12 sm:w-36 sm:h-18 md:w-44 md:h-22 drop-shadow-[0_8px_16px_rgba(0,0,0,0.6)] filter transition-transform duration-300 group-hover:scale-105"
+      >
+        <defs>
+          <linearGradient id="raceCarBody" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#991b1b" />
+            <stop offset="25%" stopColor="#dc2626" />
+            <stop offset="60%" stopColor="#ef4444" />
+            <stop offset="100%" stopColor="#f87171" />
+          </linearGradient>
+          <linearGradient id="raceGoldStripe" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="50%" stopColor="#fbbf24" />
+            <stop offset="100%" stopColor="#fef08a" />
+          </linearGradient>
+          <linearGradient id="raceGlassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#0369a1" />
+          </linearGradient>
+          <radialGradient id="raceWheelRim" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#f8fafc" />
+            <stop offset="40%" stopColor="#94a3b8" />
+            <stop offset="70%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </radialGradient>
+        </defs>
+
+        {/* Dynamic Shadow */}
+        <ellipse cx="80" cy="62" rx="72" ry="5" fill="rgba(0,0,0,0.6)" filter="blur(2px)" />
+
+        {/* Rear Wing / Aerodynamic Spoiler */}
+        <path d="M 8 28 L 22 28 L 26 36 L 12 36 Z" fill="#7f1d1d" />
+        <rect x="5" y="24" width="22" height="5" rx="2.5" fill="#ef4444" stroke="#fbbf24" strokeWidth="1" />
+
+        {/* Aerodynamic Chassis */}
+        <path 
+          d="M 12 46 
+             L 28 42 
+             L 52 30 
+             C 65 24, 90 24, 108 34 
+             L 138 42 
+             C 152 45, 158 50, 155 54 
+             L 142 56 
+             L 125 56 
+             C 123 48, 111 48, 109 56 
+             L 55 56 
+             C 53 48, 41 48, 39 56 
+             L 12 56 
+             C 8 54, 8 48, 12 46 Z" 
+          fill="url(#raceCarBody)" 
+          stroke="#7f1d1d" 
+          strokeWidth="1.5"
+        />
+
+        {/* Racing Gold Side Stripe */}
+        <path 
+          d="M 28 46 L 140 46 L 132 50 L 26 50 Z" 
+          fill="url(#raceGoldStripe)" 
+        />
+
+        {/* Cockpit / Glass Canopy */}
+        <path 
+          d="M 56 32 
+             L 76 25 
+             C 88 25, 96 28, 102 34 
+             L 66 35 Z" 
+          fill="url(#raceGlassGrad)" 
+          opacity="0.9"
+        />
+        <path d="M 60 31 L 76 26 L 73 33 Z" fill="#ffffff" opacity="0.6" />
+
+        {/* Driver Helmet */}
+        <circle cx="76" cy="29" r="6" fill="#fbbf24" stroke="#d97706" strokeWidth="1" />
+        <path d="M 76 27 L 81 29 L 77 31 Z" fill="#0f172a" />
+
+        {/* Front Splitter / Nose Wing */}
+        <path d="M 145 52 L 158 52 L 156 56 L 142 56 Z" fill="#1e293b" />
+
+        {/* Glowing Headlight */}
+        <polygon points="152,48 160,46 160,54 152,52" fill="#38bdf8" opacity="0.95" />
+        <ellipse cx="152" cy="50" rx="3" ry="2" fill="#f8fafc" />
+
+        {/* Racing Decal Number #1 */}
+        <circle cx="82" cy="48" r="7" fill="#ffffff" stroke="#1e293b" strokeWidth="1" />
+        <text x="82" y="52" textAnchor="middle" fontSize="9" fontWeight="900" fill="#dc2626" fontFamily="sans-serif">1</text>
+
+        {/* Rear Wheel */}
+        <g transform="translate(47, 54)">
+          <circle cx="0" cy="0" r="11" fill="#18181b" stroke="#09090b" strokeWidth="2" />
+          <circle cx="0" cy="0" r="7" fill="url(#raceWheelRim)" />
+          <circle cx="0" cy="0" r="3" fill="#ef4444" />
+        </g>
+
+        {/* Front Wheel */}
+        <g transform="translate(117, 54)">
+          <circle cx="0" cy="0" r="11" fill="#18181b" stroke="#09090b" strokeWidth="2" />
+          <circle cx="0" cy="0" r="7" fill="url(#raceWheelRim)" />
+          <circle cx="0" cy="0" r="3" fill="#ef4444" />
+        </g>
+      </svg>
+    </div>
+  );
 }
 
 
@@ -124,7 +284,7 @@ function LiveCamera({
                 delegate: "GPU"
               },
               runningMode: "VIDEO",
-              numHands: 1
+              numHands: 2
             });
           } catch (gpuErr) {
             console.warn("GPU delegate failed, falling back to CPU for HandLandmarker", gpuErr);
@@ -134,7 +294,7 @@ function LiveCamera({
                 delegate: "CPU"
               },
               runningMode: "VIDEO",
-              numHands: 1
+              numHands: 2
             });
           }
         }
@@ -150,7 +310,13 @@ function LiveCamera({
 
     const startUserMedia = async () => {
       try {
-        return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        return await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode: 'user',
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          } 
+        });
       } catch (e) {
         console.warn("FacingMode user failed, trying video true", e);
         return await navigator.mediaDevices.getUserMedia({ video: true });
@@ -231,8 +397,15 @@ function LiveCamera({
             const results = handLandmarker.detectForVideo(videoRef.current, startTimeMs);
             
             if (results.landmarks && results.landmarks.length > 0) {
-              const landmarks = results.landmarks[0];
-              const detectedCount = countRaisedFingers(landmarks);
+              let detectedCount: number | 'none' = 'none';
+              // Check detected hands (left or right hand)
+              for (const handLandmarks of results.landmarks) {
+                const count = countRaisedFingers(handLandmarks);
+                if (count !== 'none') {
+                  detectedCount = count;
+                  break;
+                }
+              }
               onFingerCountRef.current?.(detectedCount);
             } else {
               onFingerCountRef.current?.('none');
@@ -261,12 +434,18 @@ function LiveCamera({
       {!isLoaded && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-900/80 p-4">
           <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-          <div className="text-white text-xs font-bold animate-pulse">
-            Đang khởi tạo AI {mode === 'face' ? 'Nhận diện Khuôn mặt' : 'Nhận diện Bàn tay'}...
+          <div className="text-white text-xs font-bold animate-pulse text-center">
+            Đang khởi tạo AI {mode === 'face' ? 'Khuôn mặt' : 'Bàn tay'}...
           </div>
         </div>
       )}
-      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1] absolute inset-0 z-10 opacity-90" />
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        playsInline 
+        muted 
+        className="w-full h-full object-cover scale-x-[-1] absolute inset-0 z-10 opacity-90" 
+      />
     </>
   );
 }
@@ -322,16 +501,194 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
   const [fingerCount, setFingerCount] = useState<number | 'none'>('none');
   const [isCalibrated, setIsCalibrated] = useState(false);
   
+  const [frameTick, setFrameTick] = useState(0);
+  const [tiltFrameTick, setTiltFrameTick] = useState(0);
+
+  const handleFingerCount = (count: number | 'none') => {
+    setFingerCount(count);
+    setFrameTick(prev => prev + 1);
+  };
+
+  const handleTilt = (dir: 'left' | 'right' | 'up' | 'down' | 'none') => {
+    setTiltDir(dir);
+    setTiltFrameTick(prev => prev + 1);
+  };
+  
   const [consecutiveTilt, setConsecutiveTilt] = useState<{ dir: 'left' | 'right' | 'up' | 'down' | 'none'; count: number }>({ dir: 'none', count: 0 });
   const [consecutiveFinger, setConsecutiveFinger] = useState<{ count: number | 'none'; frames: number }>({ count: 'none', frames: 0 });
   
+  const missedFingerFramesRef = React.useRef<number>(0);
+  const missedTiltFramesRef = React.useRef<number>(0);
+  const isProcessingAnswerRef = React.useRef<boolean>(false);
+  const answeredQuestionIndicesRef = React.useRef<Set<number>>(new Set());
+  
   // Game logic state
+  const [isMuted, setIsMuted] = useState(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  const getAudioContext = useCallback(() => {
+    if (!audioCtxRef.current) {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        audioCtxRef.current = new AudioCtx();
+      }
+    }
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  const playSound = useCallback((type: 'car_speed' | 'victory' | 'correct' | 'wrong') => {
+    if (isMuted) return;
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      if (type === 'car_speed') {
+        // 1. Sport Car Engine Acceleration & Turbo Nitro Boost
+        const engineOsc = ctx.createOscillator();
+        const engineGain = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(450, now);
+        filter.frequency.exponentialRampToValueAtTime(1600, now + 0.45);
+
+        engineOsc.type = 'sawtooth';
+        engineOsc.frequency.setValueAtTime(115, now);
+        engineOsc.frequency.exponentialRampToValueAtTime(290, now + 0.18);
+        engineOsc.frequency.exponentialRampToValueAtTime(460, now + 0.45);
+
+        engineGain.gain.setValueAtTime(0.01, now);
+        engineGain.gain.linearRampToValueAtTime(0.25, now + 0.08);
+        engineGain.gain.exponentialRampToValueAtTime(0.001, now + 0.58);
+
+        engineOsc.connect(filter);
+        filter.connect(engineGain);
+        engineGain.connect(ctx.destination);
+
+        engineOsc.start(now);
+        engineOsc.stop(now + 0.58);
+
+        // 2. Playful Nitro Swoosh Whoosh
+        const swooshOsc = ctx.createOscillator();
+        const swooshGain = ctx.createGain();
+        swooshOsc.type = 'sine';
+        swooshOsc.frequency.setValueAtTime(320, now + 0.05);
+        swooshOsc.frequency.exponentialRampToValueAtTime(1100, now + 0.35);
+
+        swooshGain.gain.setValueAtTime(0.01, now + 0.05);
+        swooshGain.gain.linearRampToValueAtTime(0.2, now + 0.15);
+        swooshGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+        swooshOsc.connect(swooshGain);
+        swooshGain.connect(ctx.destination);
+        swooshOsc.start(now + 0.05);
+        swooshOsc.stop(now + 0.5);
+
+        // 3. Bright Arcade Chimes
+        const chimeOsc = ctx.createOscillator();
+        const chimeGain = ctx.createGain();
+        chimeOsc.type = 'triangle';
+        chimeOsc.frequency.setValueAtTime(587.33, now + 0.12); // D5
+        chimeOsc.frequency.setValueAtTime(880.00, now + 0.24); // A5
+        chimeOsc.frequency.setValueAtTime(1174.66, now + 0.36); // D6
+
+        chimeGain.gain.setValueAtTime(0.01, now + 0.12);
+        chimeGain.gain.linearRampToValueAtTime(0.22, now + 0.22);
+        chimeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+        chimeOsc.connect(chimeGain);
+        chimeGain.connect(ctx.destination);
+        chimeOsc.start(now + 0.12);
+        chimeOsc.stop(now + 0.65);
+      } else if (type === 'victory') {
+        // Triumphant Victory Brass Fanfare & Melodic Arpeggio
+        const notes = [
+          { f: 523.25, t: 0, d: 0.16 },    // C5
+          { f: 659.25, t: 0.16, d: 0.16 }, // E5
+          { f: 783.99, t: 0.32, d: 0.16 }, // G5
+          { f: 1046.50, t: 0.48, d: 0.5 }, // C6
+          { f: 1318.51, t: 1.0, d: 0.18 }, // E6
+          { f: 1567.98, t: 1.2, d: 0.6 }  // G6
+        ];
+
+        notes.forEach(({ f, t, d }) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, now + t);
+
+          gain.gain.setValueAtTime(0.01, now + t);
+          gain.gain.linearRampToValueAtTime(0.3, now + t + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + t + d);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + t);
+          osc.stop(now + t + d);
+        });
+
+        // Warm celebratory brass swell
+        const brassOsc = ctx.createOscillator();
+        const brassGain = ctx.createGain();
+        brassOsc.type = 'sawtooth';
+        brassOsc.frequency.setValueAtTime(261.63, now + 0.48); // C4
+        brassOsc.frequency.setValueAtTime(523.25, now + 1.0);  // C5
+        
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(500, now + 0.48);
+        filter.frequency.exponentialRampToValueAtTime(1600, now + 1.2);
+
+        brassGain.gain.setValueAtTime(0.01, now + 0.48);
+        brassGain.gain.linearRampToValueAtTime(0.2, now + 0.65);
+        brassGain.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
+
+        brassOsc.connect(filter);
+        filter.connect(brassGain);
+        brassGain.connect(ctx.destination);
+        brassOsc.start(now + 0.48);
+        brassOsc.stop(now + 1.9);
+      } else if (type === 'correct') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880.00, now + 0.12);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else if (type === 'wrong') {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.setValueAtTime(150, now + 0.14);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.32);
+      }
+    } catch {
+      // Ignore audio synthesis errors
+    }
+  }, [isMuted, getAudioContext]);
+
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answerStatus, setAnswerStatus] = useState<'none' | 'correct' | 'wrong'>('none');
   const [showFireworks, setShowFireworks] = useState(false);
   const [showVictoryFireworks, setShowVictoryFireworks] = useState(false);
   const [lockedAnswer, setLockedAnswer] = useState<'left' | 'right' | 'up' | 'down' | 'none'>('none');
   const [isFinished, setIsFinished] = useState(false);
+  const [isCrossingFinish, setIsCrossingFinish] = useState(false);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [answersMap, setAnswersMap] = useState<Record<string, number>>({});
 
@@ -370,9 +727,11 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
   }, [questions]);
 
   const handleOptionClick = (selectedIndex: number) => {
-    if (answerStatus !== 'none' || isFinished) return;
+    if (isProcessingAnswerRef.current || answerStatus !== 'none' || isFinished) return;
     const question = gameQuestions[currentQuestionIndex];
     if (!question) return;
+
+    isProcessingAnswerRef.current = true;
 
     let isCorrect = false;
     if (typeof question.correctAnswer === 'number') {
@@ -386,7 +745,18 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     }
     
     if (isCorrect) {
-      setCorrectAnswersCount(prev => prev + 1);
+      if (gameType === 'cuoc_dua_ngon_tay') {
+        playSound('car_speed');
+      } else {
+        playSound('correct');
+      }
+    } else {
+      playSound('wrong');
+    }
+
+    if (isCorrect && !answeredQuestionIndicesRef.current.has(currentQuestionIndex)) {
+      answeredQuestionIndicesRef.current.add(currentQuestionIndex);
+      setCorrectAnswersCount(prev => Math.min(prev + 1, gameQuestions.length));
       setShowFireworks(true);
     }
     
@@ -398,6 +768,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     setAnswerStatus(isCorrect ? 'correct' : 'wrong');
     
     setTimeout(() => {
+       isProcessingAnswerRef.current = false;
        setAnswerStatus('none');
        setShowFireworks(false);
        setConsecutiveTilt({ dir: 'none', count: 0 });
@@ -405,8 +776,18 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
        if (currentQuestionIndex < gameQuestions.length - 1) {
           setCurrentQuestionIndex(prev => prev + 1);
        } else {
-          setIsFinished(true); // Complete the game!
-          setShowVictoryFireworks(true);
+          if (gameType === 'cuoc_dua_ngon_tay') {
+             setIsCrossingFinish(true);
+             setShowVictoryFireworks(true);
+             playSound('victory');
+             setTimeout(() => {
+                setIsFinished(true);
+             }, 2600);
+          } else {
+             setIsFinished(true); // Complete the game!
+             setShowVictoryFireworks(true);
+             playSound('victory');
+          }
        }
     }, 1500);
   };
@@ -417,15 +798,19 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     if (answerStatus !== 'none' || isFinished) return;
     
     if (tiltDir === 'none') {
-      setConsecutiveTilt({ dir: 'none', count: 0 });
+      missedTiltFramesRef.current += 1;
+      if (missedTiltFramesRef.current > 4) {
+        setConsecutiveTilt({ dir: 'none', count: 0 });
+      }
       return;
     }
     
+    missedTiltFramesRef.current = 0;
     setConsecutiveTilt(prev => {
       if (prev.dir === tiltDir) {
         const nextCount = prev.count + 1;
         // Require 4 consecutive frames of consistent direction (approx 120ms) to confirm
-        if (nextCount === 4 && lockedAnswer === 'none') {
+        if (nextCount === 4 && lockedAnswer === 'none' && isCalibrated) {
           const question = gameQuestions[currentQuestionIndex];
           if (question) {
             let selectedIndex = 0;
@@ -444,7 +829,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
         return { dir: tiltDir, count: 1 };
       }
     });
-  }, [tiltDir, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer]);
+  }, [tiltDir, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer, isCalibrated, tiltFrameTick]);
 
   // 2. Process finger count with consecutive frame trigger (stable & noise-free)
   React.useEffect(() => {
@@ -452,15 +837,19 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
     if (answerStatus !== 'none' || isFinished) return;
     
     if (fingerCount === 'none') {
-      setConsecutiveFinger({ count: 'none', frames: 0 });
+      missedFingerFramesRef.current += 1;
+      if (missedFingerFramesRef.current > 4) {
+        setConsecutiveFinger({ count: 'none', frames: 0 });
+      }
       return;
     }
     
+    missedFingerFramesRef.current = 0;
     setConsecutiveFinger(prev => {
       if (prev.count === fingerCount) {
         const nextFrames = prev.frames + 1;
         // Require 10 consecutive frames of consistent finger count (approx 330ms) to confirm
-        if (nextFrames === 10 && lockedAnswer === 'none') {
+        if (nextFrames === 10 && lockedAnswer === 'none' && isCalibrated) {
           const question = gameQuestions[currentQuestionIndex];
           if (question) {
             const selectedIndex = fingerCount - 1; // 1 finger = A (0), 2 = B (1), 3 = C (2), 4 = D (3)
@@ -474,15 +863,16 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
         return { count: fingerCount, frames: 1 };
       }
     });
-  }, [fingerCount, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer]);
+  }, [fingerCount, answerStatus, gameType, currentQuestionIndex, gameQuestions, isFinished, lockedAnswer, isCalibrated, frameTick]);
 
 
   useEffect(() => {
     if (timeLimitRemaining === 0 && !isFinished) {
       setIsFinished(true);
-      const score = gameQuestions.length > 0 ? Math.round((correctAnswersCount / gameQuestions.length) * 10) : 10;
+      const safeCorrectCount = Math.min(correctAnswersCount, gameQuestions.length);
+      const score = gameQuestions.length > 0 ? Math.min(10, Math.max(0, Math.round((safeCorrectCount / gameQuestions.length) * 10))) : 10;
       if (onSubmitWork) {
-        onSubmitWork(score, correctAnswersCount, answersMap);
+        onSubmitWork(score, safeCorrectCount, answersMap);
       } else {
         onClose();
       }
@@ -491,13 +881,14 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
 
   const renderGameContent = () => {
     if (isFinished) {
-      const score = gameQuestions.length > 0 ? Math.round((correctAnswersCount / gameQuestions.length) * 10) : 10;
+      const safeCorrectCount = Math.min(correctAnswersCount, gameQuestions.length);
+      const score = gameQuestions.length > 0 ? Math.min(10, Math.max(0, Math.round((safeCorrectCount / gameQuestions.length) * 10))) : 10;
       const pointsToEarn = score * 10;
       
       const handleFinishSubmit = () => {
         if (onSubmitWork) {
           // Submit the student's work
-          onSubmitWork(score, correctAnswersCount, answersMap);
+          onSubmitWork(score, safeCorrectCount, answersMap);
         } else {
           // In teacher preview, just close
           onClose();
@@ -528,7 +919,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-md text-center space-y-1">
               <p className="text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">Số câu trả lời đúng</p>
               <p className="text-2xl font-black text-emerald-600 font-mono">
-                {correctAnswersCount} / {gameQuestions.length}
+                {safeCorrectCount} / {gameQuestions.length}
               </p>
             </div>
             
@@ -624,7 +1015,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
                 'border-indigo-500'}`}
             >
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10" />
-              <LiveCamera mode="face" onTilt={answerStatus === 'none' ? setTiltDir : undefined} />
+              <LiveCamera mode="face" onTilt={answerStatus === 'none' ? handleTilt : undefined} />
               
               {consecutiveTilt.count > 0 && consecutiveTilt.dir !== 'none' && (
                 <div className="absolute inset-x-0 bottom-0 h-2 bg-slate-700 z-20">
@@ -723,55 +1114,66 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
         );
       case 'cuoc_dua_ngon_tay':
         const raceQ = gameQuestions[currentQuestionIndex] || gameQuestions[0];
+        const carProgressRatio = gameQuestions.length > 0 ? (correctAnswersCount / gameQuestions.length) : 0;
+        const carPositionPercent = isCrossingFinish 
+          ? 85 
+          : Math.min(Math.max(4 + carProgressRatio * 68, 4), 72);
+
         return (
-          <div className="flex flex-col h-full min-h-[500px] bg-gradient-to-b from-sky-400 to-sky-200 rounded-3xl p-4 sm:p-6 relative overflow-hidden border-4 border-sky-500 shadow-inner">
-            <div className="absolute top-4 left-0 right-0 flex justify-between px-4 sm:px-10 z-20">
-              <div className="bg-white/90 backdrop-blur px-3 py-1.5 sm:px-6 sm:py-2.5 rounded-full font-black text-xs sm:text-xl text-rose-600 shadow-lg border-2 border-rose-200 animate-pulse">
-                🏎️ Bạn (Đỏ): {correctAnswersCount * 100}m
+          <div className="flex flex-col h-full min-h-[460px] bg-gradient-to-b from-sky-400 via-sky-300 to-sky-200 rounded-2xl sm:rounded-3xl p-3 sm:p-5 relative overflow-y-auto lg:overflow-hidden border-2 sm:border-4 border-sky-500 shadow-inner pb-24 sm:pb-28">
+            {/* Top Status Badges */}
+            <div className="flex justify-between items-center w-full px-1 sm:px-4 z-20 shrink-0 mb-3 sm:mb-4 gap-2">
+              <div className="bg-white/95 backdrop-blur px-3 py-1.5 sm:px-5 sm:py-2 rounded-full font-black text-xs sm:text-base text-slate-800 shadow-md border border-slate-200 flex items-center gap-1.5">
+                <span className="text-base sm:text-lg">🏎️</span>
+                <span>Quãng đường: <span className="text-amber-600 font-black">{correctAnswersCount * 100}m</span></span>
               </div>
-              <div className="bg-white/90 backdrop-blur px-3 py-1.5 sm:px-6 sm:py-2.5 rounded-full font-black text-xs sm:text-xl text-blue-600 shadow-lg border-2 border-blue-200">
-                🤖 Đội Xanh: {currentQuestionIndex * 80}m
+              
+              <div className="bg-white/95 backdrop-blur px-3 py-1.5 sm:px-5 sm:py-2 rounded-full font-black text-xs sm:text-base text-slate-800 shadow-md border border-slate-200 flex items-center gap-1.5">
+                <span className="text-base sm:text-lg">🏁</span>
+                <span>Câu {currentQuestionIndex + 1} / {gameQuestions.length}</span>
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center gap-6 z-10 mt-16 mb-24 w-full max-w-6xl mx-auto">
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col lg:flex-row items-stretch justify-center gap-3 sm:gap-6 z-10 w-full max-w-6xl mx-auto min-h-0">
               {/* Left: Question Box */}
-              <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-2xl flex-1 flex flex-col justify-between border-2 sm:border-4 border-slate-800 relative min-h-[350px]">
+              <div className="bg-white p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl shadow-xl flex-1 flex flex-col justify-between border-2 sm:border-4 border-slate-800 relative min-h-[280px] sm:min-h-[340px]">
                 {isCalibrated ? (
                   <>
-                    <div className="flex justify-between items-center w-full text-[10px] font-extrabold text-slate-400 mb-2 uppercase tracking-wider">
-                      <span>Câu {currentQuestionIndex + 1} / {gameQuestions.length}</span>
+                    <div className="flex justify-between items-center w-full text-[10px] sm:text-xs font-extrabold text-slate-400 mb-2 uppercase tracking-wider">
+                      <span>Tiến trình chặng đua</span>
                       {answerStatus !== 'none' && (
-                        <span className={answerStatus === 'correct' ? 'text-emerald-600 animate-bounce' : 'text-rose-600'}>
-                          {answerStatus === 'correct' ? '🎉 Bứt tốc!' : '❌ Chậm lại!'}
+                        <span className={`text-xs sm:text-sm font-black animate-bounce ${answerStatus === 'correct' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {answerStatus === 'correct' ? '🎉 Bứt tốc +100m!' : '❌ Chưa chính xác!'}
                         </span>
                       )}
                     </div>
                     
-                    <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                    <div className="flex-1 flex flex-col items-center justify-center gap-2 sm:gap-3 py-2">
                       {raceQ.image && (
-                        <div className="max-h-[25vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
-                          <img src={raceQ.image} alt="Question" referrerPolicy="no-referrer" className="max-h-[22vh] w-auto object-contain rounded-lg" />
+                        <div className="max-h-[22vh] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1">
+                          <img src={raceQ.image} alt="Question" referrerPolicy="no-referrer" className="max-h-[20vh] w-auto object-contain rounded-lg" />
                         </div>
                       )}
-                      <div className="text-base sm:text-2xl font-black text-slate-800 text-center">
+                      <div className="text-sm sm:text-xl md:text-2xl font-black text-slate-800 text-center leading-snug">
                         <MarkdownMath content={cleanQuestionText(raceQ?.question) || 'Câu hỏi đua xe...'} />
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 w-full">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3.5 w-full mt-2">
                       {(raceQ?.options || ['Đáp án A', 'Đáp án B', 'Đáp án C', 'Đáp án D']).slice(0,4).map((opt: string, i: number) => (
                         <button 
                           key={i} 
+                          type="button"
                           onClick={() => handleOptionClick(i)}
-                          className={`p-3.5 sm:p-5 rounded-xl sm:rounded-2xl text-white font-bold text-sm sm:text-base shadow-[0_4px_0_rgba(0,0,0,0.2)] active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center relative min-h-[64px] ${
+                          className={`p-2.5 sm:p-4 rounded-xl sm:rounded-2xl text-white font-bold text-xs sm:text-base shadow-[0_4px_0_rgba(0,0,0,0.25)] active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center relative min-h-[52px] sm:min-h-[64px] touch-manipulation cursor-pointer hover:brightness-105 active:scale-95 ${
                             i===0 ? 'bg-rose-500 border-2 border-rose-700' : i===1 ? 'bg-blue-500 border-2 border-blue-700' : i===2 ? 'bg-amber-500 border-2 border-amber-700' : 'bg-emerald-500 border-2 border-emerald-700'
                           }`}
                         >
-                          <span className="absolute top-1 left-2 text-[9px] uppercase font-black tracking-widest text-white/90">
+                          <span className="absolute top-1 left-2 text-[9px] sm:text-[10px] uppercase font-black tracking-widest text-white/90">
                             {i === 0 ? '☝️ 1 ngón' : i === 1 ? '✌️ 2 ngón' : i === 2 ? '🤟 3 ngón' : '✋ 4 ngón'}
                           </span>
-                          <div className="mt-2"><MarkdownMath content={opt} /></div>
+                          <div className="mt-2 text-center break-words max-w-full px-1"><MarkdownMath content={opt} /></div>
                         </button>
                       ))}
                     </div>
@@ -787,8 +1189,8 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               </div>
 
               {/* Right: Camera Hand Tracking Box */}
-              <div className="w-full lg:w-80 h-64 lg:h-auto bg-slate-900 border-4 border-sky-600 rounded-3xl shadow-2xl relative overflow-hidden shrink-0 flex items-center justify-center transition-all duration-300">
-                <LiveCamera mode="hand" onFingerCount={answerStatus === 'none' ? setFingerCount : undefined} />
+              <div className="w-full lg:w-80 h-44 sm:h-56 lg:h-auto min-h-[160px] lg:min-h-[300px] bg-slate-900 border-2 sm:border-4 border-sky-600 rounded-2xl sm:rounded-3xl shadow-2xl relative overflow-hidden shrink-0 flex items-center justify-center transition-all duration-300">
+                <LiveCamera mode="hand" onFingerCount={answerStatus === 'none' ? handleFingerCount : undefined} />
                 <HandTrackingOverlay 
                   fingerCount={fingerCount} 
                   consecutiveFrames={consecutiveFinger.frames} 
@@ -798,18 +1200,70 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               </div>
             </div>
 
-            {/* Track decorations */}
-            <div className="absolute bottom-0 left-0 right-0 h-20 sm:h-24 bg-slate-800 border-t-8 border-slate-600 flex flex-col justify-center gap-3 px-8 z-0">
-              <div className="h-2 border-t-2 border-dashed border-white/50 w-full" />
-              <div className="h-2 border-t-2 border-dashed border-white/50 w-full" />
+            {/* Finish Crossing Banner */}
+            {isCrossingFinish && (
+              <div className="absolute inset-0 z-30 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center pointer-events-none px-4">
+                <div className="bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600 p-1.5 rounded-3xl shadow-[0_0_50px_rgba(245,158,11,0.5)] animate-bounce">
+                  <div className="bg-slate-950 px-6 py-5 sm:px-12 sm:py-8 rounded-[20px] flex flex-col items-center gap-2 border border-amber-400/40">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl sm:text-5xl animate-spin">🏆</span>
+                      <span className="text-3xl sm:text-5xl animate-pulse">🏁</span>
+                    </div>
+                    <h3 className="text-2xl sm:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-white uppercase tracking-wider text-center">
+                      CÁN ĐÍCH XUẤT SẮC!
+                    </h3>
+                    <p className="text-xs sm:text-base font-bold text-amber-300 text-center">
+                      🏎️ Siêu xe tăng tốc tối đa vượt qua vạch đích!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Single Racer Highway Track (Bottom) */}
+            <div className="absolute bottom-0 left-0 right-0 h-20 sm:h-24 bg-slate-950 border-t-4 border-amber-400 flex flex-col justify-between px-3 sm:px-6 z-0 shadow-2xl">
+              {/* Top Track Header: Xuất Phát & Về Đích - Raised up away from the dashed line */}
+              <div className="flex justify-between items-center w-full pt-1 sm:pt-1.5 z-20">
+                <div className="flex items-center gap-1.5 bg-slate-900/90 backdrop-blur px-2 sm:px-3 py-0.5 rounded-md border border-amber-400/50 shadow">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="text-[9px] sm:text-[11px] font-black text-amber-300 uppercase tracking-widest">
+                    🚦 XUẤT PHÁT
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-slate-900/90 backdrop-blur px-2 sm:px-3 py-0.5 rounded-md border border-emerald-400/50 shadow">
+                  <span className="text-xs sm:text-sm animate-pulse">🏁</span>
+                  <span className="text-[9px] sm:text-[11px] font-black text-emerald-400 uppercase tracking-widest">
+                    VỀ ĐÍCH
+                  </span>
+                </div>
+              </div>
+
+              {/* Asphalt Lane Dashed Line (in middle of the highway) */}
+              <div className="w-full relative my-auto">
+                <div className="h-0 border-t-2 sm:border-t-3 border-dashed border-amber-300/80 w-full" />
+              </div>
+
+              {/* Bottom Curb Pattern (Red/White Racing Kerbs) */}
+              <div className="h-1.5 w-full flex overflow-hidden opacity-60">
+                {Array.from({ length: 40 }).map((_, idx) => (
+                  <div key={idx} className={`h-full flex-1 ${idx % 2 === 0 ? 'bg-rose-500' : 'bg-white'}`} />
+                ))}
+              </div>
             </div>
-            {/* Red Car (User) */}
-            <div className="absolute bottom-12 sm:bottom-14 left-10 w-10 h-10 sm:w-12 sm:h-12 bg-rose-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce flex items-center justify-center text-lg z-10" style={{ left: `${15 + (correctAnswersCount * 12)}%`, transition: 'all 1s ease-out' }}>
-              🚗
-            </div>
-            {/* Blue Car (Bot) */}
-            <div className="absolute bottom-2 sm:bottom-3 left-20 w-10 h-10 sm:w-12 sm:h-12 bg-blue-500 rounded-full border-2 sm:border-4 border-white shadow-lg animate-bounce flex items-center justify-center text-lg z-10" style={{ animationDelay: '0.2s', left: `${20 + (currentQuestionIndex * 10)}%`, transition: 'all 1s ease-out' }}>
-              🚙
+
+            {/* Player Racer Car */}
+            <div 
+              className="absolute bottom-1 sm:bottom-2 z-10 flex items-center pointer-events-none"
+              style={{ 
+                left: `${carPositionPercent}%`, 
+                transform: 'translateX(-25%)',
+                transition: isCrossingFinish 
+                  ? 'left 2.3s cubic-bezier(0.22, 1, 0.36, 1)' 
+                  : 'left 0.8s ease-out'
+              }}
+            >
+              <SuperRaceCar isSpeeding={answerStatus === 'correct' || isCrossingFinish} />
             </div>
           </div>
         );
@@ -1068,35 +1522,12 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
         );
       case 'dap_chuot_chui':
         return (
-          <div className="flex flex-col h-full bg-gradient-to-b from-amber-200 to-amber-400 rounded-3xl p-8 relative overflow-hidden border-4 border-amber-600 shadow-inner">
-            <h3 className="text-2xl font-black text-amber-950 mb-2 uppercase text-center">Đập Chuột Chũi Đúng Sai</h3>
-            <p className="text-slate-900 text-xs sm:text-sm mb-8 text-center font-medium">Búa gõ nhanh vào chú chuột nhô lên mang đáp án Đúng nhất cho mệnh đề toán học.</p>
-            
-            <div className="grid grid-cols-3 gap-6 max-w-xl mx-auto w-full">
-              {[
-                { id: 1, text: 'Đúng', active: true },
-                { id: 2, text: 'Sai', active: false },
-                { id: 3, text: 'Chưa biết', active: true }
-              ].map((mole, idx) => (
-                <div key={idx} className="flex flex-col items-center">
-                  <div className="w-24 h-12 bg-amber-900 rounded-full border-b-8 border-amber-950 flex items-center justify-center relative overflow-hidden shadow-inner">
-                    {mole.active && (
-                      <div className="w-16 h-16 bg-amber-700 border-4 border-amber-600 rounded-full absolute bottom-0 flex flex-col items-center justify-center text-white font-extrabold text-xs shadow-md animate-bounce cursor-pointer hover:bg-amber-600">
-                        <span>🐹</span>
-                        <span className="bg-amber-900/60 px-1 rounded text-[9px]">{mole.text}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="w-28 h-2 bg-amber-950/20 rounded-full mt-2" />
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 bg-white p-6 rounded-2xl border border-amber-300 max-w-xl mx-auto text-center w-full">
-              <span className="text-[10px] bg-amber-100 text-amber-800 px-3 py-1 rounded-full font-bold uppercase">Khẳng định:</span>
-              <p className="text-slate-800 font-extrabold mt-2 text-sm"><MarkdownMath content={questions[0]?.question || 'Đồ thị y = x^2 luôn có bề lõm hướng lên trên khi hệ số a > 0. Đúng hay Sai?'} /></p>
-            </div>
-          </div>
+          <WhackAMoleGame
+            questions={gameQuestions}
+            onClose={onClose}
+            isStudentMode={isStudentMode}
+            onSubmitWork={onSubmitWork}
+          />
         );
       default:
         return (
@@ -1141,6 +1572,34 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const nextMuted = !isMuted;
+                setIsMuted(nextMuted);
+                if (!nextMuted) {
+                  playSound('correct');
+                }
+              }}
+              className={`p-1.5 sm:px-3 rounded-xl transition-all duration-200 group flex items-center gap-1.5 shrink-0 border ${
+                isMuted
+                  ? 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-200'
+                  : 'bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-300 border-indigo-400/40 shadow-sm'
+              }`}
+              title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
+            >
+              {isMuted ? (
+                <>
+                  <VolumeX className="w-4 h-4 text-slate-400 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider hidden sm:inline text-slate-400">Tắt âm</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-4 h-4 text-indigo-300 group-hover:scale-110 transition-transform animate-pulse" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider hidden sm:inline text-indigo-200">Âm thanh</span>
+                </>
+              )}
+            </button>
             <button
               type="button"
               onClick={toggleFullscreen}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { RotateCw, CheckCircle2, Brain, Hand, HelpCircle, Lightbulb } from 'lucide-react';
+import { RotateCw, CheckCircle2, Brain, Hand, HelpCircle, Lightbulb, Image as ImageIcon, FileText, Sparkles, ZoomIn, X } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 import { ParsedQuestionItem, cleanQuestionText } from '../views/AssignmentsView';
 
@@ -10,12 +10,15 @@ export interface MemoryFlipGameProps {
   onSubmitWork?: (score: number, correctAnswers: number, answersMap: Record<string, number>) => void;
 }
 
+export type CardVariant = 'text_only' | 'image_only' | 'image_text';
+
 export interface CardItem {
   uid: string;      // Unique instance ID for rendering
   pairId: string;   // Identifier for matching pair
   type: 'q' | 'a';  // Question card or Answer card
   content: string;  // Text or LaTeX string
-  img?: string;     // Optional image
+  img?: string;     // Optional image URL
+  cardVariant: CardVariant;
   isFlipped: boolean;
   isMatched: boolean;
   isShaking: boolean;
@@ -29,14 +32,93 @@ interface LearningPair {
   aImg?: string;
 }
 
-// Fallback Educational Pairs
+/**
+ * Utility to extract image URLs and clean text from markdown, custom tags, or raw URLs
+ */
+export function parseImageAndText(input: string, fallbackImg?: string): { text: string; img?: string; variant: CardVariant } {
+  let str = (input || '').trim();
+  let img = fallbackImg ? fallbackImg.trim() : undefined;
+
+  // 1. Markdown image syntax: ![alt](url)
+  const mdImgMatch = str.match(/!\[(.*?)\]\((https?:\/\/[^\s\)]+|data:image\/[^\s\)]+)\)/i);
+  if (mdImgMatch) {
+    if (!img) img = mdImgMatch[2].trim();
+    const altText = mdImgMatch[1].trim();
+    str = str.replace(mdImgMatch[0], '').trim();
+    if (!str && altText && altText !== 'image' && altText !== 'img' && altText !== 'Hình ảnh') {
+      str = altText;
+    }
+  }
+
+  // 2. Custom tags: [img: url] or [image: url]
+  const tagImgMatch = str.match(/\[(?:img|image):\s*(https?:\/\/[^\s\]]+|data:image\/[^\s\]]+)\]/i);
+  if (tagImgMatch) {
+    if (!img) img = tagImgMatch[1].trim();
+    str = str.replace(tagImgMatch[0], '').trim();
+  }
+
+  // 3. Direct image URLs as sole content
+  const pureUrlMatch = str.match(/^(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s]*)?)$/i);
+  if (pureUrlMatch) {
+    if (!img) img = pureUrlMatch[1].trim();
+    str = '';
+  }
+
+  let variant: CardVariant = 'text_only';
+  if (img && !str) {
+    variant = 'image_only';
+  } else if (img && str) {
+    variant = 'image_text';
+  } else {
+    variant = 'text_only';
+  }
+
+  return { text: str, img, variant };
+}
+
+// Fallback Educational Pairs showcasing All 3 Types: Text-only, Image+Text, Image-only
 const DEFAULT_LEARNING_PAIRS: LearningPair[] = [
-  { id: 'pair1', q: "Thủ đô của Việt Nam?", a: "Hà Nội" },
-  { id: 'pair2', q: "7 x 8 = ?", a: "56" },
-  { id: 'pair3', q: "H2O là công thức hóa học của gì?", a: "Nước" },
-  { id: 'pair4', q: "Hành tinh lớn nhất hệ Mặt Trời?", a: "Sao Mộc" },
-  { id: 'pair5', q: "Tác giả Truyện Kiều?", a: "Nguyễn Du" },
-  { id: 'pair6', q: "Vị vua đầu tiên của nhà Lý?", a: "Lý Thái Tổ" }
+  // 1. Dạng Hình ảnh + Text ghép với Text (Quốc kỳ & Tên nước -> Thủ đô)
+  {
+    id: 'pair1',
+    q: "Việt Nam",
+    qImg: "https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=400&auto=format&fit=crop&q=80",
+    a: "Hà Nội"
+  },
+  // 2. Dạng Hình ảnh thuần ghép với Tên loài động vật (Image -> Text)
+  {
+    id: 'pair2',
+    q: "",
+    qImg: "https://images.unsplash.com/photo-1614027164847-1b28caa1470f?w=400&auto=format&fit=crop&q=80",
+    a: "Sư tử dũng mãnh"
+  },
+  // 3. Dạng Text thuần công thức Toán học
+  {
+    id: 'pair3',
+    q: "7 \\times 8 = ?",
+    a: "56"
+  },
+  // 4. Dạng Hình ảnh + Text ghép với Hình ảnh + Text
+  {
+    id: 'pair4',
+    q: "Tháp Eiffel",
+    qImg: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400&auto=format&fit=crop&q=80",
+    a: "Thủ đô Paris (Pháp)",
+    aImg: "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=400&auto=format&fit=crop&q=80"
+  },
+  // 5. Dạng Text thuần Hóa học
+  {
+    id: 'pair5',
+    q: "Công thức phân tử của Nước",
+    a: "\\text{H}_2\\text{O}"
+  },
+  // 6. Dạng Hình ảnh thuần ghép với Tên địa danh
+  {
+    id: 'pair6',
+    q: "",
+    qImg: "https://images.unsplash.com/photo-1528164344705-475426879c0d?w=400&auto=format&fit=crop&q=80",
+    a: "Núi Phú Sĩ (Nhật Bản)"
+  }
 ];
 
 // Fisher-Yates Shuffle
@@ -69,13 +151,16 @@ export function MemoryFlipGame({
         // If matching type question with explicit matchingPairs
         if (q.matchingPairs && q.matchingPairs.length > 0) {
           q.matchingPairs.forEach((mp, mpIdx) => {
-            if (mp.left && mp.right) {
+            if (mp.left || mp.right || (mp as any).leftImg || (mp as any).rightImg) {
+              const leftParsed = parseImageAndText(mp.left || '', (mp as any).leftImg);
+              const rightParsed = parseImageAndText(mp.right || '', (mp as any).rightImg);
+
               pairs.push({
                 id: `q_${idx}_mp_${mpIdx}`,
-                q: mp.left,
-                a: mp.right,
-                qImg: (mp as any).leftImg,
-                aImg: (mp as any).rightImg
+                q: leftParsed.text,
+                qImg: leftParsed.img,
+                a: rightParsed.text,
+                aImg: rightParsed.img
               });
             }
           });
@@ -92,31 +177,32 @@ export function MemoryFlipGame({
             rawA = q.options[0];
           }
 
-          if (rawQ && rawA) {
+          if (rawQ || rawA) {
+            const parsedQ = parseImageAndText(rawQ, (q as any).image || (q as any).imageUrl || (q as any).thumb);
+            const parsedA = parseImageAndText(rawA);
+
             pairs.push({
               id: `q_${idx}`,
-              q: rawQ,
-              a: rawA,
-              qImg: (q as any).image || (q as any).imageUrl || (q as any).thumb
+              q: parsedQ.text,
+              qImg: parsedQ.img,
+              a: parsedA.text,
+              aImg: parsedA.img
             });
           }
         }
       });
     }
 
-    // Fallback if not enough pairs
-    if (pairs.length < 3) {
+    // Fallback ONLY when teacher provided NO questions/pairs at all
+    if (pairs.length === 0) {
       DEFAULT_LEARNING_PAIRS.forEach(dp => {
-        if (!pairs.some(p => p.id === dp.id)) {
-          pairs.push(dp);
-        }
+        pairs.push(dp);
       });
     }
 
-    // Limit to max 8 pairs (16 cards total) for ideal mobile/desktop display
     return {
       topic: extractedTopic,
-      learningPairs: pairs.slice(0, 8)
+      learningPairs: pairs
     };
   }, [questions]);
 
@@ -129,6 +215,7 @@ export function MemoryFlipGame({
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const [isWinModalOpen, setIsWinModalOpen] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<{ src: string; caption?: string } | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -138,24 +225,30 @@ export function MemoryFlipGame({
 
     const generatedCards: CardItem[] = [];
     learningPairs.forEach(pair => {
+      const qParsed = parseImageAndText(pair.q, pair.qImg);
+      const aParsed = parseImageAndText(pair.a, pair.aImg);
+
       // Question card
       generatedCards.push({
         uid: `${pair.id}_q`,
         pairId: pair.id,
         type: 'q',
-        content: pair.q,
-        img: pair.qImg,
+        content: qParsed.text,
+        img: qParsed.img,
+        cardVariant: qParsed.variant,
         isFlipped: false,
         isMatched: false,
         isShaking: false
       });
+
       // Answer card
       generatedCards.push({
         uid: `${pair.id}_a`,
         pairId: pair.id,
         type: 'a',
-        content: pair.a,
-        img: pair.aImg,
+        content: aParsed.text,
+        img: aParsed.img,
+        cardVariant: aParsed.variant,
         isFlipped: false,
         isMatched: false,
         isShaking: false
@@ -222,8 +315,6 @@ export function MemoryFlipGame({
     setMoves(prev => prev + 1);
 
     const firstCardUid = nextFlippedUids[0];
-    const secondCardUid = nextFlippedUids[1];
-
     const firstCard = cards.find(c => c.uid === firstCardUid);
     const secondCard = card;
 
@@ -330,54 +421,57 @@ export function MemoryFlipGame({
           backface-visibility: hidden;
           -webkit-backface-visibility: hidden;
         }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
-        }
-        .card-inner-flip {
-          transition: transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
-        }
         .shake-anim {
           animation: shakeError 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
         }
         @keyframes shakeError {
-          0%, 100% { transform: rotateY(180deg) translateX(0); }
-          20%, 60% { transform: rotateY(180deg) translateX(-6px); }
-          40%, 80% { transform: rotateY(180deg) translateX(6px); }
+          0%, 100% { transform: translateX(0); }
+          20%, 60% { transform: translateX(-6px); }
+          40%, 80% { transform: translateX(6px); }
         }
         .match-pop {
           animation: matchSuccess 0.5s ease-out forwards;
         }
         @keyframes matchSuccess {
-          0% { transform: rotateY(180deg) scale(1); }
-          50% { transform: rotateY(180deg) scale(1.06); }
-          100% { transform: rotateY(180deg) scale(1); }
+          0% { transform: scale(1); }
+          50% { transform: scale(1.06); }
+          100% { transform: scale(1); }
         }
       `}</style>
 
       {/* TOP HEADER BAR */}
-      <div className="p-2.5 sm:p-3.5 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-20 shadow-xs">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+      <div className="p-2 sm:p-3 bg-white/90 backdrop-blur-md border-b border-slate-200/80 flex items-center justify-between gap-2 sm:gap-4 shrink-0 z-20 shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
             <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div>
-            <h1 className="text-xs sm:text-base md:text-lg font-black text-slate-800 uppercase tracking-wide">
+          <div className="min-w-0">
+            <h1 className="text-xs sm:text-sm md:text-base font-black text-slate-800 uppercase tracking-wide truncate">
               Lật Mảnh Ghép Kiến Thức
             </h1>
+            <p className="text-[10px] sm:text-xs font-semibold text-slate-500 truncate max-w-[150px] sm:max-w-xs md:max-w-md">
+              {topic}
+            </p>
           </div>
         </div>
 
         {/* STATUS COUNTERS */}
-        <div className="flex items-center gap-1.5 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* Time Elapsed */}
+          <div className="bg-indigo-50 border border-indigo-200/80 px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs">
+            <span className="text-[10px] sm:text-xs font-bold text-indigo-700/80 hidden xs:inline">⏱️</span>
+            <span className="font-mono font-black text-indigo-600 text-xs sm:text-sm">{formatTime(timeElapsed)}</span>
+          </div>
+
           {/* Moves */}
-          <div className="bg-rose-50 border border-rose-200/80 px-2 sm:px-3 py-1 rounded-xl flex items-center gap-1 shadow-2xs">
+          <div className="bg-rose-50 border border-rose-200/80 px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs">
             <Hand className="w-3.5 h-3.5 text-rose-500 shrink-0" />
             <span className="text-[10px] sm:text-xs font-bold text-rose-700/80 hidden xs:inline">Lượt:</span>
             <span className="font-black text-rose-600 text-xs sm:text-sm">{moves}</span>
           </div>
 
           {/* Matches */}
-          <div className="bg-emerald-50 border border-emerald-200/80 px-2 sm:px-3 py-1 rounded-xl flex items-center gap-1 shadow-2xs">
+          <div className="bg-emerald-50 border border-emerald-200/80 px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
             <span className="text-[10px] sm:text-xs font-bold text-emerald-700/80 hidden xs:inline">Khớp:</span>
             <span className="font-black text-emerald-600 text-xs sm:text-sm">
@@ -388,20 +482,36 @@ export function MemoryFlipGame({
       </div>
 
       {/* MAIN CARDS GRID */}
-      <div className="flex-1 min-h-0 p-2 sm:p-4 flex items-center justify-center overflow-hidden z-10 w-full h-full">
-        <div className="w-full h-full max-w-4xl max-h-full mx-auto flex flex-col justify-center items-center">
-          {(() => {
-            const totalCards = cards.length;
-            const colCount = totalCards > 12 ? 4 : totalCards > 8 ? 4 : 3;
-            const rowCount = Math.ceil(totalCards / colCount) || 3;
+      <div className="flex-1 min-h-0 p-2 sm:p-3 md:p-4 flex items-center justify-center overflow-hidden z-10 w-full h-full">
+        {(() => {
+          const totalCards = cards.length;
+          let gridClasses = 'grid-cols-2 sm:grid-cols-2';
+          let containerMaxWidth = 'max-w-md';
 
-            return (
+          if (totalCards <= 2) {
+            gridClasses = 'grid-cols-2 sm:grid-cols-2';
+            containerMaxWidth = 'max-w-sm';
+          } else if (totalCards <= 4) {
+            gridClasses = 'grid-cols-2 sm:grid-cols-2';
+            containerMaxWidth = 'max-w-md sm:max-w-lg';
+          } else if (totalCards <= 6) {
+            gridClasses = 'grid-cols-2 sm:grid-cols-3';
+            containerMaxWidth = 'max-w-lg sm:max-w-2xl';
+          } else if (totalCards <= 8) {
+            gridClasses = 'grid-cols-2 sm:grid-cols-4';
+            containerMaxWidth = 'max-w-lg sm:max-w-3xl';
+          } else if (totalCards <= 12) {
+            gridClasses = 'grid-cols-3 sm:grid-cols-4';
+            containerMaxWidth = 'max-w-xl sm:max-w-4xl';
+          } else {
+            gridClasses = 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6';
+            containerMaxWidth = 'max-w-5xl';
+          }
+
+          return (
+            <div className={`w-full h-full ${containerMaxWidth} max-h-full mx-auto flex flex-col justify-center items-center`}>
               <div
-                className="grid gap-2 sm:gap-3 w-full h-full max-h-full justify-center items-stretch perspective-1000 p-1"
-                style={{
-                  gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`
-                }}
+                className={`grid ${gridClasses} gap-2 sm:gap-3 w-full h-full max-h-full justify-center items-stretch perspective-1000 p-1 auto-rows-fr`}
               >
                 {cards.map(card => {
                   const isFlipped = card.isFlipped || card.isMatched;
@@ -410,26 +520,26 @@ export function MemoryFlipGame({
                     <div
                       key={card.uid}
                       onClick={() => handleCardClick(card)}
-                      className={`w-full h-full min-h-0 relative cursor-pointer select-none rounded-xl sm:rounded-2xl ${
+                      className={`w-full h-full min-h-[90px] sm:min-h-[110px] relative cursor-pointer select-none rounded-xl sm:rounded-2xl ${
                         card.isShaking ? 'shake-anim' : ''
                       }`}
                     >
                       <div
                         className="w-full h-full relative rounded-xl sm:rounded-2xl shadow-md"
                         style={{
-                          transformStyle: 'preserve-3d',
-                          WebkitTransformStyle: 'preserve-3d',
-                          transition: 'transform 0.5s cubic-bezier(0.4, 0.0, 0.2, 1)',
-                          transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+                          perspective: '1000px'
                         }}
                       >
                         {/* BACK FACE (KHI ÚP THẺ) */}
                         <div
-                          className="absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 border-2 border-indigo-300/40 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center p-2 text-white shadow-sm hover:shadow-indigo-500/25 hover:scale-[1.01] transition-all"
+                          className="absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 border-2 border-indigo-300/40 rounded-xl sm:rounded-2xl flex flex-col items-center justify-center p-2 text-white shadow-sm hover:shadow-indigo-500/25 hover:scale-[1.01] transition-all duration-500"
                           style={{
                             backfaceVisibility: 'hidden',
                             WebkitBackfaceVisibility: 'hidden',
-                            transform: 'rotateY(0deg)'
+                            transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                            opacity: isFlipped ? 0 : 1,
+                            pointerEvents: isFlipped ? 'none' : 'auto',
+                            zIndex: isFlipped ? 1 : 2
                           }}
                         >
                           <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white/90 shadow-inner mb-0.5 sm:mb-1">
@@ -440,9 +550,9 @@ export function MemoryFlipGame({
                           </span>
                         </div>
 
-                        {/* FRONT FACE (KHI LẬT THẺ) */}
+                        {/* FRONT FACE (KHI LẬT THẺ) - Luôn hiển thị xuôi chiều tự nhiên (rotateY(0deg)) */}
                         <div
-                          className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl border-2 p-1.5 sm:p-2.5 flex flex-col items-center justify-between text-center overflow-hidden transition-colors ${
+                          className={`absolute inset-0 w-full h-full rounded-xl sm:rounded-2xl border-2 p-1.5 sm:p-2 flex flex-col items-center justify-between text-center overflow-hidden transition-all duration-500 ${
                             card.isMatched
                               ? 'bg-emerald-50/95 border-emerald-300 text-emerald-900 match-pop shadow-md shadow-emerald-500/10'
                               : 'bg-white border-slate-200 text-slate-800 shadow-md'
@@ -450,61 +560,153 @@ export function MemoryFlipGame({
                           style={{
                             backfaceVisibility: 'hidden',
                             WebkitBackfaceVisibility: 'hidden',
-                            transform: 'rotateY(180deg)'
+                            transform: isFlipped ? 'rotateY(0deg)' : 'rotateY(-180deg)',
+                            opacity: isFlipped ? 1 : 0,
+                            pointerEvents: isFlipped ? 'auto' : 'none',
+                            zIndex: isFlipped ? 2 : 1
                           }}
                         >
-                          {/* Card Type Header Tag */}
-                          <div
-                            className={`w-full px-1.5 py-0.5 rounded-md text-[8px] sm:text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shrink-0 ${
-                              card.isMatched
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : card.type === 'q'
-                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-100'
-                            }`}
-                          >
-                            {card.type === 'q' ? (
-                              <>
-                                <HelpCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-500 shrink-0" />
-                                <span>Câu Hỏi</span>
-                              </>
-                            ) : (
-                              <>
-                                <Lightbulb className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-500 shrink-0" />
-                                <span>Đáp Án</span>
-                              </>
-                            )}
-                          </div>
+                          {/* Card Type Header Tag - Sleek & Compact */}
+                          <div className="w-full flex items-center justify-between gap-1 shrink-0 px-0.5">
+                            <div
+                              className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                                card.isMatched
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : card.type === 'q'
+                                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-100'
+                              }`}
+                            >
+                              {card.type === 'q' ? (
+                                <>
+                                  <HelpCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-500 shrink-0" />
+                                  <span>Câu Hỏi</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lightbulb className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-500 shrink-0" />
+                                  <span>Đáp Án</span>
+                                </>
+                              )}
+                            </div>
 
-                          {/* Card Body Content with LaTeX support */}
-                          <div className="flex-1 w-full min-h-0 flex flex-col items-center justify-center overflow-y-auto custom-scrollbar my-0.5 sm:my-1 gap-1">
-                            {card.img && (
-                              <div className="max-h-[50px] sm:max-h-[70px] w-full overflow-hidden flex items-center justify-center shrink-0">
-                                <img src={card.img} alt="Content" referrerPolicy="no-referrer" className="max-h-full w-auto object-contain rounded-md" />
+                            {/* Match Indicator Checkmark */}
+                            {card.isMatched && (
+                              <div className="text-emerald-600 font-extrabold text-[8px] sm:text-[9px] flex items-center gap-0.5">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                <span className="hidden xs:inline">Khớp</span>
                               </div>
                             )}
-                            <div className="text-[11px] sm:text-xs md:text-sm font-bold leading-tight break-words max-w-full">
-                              <MarkdownMath content={card.content} />
-                            </div>
                           </div>
 
-                          {/* Bottom Status Icon */}
-                          {card.isMatched && (
-                            <div className="text-emerald-600 font-extrabold text-[9px] sm:text-[10px] flex items-center gap-1 shrink-0">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                              <span>Đã Khớp</span>
-                            </div>
-                          )}
+                          {/* Card Body Content with 3 Variants */}
+                          <div className="flex-1 w-full min-h-0 flex flex-col items-center justify-center my-0.5 overflow-hidden">
+                            {/* DẠNG 1: HÌNH ẢNH THUẦN (Image Only) */}
+                            {card.cardVariant === 'image_only' && card.img && (
+                              <div className="w-full h-full flex-1 min-h-0 relative flex items-center justify-center p-0.5 group/img overflow-hidden">
+                                <img
+                                  src={card.img}
+                                  alt="Card"
+                                  referrerPolicy="no-referrer"
+                                  className="max-h-full max-w-full w-auto h-auto object-contain rounded-lg transition-transform group-hover/img:scale-105"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomedImage({ src: card.img!, caption: card.type === 'q' ? 'Mảnh ghép câu hỏi' : 'Mảnh ghép đáp án' });
+                                  }}
+                                  className="absolute top-1 right-1 p-1 bg-black/50 hover:bg-black/70 text-white rounded-md opacity-0 group-hover/img:opacity-100 transition-opacity shadow-sm"
+                                  title="Phóng to ảnh"
+                                >
+                                  <ZoomIn className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* DẠNG 2: HÌNH ẢNH + VĂN BẢN (Image + Text) - Không bao giờ bị tràn hình che mất chữ */}
+                            {card.cardVariant === 'image_text' && (
+                              <div className="w-full h-full flex-1 min-h-0 flex flex-col items-center justify-between gap-1 overflow-hidden">
+                                {card.img && (
+                                  <div className="w-full flex-1 min-h-0 flex items-center justify-center overflow-hidden relative group/img">
+                                    <img
+                                      src={card.img}
+                                      alt="Thumbnail"
+                                      referrerPolicy="no-referrer"
+                                      className="max-h-full max-w-full w-auto h-auto object-contain rounded-md"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoomedImage({ src: card.img!, caption: card.content });
+                                      }}
+                                      className="absolute top-0.5 right-0.5 p-1 bg-black/50 hover:bg-black/70 text-white rounded opacity-0 group-hover/img:opacity-100 transition-opacity"
+                                      title="Phóng to ảnh"
+                                    >
+                                      <ZoomIn className="w-2.5 h-2.5" />
+                                    </button>
+                                  </div>
+                                )}
+                                {card.content && (
+                                  <div className="shrink-0 w-full text-center px-1 pb-0.5 text-[11px] sm:text-xs md:text-sm font-extrabold text-slate-800 leading-tight break-words max-w-full line-clamp-2">
+                                    <MarkdownMath content={card.content} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* DẠNG 3: VĂN BẢN THUẦN (Text Only) */}
+                            {card.cardVariant === 'text_only' && (
+                              <div className="w-full h-full flex-1 min-h-0 flex items-center justify-center px-1 py-1 overflow-y-auto custom-scrollbar">
+                                <div className="text-xs sm:text-sm md:text-base font-extrabold leading-snug break-words max-w-full text-slate-800 text-center">
+                                  <MarkdownMath content={card.content} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            );
-          })()}
-        </div>
+            </div>
+          );
+        })()}
       </div>
+
+      {/* IMAGE ZOOM MODAL */}
+      {zoomedImage && (
+        <div
+          className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+          onClick={() => setZoomedImage(null)}
+        >
+          <div
+            className="bg-white rounded-2xl p-4 max-w-lg w-full shadow-2xl flex flex-col items-center gap-3 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-3 right-3 p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <img
+              src={zoomedImage.src}
+              alt="Zoomed Card Preview"
+              referrerPolicy="no-referrer"
+              className="max-h-[60vh] max-w-full object-contain rounded-xl border border-slate-200 shadow-sm"
+            />
+            {zoomedImage.caption && (
+              <div className="text-sm font-bold text-slate-700 text-center px-2">
+                <MarkdownMath content={zoomedImage.caption} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* WIN MODAL OVERLAY */}
       {isWinModalOpen && (

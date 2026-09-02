@@ -12,8 +12,7 @@ export const COMING_SOON_GAME_IDS = [
   'domino',
   'mo_hop',
   'gan_nhan_so_do',
-  'no_bong_bay',
-  'dap_chuot_chui'
+  'no_bong_bay'
 ];
 
 export const DEFAULT_GAME_STATUSES: Record<string, GameStatus> = {
@@ -33,7 +32,7 @@ export const DEFAULT_GAME_STATUSES: Record<string, GameStatus> = {
   mo_hop: 'coming_soon',
   gan_nhan_so_do: 'coming_soon',
   no_bong_bay: 'coming_soon',
-  dap_chuot_chui: 'coming_soon'
+  dap_chuot_chui: 'on_air'
 };
 
 const LOCAL_STORAGE_KEY = 'app_game_statuses_v2';

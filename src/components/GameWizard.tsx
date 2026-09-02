@@ -25,7 +25,12 @@ Nhiễu: ăn | cây | sông | biển`,
   short_answer: `Câu 1: Chủ đề: Khám Phá Khoa Học
 Gợi ý: Tìm các từ khóa thuộc chủ đề Khoa Học
 Đáp án: TOÁN HỌC | SINH HỌC | VẬT LÝ | HÓA HỌC | VŨ TRỤ | HÀNH TINH`,
-  matching: "Câu 5: Nối các từ đồng nghĩa\nTo lớn - Vĩ đại\nXinh đẹp - Tuyệt trần"
+  matching: `Câu 1: Ghép nối kiến thức (Hỗ trợ 3 dạng: Ảnh, Ảnh + Chữ, Chữ thuần)
+![Quốc kỳ VN](https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?w=300) Việt Nam - Hà Nội
+![Tháp Eiffel](https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=300) Pháp - ![Paris](https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=300) Paris
+![Sư tử](https://images.unsplash.com/photo-1614027164847-1b28caa1470f?w=300) - Sư tử dũng mãnh
+7 x 8 - 56
+To lớn - Vĩ đại`
 };
 
 const FORMAT_NAMES: Record<string, string> = {
