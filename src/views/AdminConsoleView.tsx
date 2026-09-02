@@ -3,7 +3,7 @@ import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotificatio
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History, Gamepad2, Radio, Play } from 'lucide-react';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History, Gamepad2, Radio, Play, GraduationCap, School } from 'lucide-react';
 import { useGameStatuses, getSampleQuestionsForGame } from '../lib/gameConfig';
 import { GamePreview } from '../components/GamePreview';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -88,6 +88,77 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   const [loadingResets, setLoadingResets] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'teacher' | 'student'>('all');
+
+  // Teacher Class Lookup Board state
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
+
+  const selectedTeacher = React.useMemo(() => {
+    return usersList.find(u => u.id === selectedTeacherId && u.role === 'teacher');
+  }, [usersList, selectedTeacherId]);
+
+  const teacherClasses = React.useMemo(() => {
+    if (!selectedTeacher) return [];
+
+    const classMap = new Map<string, {
+      className: string;
+      sources: ('profile' | 'session' | 'assignment')[];
+      sessionsCount: number;
+      assignmentsCount: number;
+    }>();
+
+    const addClass = (className: string, source: 'profile' | 'session' | 'assignment') => {
+      const name = className.trim();
+      if (!name) return;
+      if (!classMap.has(name)) {
+        classMap.set(name, {
+          className: name,
+          sources: [source],
+          sessionsCount: 0,
+          assignmentsCount: 0,
+        });
+      } else {
+        const item = classMap.get(name)!;
+        if (!item.sources.includes(source)) {
+          item.sources.push(source);
+        }
+      }
+    };
+
+    // 1. Check teacher's profile className
+    if (selectedTeacher.className) {
+      addClass(selectedTeacher.className, 'profile');
+    }
+
+    // 2. Check classes/sessions
+    classes.forEach(c => {
+      if (c.teacherId === selectedTeacher.id || c.teacherName === selectedTeacher.name || c.teacherId === selectedTeacher.connectionCode) {
+        if (c.className) {
+          addClass(c.className, 'session');
+          const item = classMap.get(c.className.trim())!;
+          item.sessionsCount += 1;
+        }
+        if (c.title && c.title !== c.className) {
+          addClass(c.title, 'session');
+          const item = classMap.get(c.title.trim())!;
+          item.sessionsCount += 1;
+        }
+      }
+    });
+
+    // 3. Check assignments list
+    assignments.forEach(a => {
+      const isOwner = a.teacherId === selectedTeacher.id || a.teacherName === selectedTeacher.name;
+      if (isOwner) {
+        if (a.className) {
+          addClass(a.className, 'assignment');
+          const item = classMap.get(a.className.trim())!;
+          item.assignmentsCount += 1;
+        }
+      }
+    });
+
+    return Array.from(classMap.values());
+  }, [selectedTeacher, classes, assignments]);
 
   // Resource Audit Console state
   const [resSearchTerm, setResSearchTerm] = useState('');
@@ -883,6 +954,118 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
       {/* TAB 1: USER MANAGEMENT */}
       {activeTab === 'users' && (
         <div className="space-y-6">
+          {/* TEACHER CLASS LOOKUP BOARD */}
+          <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                <School className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">Bảng Tra Cứu Lớp Dạy Của Giáo Viên</h3>
+                <p className="text-xs font-semibold text-slate-500">Xem nhanh danh sách tất cả các lớp học thực tế mà từng giáo viên đang phụ trách.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Left Column: Teacher Selector */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-slate-700">Chọn giáo viên giảng dạy:</label>
+                <div className="relative">
+                  <select
+                    value={selectedTeacherId}
+                    onChange={(e) => setSelectedTeacherId(e.target.value)}
+                    className="w-full bg-white border border-slate-200 hover:border-indigo-300 rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer appearance-none pr-10"
+                  >
+                    <option value="">-- Chọn giáo viên --</option>
+                    {usersList
+                      .filter(u => u.role === 'teacher')
+                      .map(t => (
+                        <option key={t.id} value={t.id}>
+                          👨‍🏫 {t.name} {t.className ? `(Lớp: ${t.className})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                    <Filter className="w-4 h-4" />
+                  </div>
+                </div>
+
+                {selectedTeacher && (
+                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-3">
+                    <UserAvatar name={selectedTeacher.name} firstName={selectedTeacher.firstName} avatar={selectedTeacher.avatar} size="md" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-slate-900 truncate">{selectedTeacher.name}</p>
+                      <p className="text-[11px] text-slate-400">ID: {selectedTeacher.id.substring(0, 8)}</p>
+                      {selectedTeacher.className && (
+                        <span className="inline-block mt-1 text-[10px] font-bold text-indigo-600 bg-indigo-50/50 border border-indigo-100 px-1.5 py-0.5 rounded-md">
+                          Lớp chính: {selectedTeacher.className}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Columns: Class List & Details */}
+              <div className="md:col-span-2 border-t md:border-t-0 md:border-l border-slate-100 md:pl-6 pt-5 md:pt-0">
+                {!selectedTeacher ? (
+                  <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                    <GraduationCap className="w-8 h-8 text-slate-300 mb-2" />
+                    <p className="text-xs font-bold text-slate-500">Chưa chọn giáo viên</p>
+                    <p className="text-[11px] text-slate-400 max-w-xs">Vui lòng chọn một giáo viên ở danh sách bên trái để kiểm tra các lớp học họ đang phụ trách.</p>
+                  </div>
+                ) : teacherClasses.length === 0 ? (
+                  <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 bg-amber-50/30 rounded-2xl border border-dashed border-amber-200">
+                    <AlertCircle className="w-8 h-8 text-amber-500/60 mb-2" />
+                    <p className="text-xs font-bold text-amber-800">Không tìm thấy lớp học nào</p>
+                    <p className="text-[11px] text-amber-600/80 max-w-xs">Giáo viên này hiện chưa được liên kết với bất kỳ lớp học, bài kiểm tra hay bài học nào trong hệ thống.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-500">
+                      <span>Các lớp đang phụ trách ({teacherClasses.length}):</span>
+                      <span className="text-indigo-600">Dữ liệu thực tế</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1.5 custom-scrollbar">
+                      {teacherClasses.map((cls) => (
+                        <div key={cls.className} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-indigo-200 transition-all">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-extrabold text-slate-800 font-mono bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
+                              Lớp {cls.className}
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {cls.sources.map(src => (
+                                <span key={src} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
+                                  src === 'profile'
+                                    ? 'bg-purple-50 text-purple-700 border-purple-150'
+                                    : src === 'session'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-150'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-150'
+                                }`}>
+                                  {src === 'profile' ? 'Hồ sơ' : src === 'session' ? 'Lớp học' : 'Bài tập'}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                            <span>Bài giảng trực tuyến:</span>
+                            <span className="font-bold text-slate-700">{cls.sessionsCount} bài</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[11px] text-slate-500">
+                            <span>Nhiệm vụ & Bài tập:</span>
+                            <span className="font-bold text-slate-700">{cls.assignmentsCount} bài</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />

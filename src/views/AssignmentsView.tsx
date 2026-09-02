@@ -807,8 +807,8 @@ export function AssignmentsView({
       .filter(Boolean)
       .filter(name => {
         const trimmed = name.trim();
-        // Keep standard school classes: e.g. starts with a digit like 10A1, 11A2, 12A1, 9A, etc.
-        return /^\d/.test(trimmed);
+        // Allow any valid non-empty class name, including those starting with Vietnamese words like "Lớp" or custom names like "Yêu thương"
+        return trimmed.length > 0;
       })
       .sort((a, b) => 
         a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
