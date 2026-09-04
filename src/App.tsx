@@ -518,11 +518,62 @@ export default function App() {
   };
 
   const handleSubmitWork = async (submission: Omit<Submission, 'id' | 'submittedAt'>) => {
-    const id = `sub_${Date.now()}`;
+    // Find existing submission for this student and assignment to preserve attempt history
+    const existingSub = submissions.find(
+      s => s.assignmentId === submission.assignmentId && s.studentId === submission.studentId
+    );
+    const id = existingSub?.id || `sub_${Date.now()}`;
+    const submittedAt = new Date().toISOString();
+
+    // Build history list
+    const previousHistory = existingSub?.history ? [...existingSub.history] : [];
+    if (existingSub && existingSub.submittedAt && (existingSub.grade !== undefined || existingSub.content || existingSub.quizDetails)) {
+      // If previous attempt not yet in history, add it
+      const alreadyInHistory = previousHistory.some(h => h.submittedAt === existingSub.submittedAt);
+      if (!alreadyInHistory) {
+        previousHistory.push({
+          attemptNumber: previousHistory.length + 1,
+          grade: existingSub.grade,
+          submittedAt: existingSub.submittedAt,
+          quizDetails: existingSub.quizDetails,
+          quizAnswers: existingSub.quizAnswers,
+          content: existingSub.content,
+          feedback: existingSub.feedback,
+          subSetId: existingSub.subSetId,
+          subSetTitle: existingSub.subSetTitle,
+          fileUrl: existingSub.fileUrl
+        });
+      }
+    }
+
+    const currentAttemptNumber = previousHistory.length + 1;
+    const currentAttemptItem = {
+      attemptNumber: currentAttemptNumber,
+      grade: submission.grade,
+      submittedAt,
+      quizDetails: submission.quizDetails,
+      quizAnswers: submission.quizAnswers,
+      content: submission.content,
+      feedback: submission.feedback,
+      subSetId: submission.subSetId,
+      subSetTitle: submission.subSetTitle,
+      fileUrl: submission.fileUrl
+    };
+    const updatedHistory = [...previousHistory, currentAttemptItem];
+
+    const allGrades = updatedHistory.map(h => h.grade).filter((g): g is number => typeof g === 'number');
+    const bestGrade = allGrades.length > 0 ? Math.max(...allGrades) : (submission.grade ?? 10);
+
     const newSubmission: Submission = JSON.parse(JSON.stringify({
       ...submission,
       id,
-      submittedAt: new Date().toISOString(),
+      submittedAt,
+      history: updatedHistory,
+      attemptCount: currentAttemptNumber,
+      bestGrade,
+      isReset: false,
+      resetAt: null,
+      resetBy: null
     }));
     
     const attemptId = `attempt_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -530,7 +581,7 @@ export default function App() {
       id: attemptId,
       assignmentId: submission.assignmentId,
       studentId: submission.studentId,
-      submittedAt: new Date().toISOString(),
+      submittedAt,
       answers: submission.quizAnswers || {},
       grade: submission.grade,
       quizDetails: submission.quizDetails,

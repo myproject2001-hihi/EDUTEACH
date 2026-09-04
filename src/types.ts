@@ -152,6 +152,21 @@ export interface StudentAttempt {
   content?: string; // For text/file submissions
 }
 
+export interface SubmissionAttemptItem {
+  attemptNumber: number;
+  grade?: number;
+  submittedAt: string;
+  quizDetails?: SubmissionQuizDetails;
+  quizAnswers?: Record<string, number>;
+  content?: string;
+  feedback?: string;
+  subSetId?: string;
+  subSetTitle?: string;
+  fileUrl?: string;
+  resetAt?: string;
+  resetBy?: string;
+}
+
 export interface Submission {
   id: string;
   assignmentId: string;
@@ -170,6 +185,12 @@ export interface Submission {
   quizDetails?: SubmissionQuizDetails;
   isPenalty?: boolean; // Nộp muộn / chưa nộp bị trừ điểm
   teacherId?: string;
+  history?: SubmissionAttemptItem[];
+  attemptCount?: number;
+  bestGrade?: number;
+  isReset?: boolean;
+  resetAt?: string;
+  resetBy?: string;
 }
 
 export interface ClassSession {

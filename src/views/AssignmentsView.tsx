@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, RotateCcw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, RotateCcw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer, SlidersHorizontal } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -25,6 +25,7 @@ import { QuestionSetPickerModal } from '../components/QuestionSetPickerModal';
 import { SaveToQuestionBankModal } from '../components/SaveToQuestionBankModal';
 import { logActivity } from '../lib/activityLogger';
 import { GameLauncherModal } from '../components/GameLauncherModal';
+import { BatchEditAssignmentsModal } from '../components/BatchEditAssignmentsModal';
 
 interface AssignmentsProps {
   user: User;
@@ -667,6 +668,7 @@ export function AssignmentsView({
   const [filterDueDate, setFilterDueDate] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unsubmitted' | 'overdue' | 'submitted'>('all');
   const [filterOnAir, setFilterOnAir] = useState<'all' | 'on_air' | 'draft'>('all');
+  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
 
   // Status counts for current student / overall
   const statusCounts = useMemo(() => {
@@ -1615,6 +1617,26 @@ export function AssignmentsView({
     if (!submissionToReset) return;
     setIsResettingSubmission(true);
     try {
+      // Archive current attempt to student_attempts so historical score is permanently saved
+      try {
+        const attemptId = `attempt_hist_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        await setDoc(doc(db, 'student_attempts', attemptId), {
+          id: attemptId,
+          assignmentId: submissionToReset.assignmentId,
+          studentId: submissionToReset.studentId,
+          submittedAt: submissionToReset.submittedAt || new Date().toISOString(),
+          answers: submissionToReset.quizAnswers || {},
+          grade: submissionToReset.grade,
+          quizDetails: submissionToReset.quizDetails,
+          content: submissionToReset.content,
+          feedback: submissionToReset.feedback,
+          resetAt: new Date().toISOString(),
+          resetBy: user?.name || 'Giáo viên'
+        });
+      } catch (archErr) {
+        console.warn('Could not archive attempt doc before reset:', archErr);
+      }
+
       await deleteDoc(doc(db, 'submissions', submissionToReset.id));
       if (user) {
         logActivity({
@@ -2928,17 +2950,17 @@ export function AssignmentsView({
                 </select>
               )}
 
-              {/* On Air Status Filter for Teachers */}
+              {/* Batch Edit Modal Trigger for Teachers (Thay thế nút On Air cũ bằng Bảng Đổi Đồng Loạt) */}
               {isTeacher && (
-                <select
-                  value={filterOnAir}
-                  onChange={(e) => setFilterOnAir(e.target.value as any)}
-                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
+                <button
+                  type="button"
+                  onClick={() => setShowBatchEditModal(true)}
+                  className="px-3.5 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold border border-indigo-200 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+                  title="Mở Bảng đổi & cập nhật đồng loạt trạng thái On Air, Lớp học, Môn học, Hạn nộp..."
                 >
-                  <option value="all">📻 Trạng thái On Air (Tất cả)</option>
-                  <option value="on_air">🟢 Đã On Air (Hiển thị HS)</option>
-                  <option value="draft">🟡 Bản Nháp (Ẩn với HS)</option>
-                </select>
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Bảng đổi đồng loạt</span>
+                </button>
               )}
 
               <select
@@ -3252,69 +3274,66 @@ export function AssignmentsView({
                   </div>
                   
                   {isTeacher && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button 
-                        type="button"
-                        onClick={async () => {
-                          const newStatus = selectedAssignment.isPublished === false ? true : false;
-                          try {
-                            await setDoc(doc(db, 'assignments', selectedAssignment.id), { isPublished: newStatus }, { merge: true });
-                            if (newStatus) {
-                              alert('Đã phát hành bài tập/trò chơi cho học sinh!');
-                            } else {
-                              alert('Đã ẩn bài tập/trò chơi. Hiện tại chỉ giáo viên mới nhìn thấy.');
-                            }
-                          } catch (err) {
-                            alert('Lỗi cập nhật trạng thái');
-                          }
-                        }}
-                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-colors shadow-sm border ${
-                          selectedAssignment.isPublished !== false 
-                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200' 
-                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200'
-                        }`}
-                        title={selectedAssignment.isPublished !== false ? "Đang ON AIR (Nhấn để tắt)" : "Đang Bản Nháp (Nhấn để bật ON AIR)"}
-                      >
-                        {selectedAssignment.isPublished !== false ? (
-                          <>
-                            <Radio className="w-4 h-4 text-rose-600 animate-pulse" />
-                            ON AIR
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="w-4 h-4 text-amber-600" />
-                            Bật ON AIR
-                          </>
-                        )}
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => handleOpenEditModal(selectedAssignment)}
-                        className="flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
-                        title="Chỉnh sửa bài tập này"
-                      >
-                        <Pencil className="w-4 h-4 text-amber-600" />
-                        Chỉnh sửa
-                      </button>
-
-                      {isTeacher && selectedAssignment.questionSets && selectedAssignment.questionSets.length > 0 && (
+                    <div className="w-full bg-slate-50 border border-slate-200 p-2.5 sm:p-3 rounded-2xl flex flex-wrap items-center justify-between gap-2.5 shadow-xs">
+                      {/* Left: On Air Status Toggle */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-500">Trạng thái:</span>
                         <button 
                           type="button"
-                          onClick={() => {
-                            setAssignQsAssignment(selectedAssignment);
-                            setAssignActiveQsId(selectedAssignment.activeQuestionSetId || selectedAssignment.questionSets?.[0]?.id || 'qs_default');
-                            setAssignStudentMap(selectedAssignment.studentQuestionSetMap || {});
-                            setShowAssignQsModal(true);
+                          onClick={async () => {
+                            const newStatus = selectedAssignment.isPublished === false ? true : false;
+                            try {
+                              await setDoc(doc(db, 'assignments', selectedAssignment.id), { isPublished: newStatus }, { merge: true });
+                              if (newStatus) {
+                                alert('Đã phát hành bài tập/trò chơi cho học sinh!');
+                              } else {
+                                alert('Đã ẩn bài tập/trò chơi. Hiện tại chỉ giáo viên mới nhìn thấy.');
+                              }
+                            } catch (err) {
+                              alert('Lỗi cập nhật trạng thái');
+                            }
                           }}
-                          className="flex items-center gap-1.5 text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer active:scale-95"
-                          title="Phân công Đề trắc nghiệm kiểm tra riêng cho từng học sinh"
+                          className={`flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs border cursor-pointer active:scale-95 ${
+                            selectedAssignment.isPublished !== false 
+                              ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200' 
+                              : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border-amber-200'
+                          }`}
+                          title={selectedAssignment.isPublished !== false ? "Đang ON AIR (Nhấn để chuyển sang Bản Nháp)" : "Đang Bản Nháp (Nhấn để phát ON AIR)"}
                         >
-                          <Layers className="w-4 h-4 text-emerald-100" />
-                          <span>🎯 Phân công Đề ({selectedAssignment.questionSets.length} đề)</span>
+                          <Radio className={`w-3.5 h-3.5 ${selectedAssignment.isPublished !== false ? 'text-emerald-600 animate-pulse' : 'text-amber-500'}`} />
+                          <span>{selectedAssignment.isPublished !== false ? '🟢 ON AIR' : '🟡 BẢN NHÁP'}</span>
                         </button>
-                      )}
+                      </div>
 
-                      {isTeacher && (
+                      {/* Right: Consolidated Action Toolbar */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button 
+                          type="button"
+                          onClick={() => handleOpenEditModal(selectedAssignment)}
+                          className="flex items-center gap-1.5 text-xs font-bold bg-white text-slate-700 hover:text-amber-700 hover:bg-amber-50 border border-slate-200 px-3 py-1.5 rounded-xl transition-all shadow-xs active:scale-95"
+                          title="Chỉnh sửa thông tin và nội dung bài tập"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Chỉnh sửa</span>
+                        </button>
+
+                        {selectedAssignment.questionSets && selectedAssignment.questionSets.length > 0 && (
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setAssignQsAssignment(selectedAssignment);
+                              setAssignActiveQsId(selectedAssignment.activeQuestionSetId || selectedAssignment.questionSets?.[0]?.id || 'qs_default');
+                              setAssignStudentMap(selectedAssignment.studentQuestionSetMap || {});
+                              setShowAssignQsModal(true);
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                            title="Phân công Đề trắc nghiệm kiểm tra riêng cho từng học sinh"
+                          >
+                            <Layers className="w-3.5 h-3.5 text-emerald-100" />
+                            <span>🎯 Phân đề ({selectedAssignment.questionSets.length})</span>
+                          </button>
+                        )}
+
                         <button 
                           type="button"
                           onClick={() => {
@@ -3322,57 +3341,61 @@ export function AssignmentsView({
                             setRetakeNote(selectedAssignment.retakeNote || 'Giáo viên vừa cập nhật nội dung bài tập/flashcard và yêu cầu học sinh làm lại bài tập này.');
                             setShowRetakeModal(true);
                           }}
-                          className="flex items-center gap-1.5 text-xs font-extrabold bg-purple-600 text-white hover:bg-purple-700 border border-purple-500 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer active:scale-95"
-                          title="Phát tín hiệu thông báo yêu cầu tất cả học sinh làm lại bài tập này"
+                          className="flex items-center gap-1.5 text-xs font-bold bg-white text-purple-700 hover:bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl transition-all shadow-xs active:scale-95"
+                          title="Yêu cầu học sinh làm lại bài tập này"
                         >
-                          <RotateCw className="w-4 h-4 text-purple-100" />
-                          <span>🔁 Yêu cầu học sinh làm lại</span>
+                          <RotateCw className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Yêu cầu làm lại</span>
                         </button>
-                      )}
-                      <button 
-                        type="button"
-                        onClick={() => setDeleteConfirmAssignment(selectedAssignment)}
-                        className="flex items-center gap-1.5 text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
-                        title="Xóa bài tập này"
-                      >
-                        <Trash2 className="w-4 h-4 text-rose-600" />
-                        Xóa
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const summary = `📝 [BÀI TẬP]: ${selectedAssignment.title}\nHạn nộp: ${format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\nCác em học sinh đăng nhập hệ thống để hoàn thành bài tập nhé!`;
-                          navigator.clipboard.writeText(summary);
-                          alert('Đã sao chép tóm tắt bài tập vào bộ nhớ tạm!');
-                        }}
-                        className="flex items-center gap-1.5 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded-xl transition-colors"
-                      >
-                        <Copy className="w-4 h-4 text-indigo-600" />
-                        Sao chép tóm tắt
-                      </button>
-                      {(selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && (
-                        <button
+
+                        {(selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (selectedAssignment.type === 'online_test') {
+                                setIsExamStarted(true);
+                                setExamTimeRemaining(selectedAssignment.timeLimit ? selectedAssignment.timeLimit * 60 : null);
+                                setTabSwitchCount(0);
+                                setStudentQuizAnswers({});
+                                await enterFullscreen();
+                              } else if (selectedAssignment.type === 'game') {
+                                setIsExamStarted(true);
+                              } else if (selectedAssignment.type === 'flashcard') {
+                                setShowFlashcardQuizTest(true);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 text-xs font-bold bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl transition-all shadow-xs active:scale-95"
+                            title="Xem trước giao diện làm bài"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Xem trước</span>
+                          </button>
+                        )}
+
+                        <button 
                           type="button"
-                          onClick={async () => {
-                            if (selectedAssignment.type === 'online_test') {
-                              setIsExamStarted(true);
-                              setExamTimeRemaining(selectedAssignment.timeLimit ? selectedAssignment.timeLimit * 60 : null);
-                              setTabSwitchCount(0);
-                              setStudentQuizAnswers({});
-                              await enterFullscreen();
-                            } else if (selectedAssignment.type === 'game') {
-                              setIsExamStarted(true);
-                            } else if (selectedAssignment.type === 'flashcard') {
-                              setShowFlashcardQuizTest(true);
-                            }
+                          onClick={() => {
+                            const summary = `📝 [BÀI TẬP]: ${selectedAssignment.title}\nHạn nộp: ${format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}\nCác em học sinh đăng nhập hệ thống để hoàn thành bài tập nhé!`;
+                            navigator.clipboard.writeText(summary);
+                            alert('Đã sao chép tóm tắt bài tập vào bộ nhớ tạm!');
                           }}
-                          className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 px-3 py-1.5 rounded-xl transition-colors shadow-sm"
-                          title="Xem trước chế độ làm bài"
+                          className="flex items-center gap-1.5 text-xs font-bold bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl transition-all shadow-xs active:scale-95"
+                          title="Sao chép tóm tắt bài tập"
                         >
-                          <Eye className="w-4 h-4 text-emerald-600" />
-                          Xem trước
+                          <Copy className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Sao chép</span>
                         </button>
-                      )}
+
+                        <button 
+                          type="button"
+                          onClick={() => setDeleteConfirmAssignment(selectedAssignment)}
+                          className="flex items-center gap-1.5 text-xs font-bold bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl transition-all shadow-xs active:scale-95"
+                          title="Xóa bài tập này"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                          <span>Xóa</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                   {!isTeacher && !isAdmin && (
@@ -3443,147 +3466,6 @@ export function AssignmentsView({
                   <strong>Quy định nộp bài & luyện tập:</strong> Học sinh bắt buộc hoàn thành trong thời gian giáo viên quy định. Nếu quá hạn nộp, học sinh vẫn có thể tiếp tục vào làm lại bài tập để ôn luyện kiến thức.
                 </span>
               </div>
-
-              {/* MULTI-QUESTION SET MANAGEMENT SECTION (Bộ Đề & Tập Câu Hỏi) */}
-              {(selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && (
-                <div className="p-5 sm:p-6 bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 rounded-2xl border border-indigo-150 space-y-4 shadow-sm">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-5 h-5 text-indigo-600" />
-                        <h3 className="text-base font-extrabold text-slate-900">
-                          Danh Sách Bộ Đề Kiểm Tra ({currentSubSets.length || 1} bộ đề)
-                        </h3>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Tạo và lưu giữ nhiều bộ đề câu hỏi khác nhau trong cùng 1 bài tập. Giáo viên chỉ định bộ đề nào thì học sinh sẽ làm bộ đề đó!
-                      </p>
-                    </div>
-
-                    {isTeacher && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenAddSubSetModal()}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 shrink-0 active:scale-95"
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Tạo thêm bộ đề mới</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* LIST OF QUESTION SETS */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {currentSubSets.map((subSet, idx) => {
-                      const isActive = activeSubSet?.id === subSet.id;
-                      const qCount = subSet.questions?.length || (subSet.rawCode ? parseRawCodeToQuestions(subSet.rawCode).parsedQuestions.length : 0);
-                      const fCount = subSet.flashcards?.length || 0;
-
-                      return (
-                        <div
-                          key={subSet.id}
-                          className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
-                            isActive
-                              ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
-                              : 'bg-white/80 border-slate-200 hover:border-slate-300 shadow-sm'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-xs font-black text-indigo-900 flex items-center gap-1.5">
-                                <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
-                                  {idx + 1}
-                                </span>
-                                {subSet.title}
-                              </span>
-
-                              {isActive ? (
-                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                  Đang chỉ định cho HS
-                                </span>
-                              ) : (
-                                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                  📁 Lưu trữ
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-3 text-xs text-slate-500">
-                              {selectedAssignment.type === 'flashcard' ? (
-                                <span>🎴 {fCount} thẻ flashcard</span>
-                              ) : (
-                                <span>📝 {qCount} câu hỏi trắc nghiệm</span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* ACTION BUTTONS ON SET CARD */}
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                            {isTeacher ? (
-                              <>
-                                {!isActive ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetActiveSubSet(subSet.id)}
-                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg transition-all shadow-sm flex items-center gap-1"
-                                    title="Chỉ định bộ đề này cho học sinh làm ở lượt tiếp theo"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    <span>Chỉ định cho HS làm</span>
-                                  </button>
-                                ) : (
-                                  <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                                    🎯 Học sinh sẽ làm bộ đề này
-                                  </span>
-                                )}
-
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenAddSubSetModal(subSet)}
-                                    className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors border border-amber-200"
-                                    title="Chỉnh sửa bộ đề này"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {currentSubSets.length > 1 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteSubSet(subSet.id)}
-                                      className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
-                                      title="Xóa bộ đề này"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <div className="w-full flex items-center justify-between">
-                                {isActive ? (
-                                  <span className="text-xs font-black text-emerald-700 flex items-center gap-1">
-                                    🎯 Bộ đề được thầy cô giao
-                                  </span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetActiveSubSet(subSet.id)}
-                                    className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
-                                  >
-                                    <span>Thử sức / Ôn tập bộ đề này</span>
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {/* Teacher Attached Document / Link Section */}
               {selectedAssignment.pdfUrl && (
@@ -7465,6 +7347,17 @@ export function AssignmentsView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bảng Đổi & Cập Nhật Đồng Loạt Modal */}
+      {showBatchEditModal && (
+        <BatchEditAssignmentsModal
+          isOpen={showBatchEditModal}
+          onClose={() => setShowBatchEditModal(false)}
+          assignments={assignments}
+          availableClasses={availableTeacherClasses}
+          user={user}
+        />
       )}
 
     </div>

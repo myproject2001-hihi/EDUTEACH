@@ -7,7 +7,8 @@ import {
   X, Check, CheckCircle2, XCircle, Eye, Download, ZoomIn, ZoomOut, 
   RotateCw, RotateCcw, Phone, Copy, FileText, Sparkles, Clock, ChevronLeft, 
   ChevronRight, Send, Award, AlertTriangle, Gamepad2, BookOpen, 
-  Camera, HelpCircle, CheckCircle, Filter, ListChecks, Layers, MessageSquare
+  Camera, HelpCircle, CheckCircle, Filter, ListChecks, Layers, MessageSquare,
+  History, TrendingUp, Trophy
 } from 'lucide-react';
 import { logActivity } from '../lib/activityLogger';
 
@@ -93,7 +94,8 @@ function StudentSubmissionDetailModalInner({
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   // Active view tab for left panel
-  const [activeTab, setActiveTab] = useState<'quiz' | 'flashcards' | 'file' | 'notes'>('quiz');
+  const [activeTab, setActiveTab] = useState<'quiz' | 'flashcards' | 'file' | 'notes' | 'history'>('quiz');
+  const [selectedHistoryAttempt, setSelectedHistoryAttempt] = useState<number | null>(null);
   const [filterMode, setFilterMode] = useState<'all' | 'correct' | 'wrong'>('all');
 
   // File zoom & rotation controls
@@ -538,6 +540,19 @@ function StudentSubmissionDetailModalInner({
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>Lời nhắn & Ghi chú</span>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('history')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                    activeTab === 'history'
+                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-100'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Lịch sử làm bài ({submission.history && submission.history.length > 0 ? submission.history.length : (submission.attemptCount || 1)})</span>
+                </button>
               </div>
 
               {/* Quiz Filter Options when viewing Quiz tab */}
@@ -923,6 +938,185 @@ function StudentSubmissionDetailModalInner({
 
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs sm:text-sm text-slate-800 leading-relaxed font-medium">
                     <p className="whitespace-pre-wrap">{submission.content || '(Học sinh không để lại ghi chú)'}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: ATTEMPT HISTORY TIMELINE */}
+              {activeTab === 'history' && (
+                <div className="space-y-4">
+                  {/* Overview Stats Card */}
+                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-3xl p-4 sm:p-5 border border-indigo-100/80 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                          <History className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-sm">Lịch sử các lần làm bài tập</h4>
+                          <p className="text-xs text-slate-500">Toàn bộ điểm số & tiến trình các lần làm lại được hệ thống lưu trữ tự động</p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 bg-white text-indigo-700 font-extrabold text-xs rounded-xl border border-indigo-200 shadow-xs">
+                        Tổng cộng: {submission.history && submission.history.length > 0 ? submission.history.length : 1} lần làm
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-indigo-100">
+                      <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-2xl border border-indigo-50">
+                        <p className="text-[11px] font-bold text-slate-500">Điểm cao nhất (Best)</p>
+                        <p className="text-base sm:text-lg font-black text-emerald-600 flex items-center gap-1">
+                          <Trophy className="w-4 h-4 text-amber-500 inline" />
+                          {submission.bestGrade !== undefined ? `${submission.bestGrade}/10` : (submission.grade !== undefined ? `${submission.grade}/10` : '10/10')}
+                        </p>
+                      </div>
+                      <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-2xl border border-indigo-50">
+                        <p className="text-[11px] font-bold text-slate-500">Lần nộp gần nhất</p>
+                        <p className="text-base sm:text-lg font-black text-indigo-600">
+                          {submission.grade !== undefined ? `${submission.grade}/10` : 'Chờ chấm'}
+                        </p>
+                      </div>
+                      <div className="bg-white/80 backdrop-blur-xs p-2.5 rounded-2xl border border-indigo-50 col-span-2 sm:col-span-1">
+                        <p className="text-[11px] font-bold text-slate-500">Tiến trình</p>
+                        {(() => {
+                          const hist = submission.history || [];
+                          if (hist.length >= 2) {
+                            const first = hist[0]?.grade ?? 0;
+                            const last = submission.grade ?? hist[hist.length - 1]?.grade ?? 0;
+                            const diff = +(last - first).toFixed(1);
+                            return (
+                              <p className={`text-base sm:text-lg font-black flex items-center gap-1 ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                <TrendingUp className="w-4 h-4" />
+                                {diff >= 0 ? `+${diff} đ` : `${diff} đ`}
+                              </p>
+                            );
+                          }
+                          return <p className="text-xs font-bold text-slate-400 mt-1">Lần làm đầu tiên</p>;
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Attempts List */}
+                  <div className="space-y-3">
+                    {(() => {
+                      // Construct history items list
+                      const historyList: Array<{
+                        attemptNumber: number;
+                        grade?: number;
+                        submittedAt: string;
+                        quizDetails?: any;
+                        content?: string;
+                        resetAt?: string;
+                        resetBy?: string;
+                      }> = [];
+
+                      if (submission.history && submission.history.length > 0) {
+                        submission.history.forEach((h, idx) => {
+                          historyList.push({
+                            attemptNumber: h.attemptNumber || idx + 1,
+                            grade: h.grade,
+                            submittedAt: h.submittedAt,
+                            quizDetails: h.quizDetails,
+                            content: h.content,
+                            resetAt: h.resetAt,
+                            resetBy: h.resetBy
+                          });
+                        });
+                      } else {
+                        // Single default attempt
+                        historyList.push({
+                          attemptNumber: 1,
+                          grade: submission.grade,
+                          submittedAt: submission.submittedAt,
+                          quizDetails: submission.quizDetails,
+                          content: submission.content
+                        });
+                      }
+
+                      // Sort newest first
+                      const sortedAttempts = [...historyList].sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+                      const highestGrade = Math.max(...historyList.map(h => h.grade ?? 0));
+
+                      return sortedAttempts.map((item, idx) => {
+                        const isHighest = item.grade !== undefined && item.grade === highestGrade && highestGrade > 0;
+                        const isLatest = idx === 0;
+
+                        return (
+                          <div 
+                            key={idx}
+                            className={`p-4 rounded-3xl border transition-all ${
+                              isLatest 
+                                ? 'bg-white border-indigo-300 shadow-md ring-1 ring-indigo-200' 
+                                : 'bg-slate-50 border-slate-200 shadow-xs'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs ${
+                                  isLatest ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+                                }`}>
+                                  #{item.attemptNumber}
+                                </span>
+                                <div>
+                                  <h5 className="font-extrabold text-slate-900 text-sm flex items-center gap-1.5">
+                                    <span>Lần làm #{item.attemptNumber}</span>
+                                    {isLatest && (
+                                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-extrabold rounded-md">
+                                        Mới nhất
+                                      </span>
+                                    )}
+                                    {isHighest && (
+                                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-extrabold rounded-md flex items-center gap-1">
+                                        <Trophy className="w-3 h-3 text-amber-600" />
+                                        Điểm cao nhất
+                                      </span>
+                                    )}
+                                  </h5>
+                                  <p className="text-[11px] text-slate-400">
+                                    Nộp lúc: {item.submittedAt ? format(new Date(item.submittedAt), 'HH:mm - dd/MM/yyyy') : 'Chưa rõ'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="text-right">
+                                <span className={`text-lg font-black px-3 py-1 rounded-xl border ${
+                                  (item.grade ?? 0) >= 8 
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : (item.grade ?? 0) >= 5
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}>
+                                  {item.grade !== undefined ? `${item.grade} đ` : 'Chờ chấm'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Attempt metadata (e.g. quiz correct count) */}
+                            {item.quizDetails && (
+                              <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                                <span className="font-semibold flex items-center gap-1">
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                  Đúng: {item.quizDetails.correctCount || 0}/{item.quizDetails.totalQuestions || 0} câu
+                                </span>
+                                {item.quizDetails.timeSpentSeconds && (
+                                  <span className="font-semibold flex items-center gap-1 text-slate-500">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    Thời gian làm: {Math.floor(item.quizDetails.timeSpentSeconds / 60)} phút {item.quizDetails.timeSpentSeconds % 60} giây
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {item.resetAt && (
+                              <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                                🔄 Đã được kích hoạt cho làm lại vào {format(new Date(item.resetAt), 'HH:mm - dd/MM/yyyy')} {item.resetBy ? `bởi ${item.resetBy}` : ''}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
