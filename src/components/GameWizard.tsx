@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2, Lock, Radio, Sparkles, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2, Lock, Radio, Sparkles, AlertCircle, ShieldAlert, CheckCircle2, Layers, FolderOpen, Save, Database } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 import { useGameStatuses } from '../lib/gameConfig';
-import { User } from '../types';
+import { User, QuestionSetItem } from '../types';
+import { QuestionSetPickerModal } from './QuestionSetPickerModal';
+import { SaveToQuestionBankModal } from './SaveToQuestionBankModal';
 
 const FORMAT_TEMPLATES: Record<string, string> = {
   multiple_choice: "Câu 1: Thủ đô của Việt Nam là gì?\nA. Hà Nội\nB. TP. Hồ Chí Minh\nC. Đà Nẵng\nD. Huế\nĐáp án: A",
@@ -140,6 +142,42 @@ export const GameWizard: React.FC<GameWizardProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'on_air' | 'coming_soon'>('all');
   const [questionBlocks, setQuestionBlocks] = useState<Record<string, string>>({});
   const [activeFormat, setActiveFormat] = useState<string>('');
+
+  // Question Bank Modals
+  const [showSetPickerModal, setShowSetPickerModal] = useState(false);
+  const [showSaveSetModal, setShowSaveSetModal] = useState(false);
+
+  const handleSelectQuestionSetFromBank = (qSet: QuestionSetItem) => {
+    if (qSet.rawCode && qSet.rawCode.trim()) {
+      setRawQuestionCode(qSet.rawCode);
+      setQuestionBlocks({ [activeFormat || 'multiple_choice']: qSet.rawCode });
+    } else if (qSet.questions && qSet.questions.length > 0) {
+      // Reconstruct simple code format
+      const formattedCode = qSet.questions.map((q, i) => {
+        let text = `Câu ${i + 1}: ${q.question}\n`;
+        if (q.options && q.options.length > 0) {
+          q.options.forEach((opt, optIdx) => {
+            text += `${['A', 'B', 'C', 'D'][optIdx]}. ${opt}\n`;
+          });
+          if (q.correctAnswer !== undefined) {
+            const ansStr = typeof q.correctAnswer === 'number' 
+              ? ['A', 'B', 'C', 'D'][q.correctAnswer] || q.correctAnswer 
+              : Array.isArray(q.correctAnswer)
+                ? q.correctAnswer.map(a => typeof a === 'number' ? ['A', 'B', 'C', 'D'][a] || a : a).join(', ')
+                : q.correctAnswer;
+            text += `Đáp án: ${ansStr}\n`;
+          }
+        }
+        if (q.solutionText) {
+          text += `Lời giải: ${q.solutionText}\n`;
+        }
+        return text.trim();
+      }).join('\n\n');
+
+      setRawQuestionCode(formattedCode);
+      setQuestionBlocks({ [activeFormat || 'multiple_choice']: formattedCode });
+    }
+  };
 
   // Initialize blocks when formats change
   useEffect(() => {
@@ -687,7 +725,25 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                     {rawQuestionCode.split('\n').length} dòng
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSetPickerModal(true)}
+                    className="p-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" />
+                    <span>📂 Lấy từ Ngân hàng bộ đề</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSaveSetModal(true)}
+                    className="p-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>💾 Lưu thành Bộ đề mới</span>
+                  </button>
+
                   <button 
                     type="button"
                     onClick={() => setRawQuestionCode('')}
@@ -758,6 +814,27 @@ export const GameWizard: React.FC<GameWizardProps> = ({
           )}
         </AnimatePresence>
       </div>
+
+      {/* QUESTION BANK MODALS */}
+      <QuestionSetPickerModal
+        isOpen={showSetPickerModal}
+        onClose={() => setShowSetPickerModal(false)}
+        onSelectSet={handleSelectQuestionSetFromBank}
+        title="Ngân Hàng Bộ Đề - Tải Đề Vào Game"
+        subtitle="Lựa chọn 1 bộ đề trắc nghiệm có sẵn trong kho lưu trữ để nạp trực tiếp vào Trò chơi"
+      />
+
+      <SaveToQuestionBankModal
+        isOpen={showSaveSetModal}
+        onClose={() => setShowSaveSetModal(false)}
+        rawCode={rawQuestionCode}
+        user={user}
+        defaultTitle={`Bộ đề ${newGameType ? newGameType : 'Game'}`}
+        onSavedSuccess={(newSet) => {
+          setToastNotice(`Đã lưu bộ đề "${newSet.title}" vào Ngân hàng bộ đề thành công!`);
+          setTimeout(() => setToastNotice(null), 4000);
+        }}
+      />
     </div>
   );
 };

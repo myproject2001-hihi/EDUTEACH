@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcardSet } from '../types';
+import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcardSet, QuestionSetItem } from '../types';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
@@ -21,6 +21,9 @@ import { AssignmentListSkeleton, AssignmentDetailSkeleton, SubmissionsListSkelet
 import { DateTimePicker24h } from '../components/DateTimePicker24h';
 import { StudentSubmissionDetailModal } from '../components/StudentSubmissionDetailModal';
 import { shouldShowNewBadge } from '../utils/resourceVisits';
+import { QuestionSetPickerModal } from '../components/QuestionSetPickerModal';
+import { SaveToQuestionBankModal } from '../components/SaveToQuestionBankModal';
+import { GameLauncherModal } from '../components/GameLauncherModal';
 
 interface AssignmentsProps {
   user: User;
@@ -616,6 +619,43 @@ export function AssignmentsView({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const [deleteConfirmAssignment, setDeleteConfirmAssignment] = useState<Assignment | null>(null);
+
+  // Question Bank Modals State
+  const [showBankPickerModal, setShowBankPickerModal] = useState(false);
+  const [showBankSaveModal, setShowBankSaveModal] = useState(false);
+
+  // Game Launcher Modal State (Question Bank + Game selector)
+  const [showGameLauncherModal, setShowGameLauncherModal] = useState(false);
+  const [showLauncherGamePreview, setShowLauncherGamePreview] = useState(false);
+  const [launcherGameType, setLauncherGameType] = useState('super_race');
+  const [launcherGameQuestions, setLauncherGameQuestions] = useState<any[]>([]);
+  const [launcherTugOfWarMode, setLauncherTugOfWarMode] = useState<'bot' | 'pvp'>('bot');
+
+  const handleAssignGameFromBank = (qSet: QuestionSetItem, gameType: string) => {
+    setEditingAssignment(null);
+    setNewType('game');
+    setNewGameType(gameType);
+    setNewTitle(qSet.title || 'Bài tập trò chơi mới');
+    setNewDescription(qSet.description || 'Hoàn thành các câu hỏi trong trò chơi ôn tập này nhé!');
+    if (qSet.rawCode) {
+      setRawQuestionCode(qSet.rawCode);
+    } else if (qSet.questions && qSet.questions.length > 0) {
+      setRawQuestionCode(questionsToRawCode(qSet.questions));
+    }
+    setShowCreateModal(true);
+  };
+
+  const handleSelectSetFromBank = (qSet: QuestionSetItem) => {
+    if (qSet.rawCode && qSet.rawCode.trim()) {
+      setRawQuestionCode(qSet.rawCode);
+    } else if (qSet.questions && qSet.questions.length > 0) {
+      const code = questionsToRawCode(qSet.questions);
+      setRawQuestionCode(code);
+    }
+    if (qSet.title && !newTitle) {
+      setNewTitle(qSet.title);
+    }
+  };
   const [selectedIdsForDeletion, setSelectedIdsForDeletion] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2>(1);
@@ -951,6 +991,56 @@ export function AssignmentsView({
   const [showEmbeddedSim, setShowEmbeddedSim] = useState(false);
   const [isClassDropdownOpen, setIsClassDropdownOpen] = useState(false);
 
+  // Multi Question Sub-Set Manager States
+  const [showAddSubSetModal, setShowAddSubSetModal] = useState(false);
+  const [editingSubSet, setEditingSubSet] = useState<SubFlashcardSet | null>(null);
+  const [subSetTitleInput, setSubSetTitleInput] = useState('');
+  const [subSetRawCodeInput, setSubSetRawCodeInput] = useState('');
+  const [subSetFlashcardsInput, setSubSetFlashcardsInput] = useState<{id: string, front: string, back: string}[]>([{ id: '1', front: '', back: '' }]);
+  const [subSetAutoActivate, setSubSetAutoActivate] = useState(true);
+  const [isSavingSubSet, setIsSavingSubSet] = useState(false);
+
+  // Active SubSet details resolution helper
+  const currentSubSets = useMemo(() => {
+    if (!selectedAssignment) return [];
+    if (selectedAssignment.subFlashcardSets && selectedAssignment.subFlashcardSets.length > 0) {
+      return selectedAssignment.subFlashcardSets;
+    }
+    if ((selectedAssignment.questions && selectedAssignment.questions.length > 0) || (selectedAssignment.flashcards && selectedAssignment.flashcards.length > 0)) {
+      return [{
+        id: 'default_set_1',
+        title: 'Bộ đề 1 (Bộ đề gốc)',
+        questions: selectedAssignment.questions || [],
+        flashcards: selectedAssignment.flashcards || [],
+        rawCode: selectedAssignment.rawCode
+      }];
+    }
+    return [];
+  }, [selectedAssignment]);
+
+  const activeSubSet = useMemo(() => {
+    if (currentSubSets.length === 0) return null;
+    if (selectedAssignment?.activeSubSetId) {
+      const found = currentSubSets.find(s => s.id === selectedAssignment.activeSubSetId);
+      if (found) return found;
+    }
+    return currentSubSets[0];
+  }, [currentSubSets, selectedAssignment?.activeSubSetId]);
+
+  const displayQuestions = useMemo(() => {
+    if (!selectedAssignment) return [];
+    if (activeSubSet) {
+      if (activeSubSet.questions && activeSubSet.questions.length > 0) {
+        return activeSubSet.questions;
+      }
+      if (activeSubSet.rawCode) {
+        const { parsedQuestions } = parseRawCodeToQuestions(activeSubSet.rawCode);
+        if (parsedQuestions.length > 0) return parsedQuestions;
+      }
+    }
+    return selectedAssignment.questions || [];
+  }, [selectedAssignment, activeSubSet]);
+
   // Online test raw code input (Azota style)
   const [rawQuestionCode, setRawQuestionCode] = useState<string>(SAMPLE_TEMPLATES.mau2);
 
@@ -1072,14 +1162,15 @@ export function AssignmentsView({
   }, [selectedAssignment?.id, selectedAssignment?.timeLimit]);
 
   useEffect(() => {
-    if ((isExamStarted || showFlashcardQuizTest) && selectedAssignment && selectedAssignment.questions) {
+    if ((isExamStarted || showFlashcardQuizTest) && selectedAssignment) {
+      const targetQuestions = displayQuestions.length > 0 ? displayQuestions : (selectedAssignment.questions || []);
       if (selectedAssignment.shuffleQuestions) {
-        setShuffledExamQuestions([...selectedAssignment.questions].sort(() => Math.random() - 0.5));
+        setShuffledExamQuestions([...targetQuestions].sort(() => Math.random() - 0.5));
       } else {
-        setShuffledExamQuestions(selectedAssignment.questions);
+        setShuffledExamQuestions(targetQuestions);
       }
     }
-  }, [isExamStarted, showFlashcardQuizTest, selectedAssignment]);
+  }, [isExamStarted, showFlashcardQuizTest, selectedAssignment, displayQuestions]);
 
   useEffect(() => {
     if (selectedAssignment?.type === 'flashcard' && selectedAssignment.flashcards) {
@@ -1091,22 +1182,30 @@ export function AssignmentsView({
   }, [activeCardIndex, selectedAssignment]);
 
   useEffect(() => {
-    let timerInterval: any = null;
+    let animFrameId: number | null = null;
     const isTimerActive = isExamStarted || showFlashcardQuizTest;
     
     if (isTimerActive && examTimeRemaining !== null && examTimeRemaining > 0) {
-      timerInterval = setInterval(() => {
-        setExamTimeRemaining(prev => {
-          if (prev === null) return null;
-          if (prev <= 1) {
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      let lastTime = performance.now();
+
+      const stepTimer = (now: number) => {
+        if (now - lastTime >= 1000) {
+          lastTime = now;
+          setExamTimeRemaining(prev => {
+            if (prev === null) return null;
+            if (prev <= 1) {
+              return 0;
+            }
+            return prev - 1;
+          });
+        }
+        animFrameId = requestAnimationFrame(stepTimer);
+      };
+
+      animFrameId = requestAnimationFrame(stepTimer);
     }
     return () => {
-      if (timerInterval) clearInterval(timerInterval);
+      if (animFrameId) cancelAnimationFrame(animFrameId);
     };
   }, [isExamStarted, showFlashcardQuizTest, examTimeRemaining !== null && examTimeRemaining > 0]);
 
@@ -1250,17 +1349,147 @@ export function AssignmentsView({
     };
   }, [selectedAssignment, user, submissions, onSubmitWork]);
 
+  // Sub-Set Management Handlers
+  const handleOpenAddSubSetModal = (subSetToEdit?: SubFlashcardSet) => {
+    if (subSetToEdit) {
+      setEditingSubSet(subSetToEdit);
+      setSubSetTitleInput(subSetToEdit.title);
+      setSubSetRawCodeInput(subSetToEdit.rawCode || (subSetToEdit.questions ? questionsToRawCode(subSetToEdit.questions) : ''));
+      setSubSetFlashcardsInput(subSetToEdit.flashcards && subSetToEdit.flashcards.length > 0 ? subSetToEdit.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
+    } else {
+      setEditingSubSet(null);
+      setSubSetTitleInput(`Bộ đề ${currentSubSets.length + 1}: Luyện tập đợt ${currentSubSets.length + 1}`);
+      setSubSetRawCodeInput(SAMPLE_TEMPLATES.mau2);
+      setSubSetFlashcardsInput([{ id: Date.now().toString(), front: '', back: '' }]);
+    }
+    setSubSetAutoActivate(true);
+    setShowAddSubSetModal(true);
+  };
+
+  const handleSaveSubSet = async () => {
+    if (!selectedAssignment) return;
+    setIsSavingSubSet(true);
+    try {
+      let parsedQs: QuizQuestion[] = [];
+      if (selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game') {
+        const { parsedQuestions } = parseRawCodeToQuestions(subSetRawCodeInput);
+        parsedQs = parsedQuestions.map((pq, idx) => ({
+          id: `q_sub_${idx}_${Date.now()}`,
+          numStr: pq.numStr,
+          question: pq.question,
+          type: pq.type,
+          options: pq.options,
+          subOptions: pq.subOptions,
+          correctAnswer: pq.correctAnswer,
+          points: pq.points || 0.25,
+          method: pq.method,
+          solutionText: pq.solutionText,
+          matchingPairs: pq.matchingPairs,
+          image: pq.image
+        }));
+      }
+
+      const newSetObj: SubFlashcardSet = {
+        id: editingSubSet ? editingSubSet.id : `subset_${Date.now()}`,
+        title: subSetTitleInput.trim() || `Bộ đề ${currentSubSets.length + 1}`,
+        rawCode: subSetRawCodeInput,
+        questions: parsedQs,
+        flashcards: subSetFlashcardsInput.filter(f => f.front.trim() || f.back.trim()),
+      };
+
+      let updatedSubSets: SubFlashcardSet[] = [];
+      if (!selectedAssignment.subFlashcardSets || selectedAssignment.subFlashcardSets.length === 0) {
+        const originalSet1: SubFlashcardSet = {
+          id: 'subset_original_1',
+          title: 'Bộ đề 1 (Bộ đề gốc)',
+          questions: selectedAssignment.questions || [],
+          flashcards: selectedAssignment.flashcards || [],
+          rawCode: selectedAssignment.rawCode
+        };
+        updatedSubSets = [originalSet1, newSetObj];
+      } else {
+        if (editingSubSet) {
+          updatedSubSets = selectedAssignment.subFlashcardSets.map(s => s.id === editingSubSet.id ? newSetObj : s);
+        } else {
+          updatedSubSets = [...selectedAssignment.subFlashcardSets, newSetObj];
+        }
+      }
+
+      const newActiveSubSetId = subSetAutoActivate ? newSetObj.id : (selectedAssignment.activeSubSetId || updatedSubSets[0].id);
+
+      const updatedAssignment: Assignment = {
+        ...selectedAssignment,
+        subFlashcardSets: updatedSubSets,
+        activeSubSetId: newActiveSubSetId
+      };
+
+      await setDoc(doc(db, 'assignments', selectedAssignment.id), updatedAssignment, { merge: true });
+      setSelectedAssignment(updatedAssignment);
+      setShowAddSubSetModal(false);
+      setEditingSubSet(null);
+      alert(`✅ Đã lưu "${newSetObj.title}" thành công!`);
+    } catch (err) {
+      console.error('Error saving subset:', err);
+      alert('❌ Có lỗi khi lưu bộ đề: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setIsSavingSubSet(false);
+    }
+  };
+
+  const handleSetActiveSubSet = async (subSetId: string) => {
+    if (!selectedAssignment) return;
+    try {
+      const updatedAssignment: Assignment = {
+        ...selectedAssignment,
+        activeSubSetId: subSetId
+      };
+      await setDoc(doc(db, 'assignments', selectedAssignment.id), { activeSubSetId: subSetId }, { merge: true });
+      setSelectedAssignment(updatedAssignment);
+      const targetSet = currentSubSets.find(s => s.id === subSetId);
+      alert(`📌 Đã chuyển Bộ đề giao cho học sinh thành: "${targetSet?.title || 'Bộ đề chọn'}"!`);
+    } catch (err) {
+      console.error('Error activating subset:', err);
+      alert('Lỗi cập nhật bộ đề chỉ định');
+    }
+  };
+
+  const handleDeleteSubSet = async (subSetId: string) => {
+    if (!selectedAssignment || !selectedAssignment.subFlashcardSets) return;
+    const targetSet = selectedAssignment.subFlashcardSets.find(s => s.id === subSetId);
+    if (!confirm(`Bạn có chắc chắn muốn xóa "${targetSet?.title || 'Bộ đề này'}"?`)) return;
+
+    try {
+      const remainingSets = selectedAssignment.subFlashcardSets.filter(s => s.id !== subSetId);
+      const newActiveId = selectedAssignment.activeSubSetId === subSetId ? (remainingSets[0]?.id || undefined) : selectedAssignment.activeSubSetId;
+
+      await setDoc(doc(db, 'assignments', selectedAssignment.id), {
+        subFlashcardSets: remainingSets,
+        activeSubSetId: newActiveId
+      }, { merge: true });
+
+      const updatedAssignment: Assignment = {
+        ...selectedAssignment,
+        subFlashcardSets: remainingSets,
+        activeSubSetId: newActiveId
+      };
+      setSelectedAssignment(updatedAssignment);
+      alert('Đã xóa bộ đề thành công!');
+    } catch (err) {
+      console.error('Error deleting subset:', err);
+      alert('Có lỗi khi xóa bộ đề');
+    }
+  };
+
   const handleAutoSubmitExam = () => {
     setIsExamStarted(false);
     exitFullscreen();
     let earnedPoints = 0;
-    if (selectedAssignment?.questions) {
-      selectedAssignment.questions.forEach(q => {
-        if (studentQuizAnswers[q.id] === q.correctAnswer) {
-          earnedPoints += q.points;
-        }
-      });
-    }
+    const targetQuestions = shuffledExamQuestions || displayQuestions || selectedAssignment?.questions || [];
+    targetQuestions.forEach(q => {
+      if (studentQuizAnswers[q.id] === q.correctAnswer) {
+        earnedPoints += q.points;
+      }
+    });
     if (isTeacher) {
       alert(`[XEM TRƯỚC - TỰ ĐỘNG NỘP] Bài làm đã được nộp! Điểm của bạn: ${earnedPoints}`);
     } else {
@@ -1268,9 +1497,11 @@ export function AssignmentsView({
         assignmentId: selectedAssignment!.id,
         studentId: user.id,
         studentName: user.name,
-        content: `Nộp bài tự động (Hết giờ làm bài). Giám sát: Phát hiện chuyển tab hoặc rời màn hình ${tabSwitchCount} lần.`,
+        content: `Nộp bài tự động (${activeSubSet?.title || 'Bộ đề 1'}). Giám sát: Phát hiện chuyển tab hoặc rời màn hình ${tabSwitchCount} lần.`,
         quizAnswers: studentQuizAnswers,
-        grade: earnedPoints
+        grade: earnedPoints,
+        subSetId: activeSubSet?.id,
+        subSetTitle: activeSubSet?.title
       });
     }
     setTabSwitchCount(0);
@@ -1281,13 +1512,12 @@ export function AssignmentsView({
     setIsExamStarted(false);
     exitFullscreen();
     let earnedPoints = 0;
-    if (selectedAssignment?.questions) {
-      selectedAssignment.questions.forEach(q => {
-        if (studentQuizAnswers[q.id] === q.correctAnswer) {
-          earnedPoints += q.points;
-        }
-      });
-    }
+    const targetQuestions = shuffledExamQuestions || displayQuestions || selectedAssignment?.questions || [];
+    targetQuestions.forEach(q => {
+      if (studentQuizAnswers[q.id] === q.correctAnswer) {
+        earnedPoints += q.points;
+      }
+    });
     if (isTeacher) {
       alert(`[XEM TRƯỚC] Bài làm đã được nộp! Điểm của bạn: ${earnedPoints}`);
     } else {
@@ -1295,9 +1525,11 @@ export function AssignmentsView({
         assignmentId: selectedAssignment!.id,
         studentId: user.id,
         studentName: user.name,
-        content: `Đã hoàn thành làm bài trắc nghiệm trực tuyến. Giám sát: Ghi nhận ${tabSwitchCount} lần chuyển tab hoặc rời toàn màn hình.`,
+        content: `Đã hoàn thành làm bài trắc nghiệm (${activeSubSet?.title || 'Bộ đề 1'}). Giám sát: Ghi nhận ${tabSwitchCount} lần chuyển tab hoặc rời toàn màn hình.`,
         quizAnswers: studentQuizAnswers,
-        grade: earnedPoints
+        grade: earnedPoints,
+        subSetId: activeSubSet?.id,
+        subSetTitle: activeSubSet?.title
       });
     }
     setTabSwitchCount(0);
@@ -2439,16 +2671,64 @@ export function AssignmentsView({
           </div>
 
           {isTeacher && (
-            <button 
-              onClick={() => handleOpenCreateModal()}
-              className="px-5 py-3 bg-white text-slate-800 font-bold text-xs sm:text-sm rounded-2xl hover:bg-slate-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard' : 'Giao bài tập mới'}
-            </button>
+            <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+              {viewMode === 'games' && (
+                <button
+                  type="button"
+                  onClick={() => setShowGameLauncherModal(true)}
+                  className="px-5 py-3 bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs sm:text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95"
+                >
+                  <Gamepad2 className="w-5 h-5 text-slate-900" />
+                  <span>🎮 Chọn 'Bộ Đề' Ngân Hàng & Chơi Game</span>
+                </button>
+              )}
+              <button 
+                onClick={() => handleOpenCreateModal()}
+                className="px-5 py-3 bg-white text-slate-800 font-bold text-xs sm:text-sm rounded-2xl hover:bg-slate-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" />
+                {viewMode === 'games' ? 'Giao Game mới' : viewMode === 'flashcards' ? 'Tạo Flashcard' : 'Giao bài tập mới'}
+              </button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* QUICK GAME DASHBOARD CARD FOR TEACHERS IN GAMES TAB */}
+      {viewMode === 'games' && isTeacher && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-rose-500/10 border-2 border-orange-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-600 text-white flex items-center justify-center shadow-md shrink-0 text-2xl">
+              🎮
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 bg-orange-600 text-white font-black text-[10px] rounded-full uppercase tracking-wider">
+                  Bảng Điều Khiển
+                </span>
+                <span className="text-xs font-bold text-orange-950">
+                  Khởi động game từ Ngân hàng câu hỏi
+                </span>
+              </div>
+              <h3 className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+                Chọn Bộ Đề Từ Ngân Hàng Để Bắt Đầu Trò Chơi Tương Tác
+              </h3>
+              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed font-medium">
+                Cho phép giáo viên chọn 1 'Bộ đề' có sẵn trong Ngân hàng câu hỏi trước khi bắt đầu trò chơi (Đua xe, Kéo co, Đoàn tàu, Đập chuột, Từ ngữ biết bay, Lật thẻ...) mà không cần gõ lại mã đề!
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowGameLauncherModal(true)}
+            className="px-5 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md shadow-orange-200 hover:shadow-lg transition-all active:scale-95 shrink-0 flex items-center gap-2 w-full sm:w-auto justify-center"
+          >
+            <Folder className="w-4 h-4" />
+            <span>📂 Chọn Bộ Đề & Chơi Game Ngay</span>
+          </button>
+        </div>
+      )}
 
       {/* STATUS FILTER PILLS FOR STUDENTS */}
       {!isTeacher && (
@@ -3013,6 +3293,147 @@ export function AssignmentsView({
                   <strong>Quy định nộp bài & luyện tập:</strong> Học sinh bắt buộc hoàn thành trong thời gian giáo viên quy định. Nếu quá hạn nộp, học sinh vẫn có thể tiếp tục vào làm lại bài tập để ôn luyện kiến thức.
                 </span>
               </div>
+
+              {/* MULTI-QUESTION SET MANAGEMENT SECTION (Bộ Đề & Tập Câu Hỏi) */}
+              {(selectedAssignment.type === 'online_test' || selectedAssignment.type === 'game' || selectedAssignment.type === 'flashcard') && (
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-indigo-50/80 via-blue-50/40 to-slate-50 rounded-2xl border border-indigo-150 space-y-4 shadow-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-5 h-5 text-indigo-600" />
+                        <h3 className="text-base font-extrabold text-slate-900">
+                          Danh Sách Bộ Đề Kiểm Tra ({currentSubSets.length || 1} bộ đề)
+                        </h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tạo và lưu giữ nhiều bộ đề câu hỏi khác nhau trong cùng 1 bài tập. Giáo viên chỉ định bộ đề nào thì học sinh sẽ làm bộ đề đó!
+                      </p>
+                    </div>
+
+                    {isTeacher && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenAddSubSetModal()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center gap-1.5 shrink-0 active:scale-95"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Tạo thêm bộ đề mới</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* LIST OF QUESTION SETS */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {currentSubSets.map((subSet, idx) => {
+                      const isActive = activeSubSet?.id === subSet.id;
+                      const qCount = subSet.questions?.length || (subSet.rawCode ? parseRawCodeToQuestions(subSet.rawCode).parsedQuestions.length : 0);
+                      const fCount = subSet.flashcards?.length || 0;
+
+                      return (
+                        <div
+                          key={subSet.id}
+                          className={`p-4 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                            isActive
+                              ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 shadow-md'
+                              : 'bg-white/80 border-slate-200 hover:border-slate-300 shadow-sm'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-2 mb-1.5">
+                              <span className="text-xs font-black text-indigo-900 flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black">
+                                  {idx + 1}
+                                </span>
+                                {subSet.title}
+                              </span>
+
+                              {isActive ? (
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  Đang chỉ định cho HS
+                                </span>
+                              ) : (
+                                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                  📁 Lưu trữ
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 text-xs text-slate-500">
+                              {selectedAssignment.type === 'flashcard' ? (
+                                <span>🎴 {fCount} thẻ flashcard</span>
+                              ) : (
+                                <span>📝 {qCount} câu hỏi trắc nghiệm</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* ACTION BUTTONS ON SET CARD */}
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                            {isTeacher ? (
+                              <>
+                                {!isActive ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetActiveSubSet(subSet.id)}
+                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-lg transition-all shadow-sm flex items-center gap-1"
+                                    title="Chỉ định bộ đề này cho học sinh làm ở lượt tiếp theo"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Chỉ định cho HS làm</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                                    🎯 Học sinh sẽ làm bộ đề này
+                                  </span>
+                                )}
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAddSubSetModal(subSet)}
+                                    className="p-1.5 text-amber-700 hover:bg-amber-50 rounded-lg transition-colors border border-amber-200"
+                                    title="Chỉnh sửa bộ đề này"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+
+                                  {currentSubSets.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSubSet(subSet.id)}
+                                      className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200"
+                                      title="Xóa bộ đề này"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <div className="w-full flex items-center justify-between">
+                                {isActive ? (
+                                  <span className="text-xs font-black text-emerald-700 flex items-center gap-1">
+                                    🎯 Bộ đề được thầy cô giao
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetActiveSubSet(subSet.id)}
+                                    className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                                  >
+                                    <span>Thử sức / Ôn tập bộ đề này</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Teacher Attached Document / Link Section */}
               {selectedAssignment.pdfUrl && (
@@ -4507,6 +4928,15 @@ export function AssignmentsView({
         />
       )}
 
+      {showLauncherGamePreview && (
+        <GamePreview 
+          gameType={launcherGameType} 
+          questions={launcherGameQuestions} 
+          tugOfWarMode={launcherTugOfWarMode}
+          onClose={() => setShowLauncherGamePreview(false)} 
+        />
+      )}
+
       {showFlashcardPreview && (
         <FlashcardPreviewModal
           flashcards={newFlashcards}
@@ -4943,8 +5373,26 @@ export function AssignmentsView({
                           </div>
                           
                           <div className="mt-2.5 sm:mt-3 p-2.5 sm:p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 sm:space-y-2">
-                            <p className="text-[11px] font-bold text-slate-600">Nội dung mẫu:</p>
-                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[11px] font-bold text-slate-600">Ngân hàng & Mẫu đề:</p>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowBankPickerModal(true)}
+                                  className="text-[11px] font-extrabold px-2.5 py-1 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-xs transition-all flex items-center gap-1"
+                                >
+                                  📂 Lấy từ Ngân hàng bộ đề
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowBankSaveModal(true)}
+                                  className="text-[11px] font-extrabold px-2.5 py-1 bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg shadow-xs transition-all flex items-center gap-1"
+                                >
+                                  💾 Lưu vào Ngân hàng
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2 pt-1 border-t border-slate-200/60">
                               <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau1)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 1 (Trắc nghiệm)</button>
                               <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau2)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 2 (Đúng / Sai)</button>
                               <button onClick={() => setRawQuestionCode(SAMPLE_TEMPLATES.mau3)} className="text-[11px] text-blue-600 font-bold hover:underline px-2 sm:px-2.5 py-1 sm:py-1.5 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors">Mẫu 3 (Sắp xếp từ)</button>
@@ -6266,6 +6714,226 @@ export function AssignmentsView({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Add / Edit Question Sub-Set Modal */}
+      {showAddSubSetModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 sm:p-6 animate-in fade-in">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700 font-extrabold">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    {editingSubSet ? 'Chỉnh Sửa Bộ Đề Kiểm Tra' : 'Thêm Bộ Đề Kiểm Tra Mới'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Bài tập: <strong className="text-slate-800">{selectedAssignment?.title}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddSubSetModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar flex-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  1. Tên Bộ Đề / Tập Đề Kiểm Tra:
+                </label>
+                <input
+                  type="text"
+                  value={subSetTitleInput}
+                  onChange={e => setSubSetTitleInput(e.target.value)}
+                  placeholder="VD: Bộ đề 2: Luyện tập đợt 2, Bộ đề 3: Đề thi thử..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
+                />
+              </div>
+
+              {selectedAssignment?.type === 'flashcard' ? (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    2. Danh Sách Thẻ Flashcard:
+                  </label>
+                  <div className="space-y-3">
+                    {subSetFlashcardsInput.map((fc, fcIdx) => (
+                      <div key={fc.id || fcIdx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-2 items-center">
+                        <span className="text-xs font-black text-slate-400 w-6 text-center">{fcIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={fc.front}
+                          onChange={e => {
+                            const updated = [...subSetFlashcardsInput];
+                            updated[fcIdx].front = e.target.value;
+                            setSubSetFlashcardsInput(updated);
+                          }}
+                          placeholder="Mặt trước (Từ/Khái niệm)..."
+                          className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                        />
+                        <input
+                          type="text"
+                          value={fc.back}
+                          onChange={e => {
+                            const updated = [...subSetFlashcardsInput];
+                            updated[fcIdx].back = e.target.value;
+                            setSubSetFlashcardsInput(updated);
+                          }}
+                          placeholder="Mặt sau (Định nghĩa/Giải thích)..."
+                          className="flex-1 p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (subSetFlashcardsInput.length <= 1) return;
+                            setSubSetFlashcardsInput(subSetFlashcardsInput.filter((_, i) => i !== fcIdx));
+                          }}
+                          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setSubSetFlashcardsInput([...subSetFlashcardsInput, { id: Date.now().toString(), front: '', back: '' }])}
+                      className="w-full py-2 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 hover:bg-indigo-100 transition-colors"
+                    >
+                      + Thêm thẻ mới
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      2. Nhập Mã Đề / Nội Dung Câu Hỏi Trắc Nghiệm:
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setShowBankPickerModal(true)}
+                        className="px-2.5 py-1 text-[11px] font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg shadow-xs transition-colors flex items-center gap-1"
+                      >
+                        📂 Lấy từ Ngân hàng bộ đề
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubSetRawCodeInput(SAMPLE_TEMPLATES.mau1)}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
+                      >
+                        Mẫu 1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSubSetRawCodeInput(SAMPLE_TEMPLATES.mau2)}
+                        className="px-2.5 py-1 text-[11px] font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
+                      >
+                        Mẫu 2
+                      </button>
+                    </div>
+                  </div>
+                  <textarea
+                    rows={12}
+                    value={subSetRawCodeInput}
+                    onChange={e => setSubSetRawCodeInput(e.target.value)}
+                    placeholder="Dán nội dung mã đề câu hỏi trắc nghiệm vào đây..."
+                    className="w-full p-3.5 bg-slate-900 text-slate-100 font-mono text-xs rounded-2xl border border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 leading-relaxed custom-scrollbar"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Hệ thống tự động phân tích câu hỏi, đáp án A-B-C-D và điểm số từ mã đề trên.
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={subSetAutoActivate}
+                    onChange={e => setSubSetAutoActivate(e.target.checked)}
+                    className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 border-slate-300"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    📌 Đặt bộ đề này làm bộ đề chính giao cho học sinh ngay sau khi lưu
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowAddSubSetModal(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 font-bold text-xs rounded-xl transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isSavingSubSet}
+                onClick={handleSaveSubSet}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                {isSavingSubSet ? 'Đang lưu...' : '✓ Lưu Bộ Đề'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QUESTION BANK MODALS */}
+      <QuestionSetPickerModal
+        isOpen={showBankPickerModal}
+        onClose={() => setShowBankPickerModal(false)}
+        onSelectSet={(qSet) => {
+          handleSelectSetFromBank(qSet);
+          if (showAddSubSetModal) {
+            setSubSetTitleInput(qSet.title);
+            if (qSet.rawCode) {
+              setSubSetRawCodeInput(qSet.rawCode);
+            } else if (qSet.questions && qSet.questions.length > 0) {
+              setSubSetRawCodeInput(questionsToRawCode(qSet.questions));
+            }
+          }
+        }}
+        title="Ngân Hàng Bộ Đề - Tải Bộ Đề"
+        subtitle="Lựa chọn 1 bộ đề trắc nghiệm có sẵn trong kho để nạp vào bài tập / sub-set"
+      />
+
+      <SaveToQuestionBankModal
+        isOpen={showBankSaveModal}
+        onClose={() => setShowBankSaveModal(false)}
+        rawCode={rawQuestionCode}
+        user={user}
+        defaultTitle={newTitle || 'Bộ đề mới'}
+        onSavedSuccess={(newSet) => {
+          alert(`Đã lưu bộ đề "${newSet.title}" vào Ngân hàng bộ đề thành công!`);
+        }}
+      />
+
+      <GameLauncherModal
+        isOpen={showGameLauncherModal}
+        onClose={() => setShowGameLauncherModal(false)}
+        user={user}
+        onLaunchGame={(gType, questions, tugMode) => {
+          setLauncherGameType(gType);
+          setLauncherGameQuestions(questions);
+          if (tugMode) setLauncherTugOfWarMode(tugMode);
+          setShowLauncherGamePreview(true);
+        }}
+        onAssignGame={(qSet, gType) => {
+          handleAssignGameFromBank(qSet, gType);
+        }}
+      />
 
     </div>
   );

@@ -56,6 +56,23 @@ export interface SubFlashcardSet {
   rawCode?: string;
 }
 
+export interface QuestionSetItem {
+  id: string;
+  title: string;
+  subject?: string; // Môn học / Chủ đề (VD: Toán, Ngữ Văn, Tiếng Anh, Vật Lý, Hóa Học...)
+  grade?: string; // Khối lớp (VD: Khối 10, Khối 11, Khối 12)
+  description?: string;
+  rawCode?: string;
+  questions: QuizQuestion[];
+  flashcards?: { id: string; front: string; back: string; image?: string }[];
+  tags?: string[];
+  createdAt: string;
+  updatedAt?: string;
+  teacherId?: string;
+  teacherName?: string;
+  usageCount?: number;
+}
+
 export interface Assignment {
   id: string;
   title: string;
@@ -74,6 +91,7 @@ export interface Assignment {
   maxAttempts?: number; // 0 hoặc undefined = Vĩnh viễn (Không giới hạn), 1 = 1 lần, 2, 3, 5, 10
   flashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
   subFlashcardSets?: SubFlashcardSet[]; // Các bộ thẻ con khi gộp thành bộ lớn (Bộ cha)
+  activeSubSetId?: string; // ID của bộ đề/tập thẻ con đang được giao cho học sinh làm
   thumbnail?: string; // Ảnh bìa cho bài tập
   category?: string; // Phân loại (Đại số, Hình học, v.v.)
   rawCode?: string; // Lưu giữ 100% nguyên vẹn mã nguồn đề thi người dùng nhập
@@ -128,6 +146,8 @@ export interface Submission {
   fileUrl?: string;
   imageUrls?: string[];
   quizAnswers?: Record<string, number>; // questionId -> optionIndex
+  subSetId?: string;
+  subSetTitle?: string;
   quizDetails?: SubmissionQuizDetails;
   isPenalty?: boolean; // Nộp muộn / chưa nộp bị trừ điểm
   teacherId?: string;
@@ -194,7 +214,8 @@ export interface SystemNotification {
   badgeColor?: string;
   createdAt: string;
   targetStudentId?: string;
-  targetScope?: 'all' | 'class';
+  targetUserId?: string;
+  targetScope?: 'all' | 'class' | 'personal';
   targetClass?: string;
   teacherId?: string;
 }

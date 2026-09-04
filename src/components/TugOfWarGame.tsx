@@ -318,22 +318,31 @@ export function TugOfWarGame({
     }
   }, [playSound, onSubmitWork]);
 
-  // Timer countdown
+  // Timer countdown using requestAnimationFrame
   useEffect(() => {
     if (isGameOver) return;
 
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          finishGame('timeup', scoreBlue, scoreRed, ropeOffset);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    let lastTime = performance.now();
+    let animFrameId: number;
 
-    return () => clearInterval(timer);
+    const step = (now: number) => {
+      if (now - lastTime >= 1000) {
+        lastTime = now;
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            cancelAnimationFrame(animFrameId);
+            finishGame('timeup', scoreBlue, scoreRed, ropeOffset);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+      animFrameId = requestAnimationFrame(step);
+    };
+
+    animFrameId = requestAnimationFrame(step);
+
+    return () => cancelAnimationFrame(animFrameId);
   }, [isGameOver, scoreBlue, scoreRed, ropeOffset, finishGame]);
 
   // Pull animation trigger

@@ -311,14 +311,22 @@ export function RobotGuide({
     }
   }, [currentStep, isOpen, currentStepData.highlightSelector]);
 
+  const handleCloseGuide = () => {
+    setIsOpen(false);
+    if (user?.id) {
+      localStorage.setItem(`robotGuideDismissed_${user.id}`, 'true');
+      sessionStorage.setItem(`robotGuideDismissed_${user.id}`, 'true');
+    }
+    if (onClose) onClose();
+  };
+
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
       setShowSandbox(false);
     } else {
-      setIsOpen(false);
+      handleCloseGuide();
       setCurrentStep(0);
-      if (onClose) onClose();
     }
   };
 
@@ -505,7 +513,7 @@ export function RobotGuide({
               {/* Action buttons */}
               <div className="flex items-center gap-1 shrink-0">
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleCloseGuide}
                   className="w-9 h-9 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full flex items-center justify-center transition-all min-h-[44px] min-w-[44px] cursor-pointer"
                   title="Đóng hướng dẫn"
                 >

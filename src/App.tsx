@@ -27,6 +27,7 @@ import { ActivityLogsView } from './views/ActivityLogsView';
 import { logActivity } from './lib/activityLogger';
 import { ResourcesRepositoryView } from './views/ResourcesRepositoryView';
 import { RewardStoreView } from './views/RewardStoreView';
+import { QuestionBankView } from './views/QuestionBankView';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -68,12 +69,12 @@ export default function App() {
     }
   });
 
-  // Auto open guide onboarding modal for new/first-time users (both students and teachers)
+  // Auto open Robot Guide for new/first-time users (both students and teachers)
   useEffect(() => {
     if (currentUser) {
-      const dismissed = localStorage.getItem(`guideOnboardingDismissed_${currentUser.id}`) || sessionStorage.getItem(`guideOnboardingDismissed_${currentUser.id}`);
+      const dismissed = localStorage.getItem(`robotGuideDismissed_${currentUser.id}`) || sessionStorage.getItem(`robotGuideDismissed_${currentUser.id}`);
       if (!dismissed) {
-        setShowGuideOnboarding(true);
+        setRobotOpen(true);
       }
     }
   }, [currentUser]);
@@ -763,21 +764,26 @@ export default function App() {
     };
 
     return systemNotifications.filter(notif => {
-      // If user is Admin, they see all notifications
+      // 1. If notification has a specific personal recipient (e.g. thank you letter replies)
+      if (notif.targetUserId || notif.targetStudentId || notif.targetScope === 'personal' || notif.badge?.includes('Lời Cảm Ơn')) {
+        const targetId = notif.targetUserId || notif.targetStudentId;
+        return targetId === currentUser.id;
+      }
+
+      // If user is Admin, they see system & administrative announcements
       if (role === 'admin') {
         return true;
       }
       
-      // If user is Teacher, they see notifications they created OR system-wide notifications
+      // If user is Teacher, they see notifications they created OR system-wide announcements
       if (role === 'teacher') {
+        if (notif.targetScope === 'class') {
+          return isClassMatching(notif.targetClass, currentUser.className);
+        }
         return !notif.teacherId || notif.teacherId === currentUser.id || notif.teacherId === 'admin';
       }
       
-      // If user is Student, they see notifications targeted to them or their class or system-wide
-      if (notif.targetStudentId) {
-        return notif.targetStudentId === currentUser.id;
-      }
-      
+      // If user is Student, they see notifications targeted to their class or system-wide
       if (notif.targetScope === 'class') {
         return isClassMatching(notif.targetClass, currentUser.className);
       }
@@ -921,10 +927,18 @@ export default function App() {
           />
         ) : null;
       case 'activity-logs':
-        return isTeacherOrAdmin ? (
+        return (role === 'admin' || currentUser?.role === 'admin') ? (
           <ActivityLogsView
             currentUser={activeUser}
             onNavigateToTab={setActiveTab}
+          />
+        ) : null;
+      case 'question-bank':
+        return isTeacherOrAdmin ? (
+          <QuestionBankView
+            user={activeUser}
+            onNavigateToTab={setActiveTab}
+            onAddAssignment={handleAddAssignment}
           />
         ) : null;
       case 'resources-repository':

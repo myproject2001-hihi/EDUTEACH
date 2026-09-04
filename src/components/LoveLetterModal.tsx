@@ -121,7 +121,10 @@ export const LoveLetterModal: React.FC<LoveLetterModalProps> = ({
           badge: '💌 Lời Cảm Ơn',
           badgeColor: 'rose',
           createdAt: new Date().toISOString(),
-          targetStudentId: letter.senderId
+          targetUserId: letter.senderId,
+          targetStudentId: letter.senderId,
+          teacherId: letter.senderId,
+          targetScope: 'personal'
         });
       }
 

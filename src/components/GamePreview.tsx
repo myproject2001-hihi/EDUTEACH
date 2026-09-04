@@ -1527,6 +1527,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
             onClose={onClose}
             isStudentMode={isStudentMode}
             onSubmitWork={onSubmitWork}
+            isReady={!isHelpOpen}
           />
         );
       default:

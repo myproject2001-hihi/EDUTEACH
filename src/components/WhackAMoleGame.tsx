@@ -2,18 +2,20 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   Volume2, VolumeX, RotateCw, Trophy, HelpCircle, Flame, Clock, 
   Sparkles, Award, CheckCircle2, XCircle, ArrowRight, Play, 
-  ChevronRight, X
+  ChevronRight, X, Music
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { MarkdownMath } from './MarkdownMath';
 import { ParsedQuestionItem, cleanQuestionText } from '../views/AssignmentsView';
+import { gameAudio, getSoundConfig, saveSoundConfig } from '../utils/gameAudio';
 
 export interface WhackAMoleGameProps {
   questions: ParsedQuestionItem[];
   onClose: () => void;
   isStudentMode?: boolean;
   onSubmitWork?: (score: number, correctAnswers: number, answersMap: Record<string, number>) => void;
+  isReady?: boolean;
 }
 
 export interface MoleQuestion {
@@ -83,7 +85,8 @@ export function WhackAMoleGame({
   questions,
   onClose,
   isStudentMode = false,
-  onSubmitWork
+  onSubmitWork,
+  isReady = true
 }: WhackAMoleGameProps) {
   // Parse incoming questions
   const parsedQuestions = useMemo<MoleQuestion[]>(() => {
@@ -140,7 +143,7 @@ export function WhackAMoleGame({
   const [streak, setStreak] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
-  const [isMuted, setIsMuted] = useState(false);
+  const [soundConfig, setSoundConfig] = useState(getSoundConfig);
   const [questionHistory, setQuestionHistory] = useState<QuestionReviewItem[]>([]);
 
   // Mole state: 6 holes
@@ -162,86 +165,70 @@ export function WhackAMoleGame({
   // Floating hit FX
   const [hitEffects, setHitEffects] = useState<FloatingHitFx[]>([]);
 
-  // Hammer position & animation
+  // Hammer position & animation refs
   const [hammerPos, setHammerPos] = useState({ x: -100, y: -100 });
   const [isHammerSwinging, setIsHammerSwinging] = useState(false);
   const [showHammer, setShowHammer] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
-  // Refs for timers & AudioContext
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const moleLoopTimersRef = useRef<NodeJS.Timeout[]>([]);
-  const audioCtxRef = useRef<AudioContext | null>(null);
+  // Refs for high performance DOM mutation & timers
+  const hammerRef = useRef<HTMLDivElement>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const timerIntervalRef = useRef<number | NodeJS.Timeout | null>(null);
+  const moleLoopTimersRef = useRef<Array<number | NodeJS.Timeout>>([]);
   const gameContainerRef = useRef<HTMLDivElement>(null);
 
-  // Sound Synthesizer via Web Audio API
-  const playSound = useCallback((type: 'whack' | 'correct' | 'wrong' | 'pop') => {
-    if (isMuted) return;
-    try {
-      if (!audioCtxRef.current) {
-        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-        audioCtxRef.current = new AudioCtxClass();
-      }
-      if (audioCtxRef.current.state === 'suspended') {
-        audioCtxRef.current.resume();
-      }
-      const ctx = audioCtxRef.current;
-      const now = ctx.currentTime;
+  // Sound Synthesizer via centralized gameAudio
+  const playSound = useCallback((type: 'whack' | 'correct' | 'wrong' | 'pop' | 'swing' | 'combo' | 'miss') => {
+    if (type === 'whack') gameAudio.playWhack();
+    else if (type === 'correct') gameAudio.playWhackCorrect();
+    else if (type === 'wrong') gameAudio.playWhackWrong();
+    else if (type === 'miss') gameAudio.playWhackMiss();
+    else if (type === 'pop') gameAudio.playMolePop();
+    else if (type === 'swing') gameAudio.playHammerSwing();
+    else if (type === 'combo') gameAudio.playCombo(streak);
+  }, [streak]);
 
-      if (type === 'whack') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(160, now);
-        osc.frequency.exponentialRampToValueAtTime(35, now + 0.12);
-        gain.gain.setValueAtTime(1, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.12);
-      } else if (type === 'correct') {
-        [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
-          gain.gain.setValueAtTime(0.25, now + idx * 0.08);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.25);
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.start(now + idx * 0.08);
-          osc.stop(now + idx * 0.08 + 0.25);
-        });
-      } else if (type === 'wrong') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(180, now);
-        osc.frequency.linearRampToValueAtTime(110, now + 0.25);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.25);
-      } else if (type === 'pop') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(320, now);
-        osc.frequency.exponentialRampToValueAtTime(640, now + 0.08);
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.08);
-      }
-    } catch (e) {
-      console.warn('Audio playback error', e);
+  // Listen to external sound settings changes
+  useEffect(() => {
+    const handleSoundChange = (e: any) => {
+      if (e.detail) setSoundConfig(e.detail);
+    };
+    window.addEventListener('game-sound-config-changed', handleSoundChange);
+    return () => {
+      window.removeEventListener('game-sound-config-changed', handleSoundChange);
+    };
+  }, []);
+
+  // Background Music (BGM) lifecycle in Whack A Mole
+  useEffect(() => {
+    if (currentScreen === 'game' && isReady) {
+      gameAudio.startBgm('arcade');
+    } else {
+      gameAudio.stopBgm();
     }
-  }, [isMuted]);
+    return () => {
+      gameAudio.stopBgm();
+    };
+  }, [currentScreen, isReady]);
+
+  // Quick sound mode toggle
+  const toggleSound = () => {
+    const nextMaster = !soundConfig.masterEnabled;
+    const updated = saveSoundConfig({ masterEnabled: nextMaster });
+    setSoundConfig(updated);
+  };
+
+  const toggleBgm = () => {
+    const nextBgm = !soundConfig.bgmEnabled;
+    const updated = saveSoundConfig({ bgmEnabled: nextBgm });
+    setSoundConfig(updated);
+    if (nextBgm && soundConfig.masterEnabled && currentScreen === 'game') {
+      gameAudio.startBgm('arcade');
+    } else {
+      gameAudio.stopBgm();
+    }
+  };
 
   // Haptic feedback function for mobile devices
   const triggerVibration = useCallback((pattern: number | number[] = 40) => {
@@ -256,13 +243,15 @@ export function WhackAMoleGame({
 
   // Clean all timers
   const clearAllTimers = useCallback(() => {
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
+    if (timerIntervalRef.current !== null) {
+      clearInterval(timerIntervalRef.current as any);
+      cancelAnimationFrame(timerIntervalRef.current as any);
       timerIntervalRef.current = null;
     }
     moleLoopTimersRef.current.forEach(t => {
-      clearTimeout(t);
-      clearInterval(t);
+      clearTimeout(t as any);
+      clearInterval(t as any);
+      cancelAnimationFrame(t as any);
     });
     moleLoopTimersRef.current = [];
   }, []);
@@ -270,36 +259,53 @@ export function WhackAMoleGame({
   useEffect(() => {
     return () => {
       clearAllTimers();
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close().catch(() => {});
-      }
+      gameAudio.stopBgm();
     };
   }, [clearAllTimers]);
 
   // Trigger hammer swing
   const triggerHammerSwing = (clientX?: number, clientY?: number) => {
     if (clientX !== undefined && clientY !== undefined) {
-      setHammerPos({ x: clientX - 25, y: clientY - 45 });
+      const x = clientX - 25;
+      const y = clientY - 45;
+      setHammerPos({ x, y });
+      if (hammerRef.current) {
+        hammerRef.current.style.transform = `translate3d(${x - 12}px, ${y - 12}px, 0)`;
+      }
     }
     setIsHammerSwinging(false);
     setTimeout(() => setIsHammerSwinging(true), 10);
     setTimeout(() => setIsHammerSwinging(false), 200);
   };
 
-  // Mouse move handler for hammer
+  // High-performance Mouse move handler for hammer using RAF
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (currentScreen === 'game') {
-      setShowHammer(true);
-      setHammerPos({ x: e.clientX - 25, y: e.clientY - 45 });
+      if (!showHammer) setShowHammer(true);
+      const x = e.clientX - 25;
+      const y = e.clientY - 45;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (hammerRef.current) {
+          hammerRef.current.style.transform = `translate3d(${x - 12}px, ${y - 12}px, 0)`;
+        }
+      });
     }
   };
 
   // Touch move handler
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
     if (currentScreen === 'game' && e.touches.length > 0) {
-      setShowHammer(true);
+      if (!showHammer) setShowHammer(true);
       const touch = e.touches[0];
-      setHammerPos({ x: touch.clientX - 25, y: touch.clientY - 45 });
+      const x = touch.clientX - 25;
+      const y = touch.clientY - 45;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        if (hammerRef.current) {
+          hammerRef.current.style.transform = `translate3d(${x - 12}px, ${y - 12}px, 0)`;
+        }
+      });
     }
   };
 
@@ -387,9 +393,20 @@ export function WhackAMoleGame({
     const t1 = setTimeout(popRandomMole, 450);
     moleLoopTimersRef.current.push(t1);
 
-    // Continuous pop loop
-    const loopInterval = setInterval(popRandomMole, popInterval);
-    moleLoopTimersRef.current.push(loopInterval);
+    // Continuous pop loop using requestAnimationFrame
+    let lastPopTime = performance.now();
+    let popRafId: number;
+
+    const loopStep = (now: number) => {
+      if (now - lastPopTime >= popInterval) {
+        popRandomMole();
+        lastPopTime = now;
+      }
+      popRafId = requestAnimationFrame(loopStep);
+    };
+
+    popRafId = requestAnimationFrame(loopStep);
+    moleLoopTimersRef.current.push(popRafId);
   }, [speedLevel, clearAllTimers, playSound]);
 
   // Handle Question Timeout
@@ -423,6 +440,11 @@ export function WhackAMoleGame({
   useEffect(() => {
     if (currentScreen !== 'game') return;
 
+    if (!isReady) {
+      clearAllTimers();
+      return;
+    }
+
     if (currentQIndex >= parsedQuestions.length) {
       finishGame();
       return;
@@ -431,21 +453,35 @@ export function WhackAMoleGame({
     const curQ = parsedQuestions[currentQIndex];
     startMolePopping(curQ);
 
-    // Setup Timer
+    // Setup Timer with requestAnimationFrame
     if (timerSetting > 0) {
       setTimeLeft(timerSetting);
-      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (timerIntervalRef.current !== null) {
+        clearInterval(timerIntervalRef.current as any);
+        cancelAnimationFrame(timerIntervalRef.current as any);
+      }
 
-      timerIntervalRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            handleTimeout();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      let lastSecTime = performance.now();
+      let timerRafId: number;
+
+      const stepTimer = (now: number) => {
+        if (now - lastSecTime >= 1000) {
+          lastSecTime = now;
+          setTimeLeft(prev => {
+            if (prev <= 1) {
+              cancelAnimationFrame(timerRafId);
+              handleTimeout();
+              return 0;
+            }
+            return prev - 1;
+          });
+        }
+        timerRafId = requestAnimationFrame(stepTimer);
+        timerIntervalRef.current = timerRafId;
+      };
+
+      timerRafId = requestAnimationFrame(stepTimer);
+      timerIntervalRef.current = timerRafId;
     } else {
       setTimeLeft(0);
     }
@@ -453,7 +489,24 @@ export function WhackAMoleGame({
     return () => {
       clearAllTimers();
     };
-  }, [currentScreen, currentQIndex, parsedQuestions, timerSetting, startMolePopping, handleTimeout, clearAllTimers]);
+  }, [currentScreen, currentQIndex, parsedQuestions, timerSetting, startMolePopping, handleTimeout, clearAllTimers, isReady]);
+
+  // Field click handler for misses (clicking empty grass / missed mole hole)
+  const handleFieldClickMiss = (e: React.MouseEvent | React.TouchEvent) => {
+    let clientX = window.innerWidth / 2;
+    let clientY = window.innerHeight / 2;
+    if ('clientX' in e && typeof e.clientX === 'number') {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    } else if ('touches' in e && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    }
+
+    triggerHammerSwing(clientX, clientY);
+    playSound('miss');
+    spawnHitFx(clientX, clientY, 'Trượt!', false);
+  };
 
   // Whack mole handler
   const handleWhackMole = (moleIdx: number, e: React.MouseEvent | React.TouchEvent) => {
@@ -473,9 +526,11 @@ export function WhackAMoleGame({
     triggerHammerSwing(clientX, clientY);
 
     const targetMole = moles[moleIdx];
-    if (!targetMole || !targetMole.up || targetMole.hit) return;
-
-    playSound('whack');
+    if (!targetMole || !targetMole.up || targetMole.hit) {
+      playSound('miss');
+      spawnHitFx(clientX, clientY, 'Trượt!', false);
+      return;
+    }
 
     // Mark mole as hit
     setMoles(prev => prev.map((m, idx) => idx === moleIdx ? { ...m, hit: true } : m));
@@ -488,6 +543,9 @@ export function WhackAMoleGame({
     if (isCorrect) {
       triggerVibration([30, 40, 60]); // Light rhythmic vibration on correct whack
       playSound('correct');
+      if (streak >= 1) {
+        setTimeout(() => playSound('combo'), 150);
+      }
       const addScore = 100 + (streak * 10);
       setScore(prev => prev + addScore);
       setStreak(prev => {
@@ -543,6 +601,8 @@ export function WhackAMoleGame({
   // Finish Game & Show Results
   const finishGame = () => {
     clearAllTimers();
+    gameAudio.stopBgm();
+    gameAudio.playVictory();
     setCurrentScreen('results');
     confetti({
       particleCount: 80,
@@ -634,13 +694,16 @@ export function WhackAMoleGame({
       {/* CUSTOM HAMMER CURSOR (Visible in active gameplay) */}
       {currentScreen === 'game' && showHammer && (
         <div
-          className={`fixed pointer-events-none z-50 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.45)] ${
+          ref={hammerRef}
+          className={`fixed pointer-events-none z-50 w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 drop-shadow-md ${
             isHammerSwinging ? 'hammer-swing' : ''
           }`}
           style={{
-            top: `${hammerPos.y - 12}px`,
-            left: `${hammerPos.x - 12}px`,
-            transformOrigin: '78% 78%'
+            top: 0,
+            left: 0,
+            transform: `translate3d(${hammerPos.x - 12}px, ${hammerPos.y - 12}px, 0)`,
+            transformOrigin: '78% 78%',
+            willChange: 'transform'
           }}
         >
           <svg viewBox="0 0 120 120" className="w-full h-full overflow-visible">
@@ -923,6 +986,33 @@ export function WhackAMoleGame({
                 <span className="font-black text-xs sm:text-sm text-orange-400 leading-tight">🔥{streak}</span>
               </div>
 
+              {/* Quick Sound/BGM controls */}
+              <button
+                type="button"
+                onClick={toggleBgm}
+                className={`p-1.5 rounded-lg sm:rounded-xl border transition active:scale-95 flex items-center justify-center ${
+                  soundConfig.masterEnabled && soundConfig.bgmEnabled
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    : 'bg-slate-800 text-slate-500 border-slate-700'
+                }`}
+                title={soundConfig.bgmEnabled ? 'Đang bật nhạc nền (Bấm để tắt BGM)' : 'Đang tắt nhạc nền (Bấm để bật BGM)'}
+              >
+                <Music className={`w-4 h-4 ${soundConfig.masterEnabled && soundConfig.bgmEnabled ? 'animate-pulse' : 'opacity-40'}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleSound}
+                className={`p-1.5 rounded-lg sm:rounded-xl border transition active:scale-95 flex items-center justify-center ${
+                  soundConfig.masterEnabled
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+                    : 'bg-slate-800 text-rose-400 border-slate-700'
+                }`}
+                title={soundConfig.masterEnabled ? 'Âm thanh: BẬT' : 'Âm thanh: TẮT'}
+              >
+                {soundConfig.masterEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
+
               {!isStudentMode && (
                 <button
                   type="button"
@@ -957,7 +1047,10 @@ export function WhackAMoleGame({
           </div>
 
           {/* GAME FIELD: 6 MOLE HOLES GRID */}
-          <div className="w-full max-w-5xl flex-1 min-h-0 grid grid-cols-3 gap-2 sm:gap-3.5 p-2 sm:p-3.5 rounded-xl sm:rounded-2xl bg-emerald-950/40 backdrop-blur-xs border border-emerald-500/40 shadow-xl items-stretch">
+          <div 
+            onClick={handleFieldClickMiss}
+            className="w-full max-w-5xl flex-1 min-h-0 grid grid-cols-3 gap-2 sm:gap-3.5 p-2 sm:p-3.5 rounded-xl sm:rounded-2xl bg-emerald-950/90 border border-emerald-500/40 shadow-xl items-stretch cursor-crosshair"
+          >
             {moles.map((mole, idx) => (
               <div key={idx} className="flex flex-col items-center justify-center w-full h-full min-h-0">
                 <div
@@ -977,8 +1070,8 @@ export function WhackAMoleGame({
                     }}
                     transition={{
                       type: mole.hit ? 'keyframes' : 'spring',
-                      stiffness: 420,
-                      damping: 24,
+                      stiffness: 300,
+                      damping: 22,
                       duration: mole.hit ? 0.35 : undefined
                     }}
                     className="absolute bottom-0 w-5/6 sm:w-4/5 h-full flex flex-col items-center justify-end cursor-pointer will-change-transform select-none"

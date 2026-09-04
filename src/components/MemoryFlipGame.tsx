@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { RotateCw, CheckCircle2, Brain, Hand, HelpCircle, Lightbulb, Image as ImageIcon, FileText, Sparkles, ZoomIn, X } from 'lucide-react';
+import { RotateCw, CheckCircle2, Brain, Hand, HelpCircle, Lightbulb, Image as ImageIcon, FileText, Sparkles, ZoomIn, X, Volume2, VolumeX, Music } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 import { ParsedQuestionItem, cleanQuestionText } from '../views/AssignmentsView';
+import { gameAudio, getSoundConfig, saveSoundConfig } from '../utils/gameAudio';
 
 export interface MemoryFlipGameProps {
   questions: ParsedQuestionItem[];
@@ -216,8 +217,49 @@ export function MemoryFlipGame({
   const [gameStarted, setGameStarted] = useState(false);
   const [isWinModalOpen, setIsWinModalOpen] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ src: string; caption?: string } | null>(null);
+  const [soundConfig, setSoundConfig] = useState(getSoundConfig);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync sound configuration changes
+  useEffect(() => {
+    const handleSoundChange = (e: any) => {
+      if (e.detail) setSoundConfig(e.detail);
+    };
+    window.addEventListener('game-sound-config-changed', handleSoundChange);
+    return () => {
+      window.removeEventListener('game-sound-config-changed', handleSoundChange);
+    };
+  }, []);
+
+  // Background music management for Memory Flip
+  useEffect(() => {
+    if (!isWinModalOpen) {
+      gameAudio.startBgm('puzzle');
+    } else {
+      gameAudio.stopBgm();
+    }
+    return () => {
+      gameAudio.stopBgm();
+    };
+  }, [isWinModalOpen]);
+
+  const toggleSound = () => {
+    const nextMaster = !soundConfig.masterEnabled;
+    const updated = saveSoundConfig({ masterEnabled: nextMaster });
+    setSoundConfig(updated);
+  };
+
+  const toggleBgm = () => {
+    const nextBgm = !soundConfig.bgmEnabled;
+    const updated = saveSoundConfig({ bgmEnabled: nextBgm });
+    setSoundConfig(updated);
+    if (nextBgm && soundConfig.masterEnabled && !isWinModalOpen) {
+      gameAudio.startBgm('puzzle');
+    } else {
+      gameAudio.stopBgm();
+    }
+  };
 
   // Initialize Game
   const initGame = () => {
@@ -269,29 +311,46 @@ export function MemoryFlipGame({
   useEffect(() => {
     initGame();
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        cancelAnimationFrame(timerRef.current as any);
+      }
+      gameAudio.stopBgm();
     };
   }, [learningPairs]);
 
-  // Timer Effect
+  // Timer Effect using requestAnimationFrame
   useEffect(() => {
     if (gameStarted && !isWinModalOpen) {
-      timerRef.current = setInterval(() => {
-        setTimeElapsed(prev => prev + 1);
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+      let lastTime = performance.now();
+      let animFrameId: number;
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+      const step = (now: number) => {
+        if (now - lastTime >= 1000) {
+          lastTime = now;
+          setTimeElapsed(prev => prev + 1);
+        }
+        animFrameId = requestAnimationFrame(step);
+        timerRef.current = animFrameId as any;
+      };
+
+      animFrameId = requestAnimationFrame(step);
+      timerRef.current = animFrameId as any;
+
+      return () => {
+        cancelAnimationFrame(animFrameId);
+      };
+    } else if (timerRef.current) {
+      cancelAnimationFrame(timerRef.current as any);
+    }
   }, [gameStarted, isWinModalOpen]);
 
   // Handle Card Click
   const handleCardClick = (card: CardItem) => {
     if (isLockBoard) return;
     if (card.isFlipped || card.isMatched) return;
+
+    gameAudio.playCardFlip();
 
     if (!gameStarted) {
       setGameStarted(true);
@@ -327,6 +386,7 @@ export function MemoryFlipGame({
     if (isMatch) {
       // Success match
       setTimeout(() => {
+        gameAudio.playMatchSuccess();
         setCards(prevCards =>
           prevCards.map(c =>
             c.uid === firstCard.uid || c.uid === secondCard.uid
@@ -342,6 +402,8 @@ export function MemoryFlipGame({
         // Check Victory
         if (nextMatchedCount === learningPairs.length) {
           setTimeout(() => {
+            gameAudio.stopBgm();
+            gameAudio.playVictory();
             setIsWinModalOpen(true);
           }, 500);
         }
@@ -349,6 +411,7 @@ export function MemoryFlipGame({
     } else {
       // Wrong match: Shake and Flip Back
       setTimeout(() => {
+        gameAudio.playMatchFail();
         setCards(prevCards =>
           prevCards.map(c =>
             c.uid === firstCard.uid || c.uid === secondCard.uid
@@ -455,7 +518,7 @@ export function MemoryFlipGame({
           </div>
         </div>
 
-        {/* STATUS COUNTERS */}
+        {/* STATUS COUNTERS & CONTROLS */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Time Elapsed */}
           <div className="bg-indigo-50 border border-indigo-200/80 px-2 sm:px-2.5 py-1 rounded-xl flex items-center gap-1 shadow-2xs">
@@ -478,6 +541,34 @@ export function MemoryFlipGame({
               {matchedPairsCount}/{learningPairs.length}
             </span>
           </div>
+
+          {/* BGM Toggle */}
+          <button
+            type="button"
+            onClick={toggleBgm}
+            className={`p-1.5 rounded-xl border transition active:scale-95 flex items-center justify-center ${
+              soundConfig.masterEnabled && soundConfig.bgmEnabled
+                ? 'bg-amber-50 text-amber-600 border-amber-200'
+                : 'bg-slate-100 text-slate-400 border-slate-200'
+            }`}
+            title={soundConfig.bgmEnabled ? 'Nhạc nền: BẬT' : 'Nhạc nền: TẮT'}
+          >
+            <Music className={`w-3.5 h-3.5 ${soundConfig.masterEnabled && soundConfig.bgmEnabled ? 'animate-pulse' : 'opacity-40'}`} />
+          </button>
+
+          {/* Master Sound Toggle */}
+          <button
+            type="button"
+            onClick={toggleSound}
+            className={`p-1.5 rounded-xl border transition active:scale-95 flex items-center justify-center ${
+              soundConfig.masterEnabled
+                ? 'bg-indigo-50 text-indigo-600 border-indigo-200'
+                : 'bg-rose-50 text-rose-500 border-rose-200'
+            }`}
+            title={soundConfig.masterEnabled ? 'Âm thanh: BẬT' : 'Âm thanh: TẮT'}
+          >
+            {soundConfig.masterEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 

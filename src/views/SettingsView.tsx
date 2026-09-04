@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Save, Settings, CheckCircle, AlertCircle, Sparkles, Camera, LayoutGrid, List, Upload, Check, Image as ImageIcon } from 'lucide-react';
+import { 
+  Save, Settings, CheckCircle, AlertCircle, Sparkles, Camera, LayoutGrid, 
+  List, Upload, Check, Image as ImageIcon, Volume2, VolumeX, Music, Play, Square, Sliders, Volume1
+} from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { User } from '../types';
 import { CameraCapture } from '../components/CameraCapture';
+import { gameAudio, getSoundConfig, saveSoundConfig, GameSoundConfig } from '../utils/gameAudio';
 
 interface SettingsViewProps {
   user: User;
@@ -74,6 +78,11 @@ export function SettingsView({ user, onUpdateUser }: SettingsViewProps) {
   const [className, setClassName] = useState('');
   const [connectionCode, setConnectionCode] = useState('');
   
+  // Game Audio Configuration State
+  const [soundConfig, setSoundConfig] = useState<GameSoundConfig>(getSoundConfig);
+  const [isPlayingBgmTest, setIsPlayingBgmTest] = useState(false);
+  const bgmTestTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -91,6 +100,13 @@ export function SettingsView({ user, onUpdateUser }: SettingsViewProps) {
             if (uData.connectionCode) setConnectionCode(uData.connectionCode);
             if (uData.className) setClassName(uData.className);
             if (uData.layoutDensity) setLayoutDensity(uData.layoutDensity);
+            if (uData.gameSoundConfig) {
+              setSoundConfig(prev => {
+                const merged = { ...prev, ...uData.gameSoundConfig };
+                saveSoundConfig(merged);
+                return merged;
+              });
+            }
           } else {
             if (user.connectionCode) setConnectionCode(user.connectionCode);
             if (user.className) setClassName(user.className);
@@ -101,7 +117,39 @@ export function SettingsView({ user, onUpdateUser }: SettingsViewProps) {
       }
     };
     loadConfig();
+
+    return () => {
+      if (bgmTestTimerRef.current) clearTimeout(bgmTestTimerRef.current);
+      gameAudio.stopBgm();
+    };
   }, [user]);
+
+  const updateSoundField = (field: keyof GameSoundConfig, val: any) => {
+    const updated = saveSoundConfig({ [field]: val });
+    setSoundConfig(updated);
+  };
+
+  const handleTestBgm = () => {
+    if (isPlayingBgmTest) {
+      if (bgmTestTimerRef.current) clearTimeout(bgmTestTimerRef.current);
+      gameAudio.stopBgm();
+      setIsPlayingBgmTest(false);
+    } else {
+      gameAudio.startBgm('arcade');
+      setIsPlayingBgmTest(true);
+      bgmTestTimerRef.current = setTimeout(() => {
+        gameAudio.stopBgm();
+        setIsPlayingBgmTest(false);
+      }, 5000);
+    }
+  };
+
+  const handleTestSfx = () => {
+    gameAudio.playCardFlip();
+    setTimeout(() => gameAudio.playWhack(), 250);
+    setTimeout(() => gameAudio.playMolePop(), 550);
+    setTimeout(() => gameAudio.playCorrect(), 850);
+  };
 
   // Save new avatar to Firestore immediately and sync local state
   const saveAvatarToFirestore = async (newAvatarUrl: string, sourceName: string) => {
@@ -172,13 +220,15 @@ export function SettingsView({ user, onUpdateUser }: SettingsViewProps) {
     try {
       localStorage.setItem('academic_year', academicYear);
       localStorage.setItem('layout_density', layoutDensity);
+      saveSoundConfig(soundConfig);
       window.dispatchEvent(new Event('storage'));
 
       if (user.role === 'teacher' || user.role === 'admin') {
         await updateDoc(doc(db, 'users', user.id), {
           connectionCode: connectionCode || user.id.substring(0, 6).toUpperCase(),
           className: className,
-          layoutDensity: layoutDensity
+          layoutDensity: layoutDensity,
+          gameSoundConfig: soundConfig
         });
       }
 
@@ -437,9 +487,170 @@ export function SettingsView({ user, onUpdateUser }: SettingsViewProps) {
             </div>
           </div>
 
+          {/* Section 3: Game Sound & BGM Configuration */}
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between border-b pb-2">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Volume2 className="w-5 h-5 text-indigo-600" />
+                3. Âm thanh Trò chơi & Nhạc nền (Game Audio)
+              </h3>
+              <span className="text-xs font-semibold px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
+                Đập chuột chũi & Lật thẻ bài
+              </span>
+            </div>
+
+            <div className="bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/80 space-y-4">
+              {/* Master Audio Switch */}
+              <div className="flex items-center justify-between gap-4 p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${soundConfig.masterEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {soundConfig.masterEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">Bật / Tắt tất cả âm thanh game</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">Tổng thể âm thanh bao gồm nhạc nền và các hiệu ứng khi học sinh làm bài tập/chơi game.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => updateSoundField('masterEnabled', !soundConfig.masterEnabled)}
+                  className={`w-12 h-6 rounded-full transition-colors relative shrink-0 p-0.5 ${
+                    soundConfig.masterEnabled ? 'bg-indigo-600' : 'bg-slate-300'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                      soundConfig.masterEnabled ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Background Music (BGM) */}
+              <div className={`p-4 rounded-xl border transition-all ${soundConfig.masterEnabled ? 'bg-white border-slate-200 shadow-2xs' : 'bg-slate-100 border-slate-200 opacity-60 pointer-events-none'}`}>
+                <div className="flex items-center justify-between gap-4 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${soundConfig.bgmEnabled ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Music className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">Nhạc nền trò chơi (BGM)</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">Giai điệu vui tươi, êm dịu tăng sự hào hứng và tập trung khi học.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateSoundField('bgmEnabled', !soundConfig.bgmEnabled)}
+                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 p-0.5 ${
+                      soundConfig.bgmEnabled ? 'bg-amber-500' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                        soundConfig.bgmEnabled ? 'translate-x-6' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {soundConfig.bgmEnabled && (
+                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-600">Âm lượng nhạc nền:</span>
+                      <div className="flex items-center gap-1.5">
+                        {[
+                          { label: 'Nhẹ 15%', vol: 0.15 },
+                          { label: 'Vừa 25%', vol: 0.25 },
+                          { label: 'Rõ 45%', vol: 0.45 },
+                        ].map(preset => (
+                          <button
+                            key={preset.vol}
+                            type="button"
+                            onClick={() => updateSoundField('bgmVolume', preset.vol)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                              Math.abs(soundConfig.bgmVolume - preset.vol) < 0.05
+                                ? 'bg-amber-500 text-white shadow-2xs'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleTestBgm}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition active:scale-95 ${
+                        isPlayingBgmTest
+                          ? 'bg-rose-500 text-white shadow-sm'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                      }`}
+                    >
+                      {isPlayingBgmTest ? (
+                        <>
+                          <Square className="w-3.5 h-3.5 fill-white" />
+                          <span>Dừng nghe thử</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-amber-700" />
+                          <span>🎵 Nghe thử nhạc nền</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Sound Effects (SFX) */}
+              <div className={`p-4 rounded-xl border transition-all ${soundConfig.masterEnabled ? 'bg-white border-slate-200 shadow-2xs' : 'bg-slate-100 border-slate-200 opacity-60 pointer-events-none'}`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${soundConfig.sfxEnabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                      <Volume1 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">Hiệu ứng âm thanh tương tác (SFX)</h4>
+                      <p className="text-xs text-slate-500 mt-0.5">Tiếng đập búa, lật mảnh ghép, chuông đúng/sai, âm thanh chuỗi combo và kèn chiến thắng.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateSoundField('sfxEnabled', !soundConfig.sfxEnabled)}
+                    className={`w-12 h-6 rounded-full transition-colors relative shrink-0 p-0.5 ${
+                      soundConfig.sfxEnabled ? 'bg-emerald-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
+                        soundConfig.sfxEnabled ? 'translate-x-6' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {soundConfig.sfxEnabled && (
+                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span className="text-xs text-slate-500">Phản hồi âm thanh tức thì khi tương tác.</span>
+                    <button
+                      type="button"
+                      onClick={handleTestSfx}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 flex items-center gap-1.5 transition active:scale-95"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>🔊 Thử hiệu ứng (Đập & Lật)</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {(user.role === 'teacher' || user.role === 'admin') && (
             <div className="space-y-4 pt-4 border-t border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">3. Cấu hình Lớp học & Thông báo</h3>
+              <h3 className="text-lg font-bold text-slate-900 border-b pb-2">4. Cấu hình Lớp học & Thông báo</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
