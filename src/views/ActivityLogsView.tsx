@@ -80,6 +80,18 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
   const [deletingSelected, setDeletingSelected] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm: () => void | Promise<void>;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   const isSuperAdmin = currentUser.isSuperAdmin || currentUser.role === 'admin';
 
@@ -88,33 +100,50 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleDeleteLog = async (logId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa nhật ký thao tác này không?')) return;
-    try {
-      await deleteDoc(doc(db, 'activity_logs', logId));
-      setSelectedLogIds(prev => prev.filter(id => id !== logId));
-      showToast('Đã xóa nhật ký thao tác thành công!');
-    } catch (err: any) {
-      console.error(err);
-      showToast(`Lỗi khi xóa nhật ký: ${err.message}`);
-    }
+  const handleDeleteLog = (logId: string) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Xác nhận xóa nhật ký',
+      message: 'Bạn có chắc chắn muốn xóa nhật ký thao tác này không?',
+      confirmText: 'Xóa nhật ký',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'activity_logs', logId));
+          setSelectedLogIds(prev => prev.filter(id => id !== logId));
+          showToast('Đã xóa nhật ký thao tác thành công!');
+        } catch (err: any) {
+          console.error(err);
+          showToast(`Lỗi khi xóa nhật ký: ${err.message}`);
+        } finally {
+          setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
-  const handleDeleteSelectedLogs = async () => {
+  const handleDeleteSelectedLogs = () => {
     if (selectedLogIds.length === 0) return;
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedLogIds.length} nhật ký thao tác đã chọn không?`)) return;
-    setDeletingSelected(true);
-    try {
-      const deletePromises = selectedLogIds.map(id => deleteDoc(doc(db, 'activity_logs', id)));
-      await Promise.all(deletePromises);
-      setSelectedLogIds([]);
-      showToast(`Đã xóa thành công ${selectedLogIds.length} nhật ký thao tác!`);
-    } catch (err: any) {
-      console.error(err);
-      showToast(`Lỗi khi xóa các nhật ký đã chọn: ${err.message}`);
-    } finally {
-      setDeletingSelected(false);
-    }
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Xác nhận xóa các mục đã chọn',
+      message: `Bạn có chắc chắn muốn xóa ${selectedLogIds.length} nhật ký thao tác đã chọn không?`,
+      confirmText: `Xóa ${selectedLogIds.length} mục`,
+      onConfirm: async () => {
+        setDeletingSelected(true);
+        try {
+          const deletePromises = selectedLogIds.map(id => deleteDoc(doc(db, 'activity_logs', id)));
+          await Promise.all(deletePromises);
+          setSelectedLogIds([]);
+          showToast(`Đã xóa thành công ${selectedLogIds.length} nhật ký thao tác!`);
+        } catch (err: any) {
+          console.error(err);
+          showToast(`Lỗi khi xóa các nhật ký đã chọn: ${err.message}`);
+        } finally {
+          setDeletingSelected(false);
+          setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
   };
 
   const toggleSelectLog = (logId: string) => {
@@ -174,8 +203,13 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
     setTimeout(() => setIsRefreshing(false), 800);
   };
 
-  // Filtered logs
-  const filteredLogs = useMemo(() => {
+  // Reset selectedLogIds when filters change to prevent ghost selections
+  useEffect(() => {
+    setSelectedLogIds([]);
+  }, [searchTerm, selectedCategory, selectedRole, selectedTimeRange]);
+
+  // Filter logs by search, role, and time range (but NOT category)
+  const logsMatchingFilters = useMemo(() => {
     const now = Date.now();
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
@@ -193,23 +227,12 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
         }
       }
 
-      // 2. Category filter
-      if (selectedCategory !== 'all') {
-        if (selectedCategory === 'exam_all') {
-          if (log.category !== 'assignment' && log.category !== 'submission' && log.category !== 'grade') return false;
-        } else if (selectedCategory === 'games_all') {
-          if (log.category !== 'game' && log.category !== 'flashcard') return false;
-        } else if (log.category !== selectedCategory) {
-          return false;
-        }
-      }
-
-      // 3. Role filter
+      // 2. Role filter
       if (selectedRole !== 'all') {
         if (log.userRole !== selectedRole) return false;
       }
 
-      // 4. Time range filter
+      // 3. Time range filter
       if (selectedTimeRange !== 'all') {
         const logTime = log.createdAtMs || new Date(log.timestamp).getTime();
         if (selectedTimeRange === 'today') {
@@ -227,7 +250,49 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
 
       return true;
     });
-  }, [logs, searchTerm, selectedCategory, selectedRole, selectedTimeRange]);
+  }, [logs, searchTerm, selectedRole, selectedTimeRange]);
+
+  // Filtered logs
+  const filteredLogs = useMemo(() => {
+    return logsMatchingFilters.filter((log) => {
+      if (selectedCategory !== 'all') {
+        if (selectedCategory === 'exam_all') {
+          if (log.category !== 'assignment' && log.category !== 'submission' && log.category !== 'grade') return false;
+        } else if (selectedCategory === 'games_all') {
+          if (log.category !== 'game' && log.category !== 'flashcard') return false;
+        } else if (log.category !== selectedCategory) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [logsMatchingFilters, selectedCategory]);
+
+  // Compute category counts based on currently selected role, search, and time filters
+  const categoryCounts = useMemo(() => {
+    const counts = {
+      all: logsMatchingFilters.length,
+      auth: 0,
+      exam_all: 0,
+      games_all: 0,
+      class: 0,
+      simulation: 0,
+      letter: 0,
+      user_management: 0,
+    };
+
+    logsMatchingFilters.forEach((log) => {
+      if (log.category === 'auth') counts.auth++;
+      else if (log.category === 'assignment' || log.category === 'submission' || log.category === 'grade') counts.exam_all++;
+      else if (log.category === 'game' || log.category === 'flashcard') counts.games_all++;
+      else if (log.category === 'class') counts.class++;
+      else if (log.category === 'simulation') counts.simulation++;
+      else if (log.category === 'letter') counts.letter++;
+      else if (log.category === 'user_management') counts.user_management++;
+    });
+
+    return counts;
+  }, [logsMatchingFilters]);
 
   // Key metrics
   const stats = useMemo(() => {
@@ -523,7 +588,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Tất cả ({logs.length})
+            Tất cả ({categoryCounts.all})
           </button>
           <button
             type="button"
@@ -534,7 +599,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <LogIn className="w-3.5 h-3.5" /> Đăng nhập & Đăng xuất
+            <LogIn className="w-3.5 h-3.5" /> Đăng nhập & Đăng xuất ({categoryCounts.auth})
           </button>
           <button
             type="button"
@@ -545,7 +610,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <BookOpen className="w-3.5 h-3.5" /> Bài tập & Chấm điểm
+            <BookOpen className="w-3.5 h-3.5" /> Bài tập & Chấm điểm ({categoryCounts.exam_all})
           </button>
           <button
             type="button"
@@ -556,7 +621,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Gamepad2 className="w-3.5 h-3.5" /> Game & Flashcard
+            <Gamepad2 className="w-3.5 h-3.5" /> Game & Flashcard ({categoryCounts.games_all})
           </button>
           <button
             type="button"
@@ -567,7 +632,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Calendar className="w-3.5 h-3.5" /> Lịch học
+            <Calendar className="w-3.5 h-3.5" /> Lịch học ({categoryCounts.class})
           </button>
           <button
             type="button"
@@ -578,7 +643,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Microscope className="w-3.5 h-3.5" /> Mô phỏng
+            <Microscope className="w-3.5 h-3.5" /> Mô phỏng ({categoryCounts.simulation})
           </button>
           <button
             type="button"
@@ -589,7 +654,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Heart className="w-3.5 h-3.5" /> Thư yêu thương
+            <Heart className="w-3.5 h-3.5" /> Thư yêu thương ({categoryCounts.letter})
           </button>
           <button
             type="button"
@@ -600,7 +665,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            <Shield className="w-3.5 h-3.5" /> Quản trị & Phân quyền
+            <Shield className="w-3.5 h-3.5" /> Quản trị & Phân quyền ({categoryCounts.user_management})
           </button>
         </div>
       </div>
@@ -817,7 +882,7 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
           ) : (
             /* Detailed Table View */
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scrolling-touch">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -1043,6 +1108,21 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
           cancelText="Hủy bỏ"
           variant="danger"
           loading={purging}
+        />
+      )}
+
+      {/* Generic Confirm Modal */}
+      {confirmModalConfig.isOpen && (
+        <ConfirmModal
+          isOpen={confirmModalConfig.isOpen}
+          onClose={() => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={confirmModalConfig.onConfirm}
+          title={confirmModalConfig.title}
+          message={confirmModalConfig.message}
+          confirmText={confirmModalConfig.confirmText}
+          cancelText="Hủy bỏ"
+          variant="danger"
+          loading={deletingSelected}
         />
       )}
     </div>

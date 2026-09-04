@@ -549,24 +549,26 @@ ${completedSessionsInMonth.map((s, idx) => {
                 </div>
               </div>
               
-              <div className="overflow-x-auto custom-scrollbar pb-2">
-                <table className="w-full text-left text-xs text-slate-700 min-w-[600px]">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-y border-slate-200">
-                    <tr>
-                      <th className="p-3 w-24 whitespace-nowrap">Ngày tháng</th>
-                      <th className="p-3 w-48">Buổi học (Nếu có)</th>
-                      <th className="p-3 min-w-[200px]">Ghi chú & Nhật ký Giáo viên</th>
-                      <th className="p-3 min-w-[200px]">Nhắc nhở Cá nhân</th>
+              <div className="overflow-x-auto custom-scrollbar pb-2 scrolling-touch">
+                <table className="w-full block md:table text-left text-xs text-slate-700">
+                  <thead className="hidden md:table-header-group bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-y border-slate-200">
+                    <tr className="block md:table-row">
+                      <th className="p-3 w-24 whitespace-nowrap block md:table-cell">Ngày tháng</th>
+                      <th className="p-3 w-48 block md:table-cell">Buổi học (Nếu có)</th>
+                      <th className="p-3 min-w-[200px] block md:table-cell">Ghi chú & Nhật ký Giáo viên</th>
+                      <th className="p-3 min-w-[200px] block md:table-cell">Nhắc nhở Cá nhân</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="block md:table-row-group divide-y divide-slate-100 md:divide-y-0">
                     {notesInMonth.length > 0 ? (
                       notesInMonth.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="p-3 align-top font-bold text-slate-800">
+                        <tr key={idx} className="block md:table-row hover:bg-slate-50/50 transition-colors bg-white md:bg-transparent rounded-2xl md:rounded-none p-4 md:p-0 mb-4 md:mb-0 border border-slate-200 md:border-none space-y-3 md:space-y-0 shadow-xs md:shadow-none">
+                          <td className="block md:table-cell p-0 md:p-3 align-top font-bold text-slate-800" data-label="Ngày tháng">
+                            <span className="text-[10px] font-bold text-slate-400 block md:hidden uppercase tracking-wider mb-1">Ngày tháng:</span>
                             {format(new Date(item.date), 'dd/MM/yyyy')}
                           </td>
-                          <td className="p-3 align-top space-y-1.5">
+                          <td className="block md:table-cell p-0 md:p-3 align-top space-y-1.5" data-label="Buổi học (Nếu có)">
+                            <span className="text-[10px] font-bold text-slate-400 block md:hidden uppercase tracking-wider mb-1">Buổi học:</span>
                             {item.sessions.map(s => (
                               <div key={s.id} className="bg-slate-100/70 p-2 rounded-xl border border-slate-200">
                                 <span className="text-[9px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-md uppercase block w-fit mb-0.5">{s.subject}</span>
@@ -575,7 +577,8 @@ ${completedSessionsInMonth.map((s, idx) => {
                             ))}
                             {item.sessions.length === 0 && <span className="text-slate-400 italic text-[10px]">— Không có buổi học —</span>}
                           </td>
-                          <td className="p-3 align-top">
+                          <td className="block md:table-cell p-0 md:p-3 align-top" data-label="Ghi chú & Nhật ký Giáo viên">
+                            <span className="text-[10px] font-bold text-slate-400 block md:hidden uppercase tracking-wider mb-1">Ghi chú Giáo viên:</span>
                             {item.sessions.filter(s => s.completedNote).length > 0 ? (
                               <div className="space-y-1.5">
                                 {item.sessions.filter(s => s.completedNote).map(s => (
@@ -585,23 +588,24 @@ ${completedSessionsInMonth.map((s, idx) => {
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-slate-300 italic text-[10px] block mt-1">—</span>
+                              <span className="text-slate-300 italic text-[10px] block mt-1 md:mt-0">—</span>
                             )}
                           </td>
-                          <td className="p-3 align-top">
+                          <td className="block md:table-cell p-0 md:p-3 align-top" data-label="Nhắc nhở Cá nhân">
+                            <span className="text-[10px] font-bold text-slate-400 block md:hidden uppercase tracking-wider mb-1">Nhắc nhở:</span>
                             {item.personalNote ? (
                               <div className="bg-amber-50/50 p-2.5 rounded-xl border border-amber-100 text-amber-950 font-medium leading-relaxed">
                                 📌 {item.personalNote}
                               </div>
                             ) : (
-                              <span className="text-slate-300 italic text-[10px] block mt-1">—</span>
+                              <span className="text-slate-300 italic text-[10px] block mt-1 md:mt-0">—</span>
                             )}
                           </td>
                         </tr>
                       ))
                     ) : (
-                      <tr>
-                        <td colSpan={4} className="p-8 text-center text-slate-400 font-medium">
+                      <tr className="block md:table-row">
+                        <td colSpan={4} className="p-8 text-center text-slate-400 italic block md:table-cell">
                           Không có ghi chú hay nhật ký nào được lưu trong tháng {statsMonth}/{statsYear}.
                         </td>
                       </tr>
@@ -1192,7 +1196,7 @@ ${completedSessionsInMonth.map((s, idx) => {
       {/* VIEW DETAILS & ATTENDANCE MODAL */}
       {showDetailsModal && viewingSessionDetails && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto scrolling-touch">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-1.5">
                 <FileText className="w-5 h-5 text-indigo-600" />
@@ -1280,7 +1284,7 @@ ${completedSessionsInMonth.map((s, idx) => {
                   Sĩ số tham gia học trực tuyến ({viewingSessionDetails.attendedByStudents?.length || 0} học sinh)
                 </h5>
 
-                <div className="max-h-[220px] overflow-y-auto border border-slate-100 rounded-2xl divide-y divide-slate-100">
+                <div className="max-h-[220px] overflow-y-auto scrolling-touch border border-slate-100 rounded-2xl divide-y divide-slate-100">
                   {viewingSessionDetails.attendedByStudents && viewingSessionDetails.attendedByStudents.length > 0 ? (
                     viewingSessionDetails.attendedByStudents.map((student, index) => (
                       <div key={index} className="p-3 bg-white hover:bg-slate-50 flex justify-between items-center font-medium">

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Assignment, User } from '../types';
-import { X, Search, Check, Filter, SlidersHorizontal, CheckSquare, Square, Radio, Calendar, Clock, BookOpen, Layers, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Search, Check, Filter, SlidersHorizontal, CheckSquare, Square, Radio, Calendar, Clock, BookOpen, Layers, Sparkles, CheckCircle2, AlertCircle, GraduationCap } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -12,6 +12,7 @@ interface BatchEditAssignmentsModalProps {
   assignments: Assignment[];
   availableClasses: string[];
   user: User;
+  initialSelectedIds?: string[];
 }
 
 const COMMON_SUBJECTS = [
@@ -35,12 +36,17 @@ export function BatchEditAssignmentsModal({
   onClose,
   assignments,
   availableClasses,
-  user
+  user,
+  initialSelectedIds = []
 }: BatchEditAssignmentsModalProps) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [searchFilter, setSearchFilter] = useState('');
-  const [classFilter, setClassFilter] = useState<string>('all');
-  const [onAirFilter, setOnAirFilter] = useState<string>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>(() => initialSelectedIds);
+
+  // Sync selectedIds if initialSelectedIds change when opening
+  React.useEffect(() => {
+    if (initialSelectedIds && initialSelectedIds.length > 0) {
+      setSelectedIds(initialSelectedIds);
+    }
+  }, [initialSelectedIds]);
 
   // Bulk action values
   const [bulkClass, setBulkClass] = useState('');
@@ -53,7 +59,7 @@ export function BatchEditAssignmentsModal({
   // Local editable state map for instant responsiveness
   const [rowSavingId, setRowSavingId] = useState<string | null>(null);
 
-  // Filtered list of assignments
+  // List of assignments: If initialSelectedIds provided, only show those selected items!
   const filteredList = useMemo(() => {
     return assignments.filter(a => {
       // Teacher ownership check (unless admin)
@@ -62,27 +68,13 @@ export function BatchEditAssignmentsModal({
         return false;
       }
 
-      if (searchFilter.trim()) {
-        const q = searchFilter.toLowerCase().trim();
-        const matchesTitle = a.title.toLowerCase().includes(q);
-        const matchesCategory = a.category?.toLowerCase().includes(q);
-        const matchesClass = a.className?.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesCategory && !matchesClass) return false;
-      }
-
-      if (classFilter !== 'all') {
-        if (classFilter === 'none' && a.className) return false;
-        if (classFilter !== 'none' && a.className !== classFilter) return false;
-      }
-
-      if (onAirFilter !== 'all') {
-        if (onAirFilter === 'on_air' && a.isPublished === false) return false;
-        if (onAirFilter === 'draft' && a.isPublished !== false) return false;
+      if (initialSelectedIds && initialSelectedIds.length > 0) {
+        return initialSelectedIds.includes(a.id);
       }
 
       return true;
     });
-  }, [assignments, user, searchFilter, classFilter, onAirFilter]);
+  }, [assignments, user, initialSelectedIds]);
 
   if (!isOpen) return null;
 
@@ -156,10 +148,10 @@ export function BatchEditAssignmentsModal({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  Bảng Đổi & Cập Nhật Đồng Loạt Bài Tập
+                  Bảng Hiệu Chỉnh Đồng Loạt
                 </h2>
                 <span className="bg-indigo-50 text-indigo-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-indigo-100">
-                  {filteredList.length} bài tập
+                  {filteredList.length} bài tập đã chọn
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -244,76 +236,116 @@ export function BatchEditAssignmentsModal({
           {/* BULK FIELD ASSIGNMENT ROW */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-200">
             {/* 1. Bulk Class Change */}
-            <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
               <select
                 value={bulkClass}
-                onChange={(e) => setBulkClass(e.target.value)}
-                className="flex-1 text-xs bg-transparent font-medium text-slate-700 outline-none px-1"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBulkClass(val);
+                  if (!val) return;
+                  if (selectedIds.length === 0) {
+                    setStatusMessage({ type: 'error', text: '⚠️ Vui lòng tick chọn ít nhất 1 bài tập trước khi chọn lớp!' });
+                    setTimeout(() => setStatusMessage(null), 3000);
+                    setBulkClass('');
+                    return;
+                  }
+                  handleApplyBulkUpdates(
+                    { className: val === '__ALL__' ? '' : val },
+                    `Đổi lớp sang "${val === '__ALL__' ? 'Tất cả các lớp' : val}" (${selectedIds.length} bài)`
+                  );
+                  setBulkClass('');
+                }}
+                disabled={isUpdating}
+                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
               >
-                <option value="">Chọn lớp học...</option>
-                <option value="__ALL__">Tất cả các lớp (Toàn trường)</option>
+                <option value="">🏫 Đổi lớp cho mục đã chọn...</option>
+                <option value="__ALL__">🌐 Tất cả các lớp (Toàn trường)</option>
                 {availableClasses.map(c => (
-                  <option key={c} value={c}>{c}</option>
+                  <option key={c} value={c}>Lớp {c}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                disabled={selectedIds.length === 0 || !bulkClass || isUpdating}
-                onClick={() => handleApplyBulkUpdates({ className: bulkClass === '__ALL__' ? '' : bulkClass }, `Lớp "${bulkClass === '__ALL__' ? 'Tất cả lớp' : bulkClass}"`)}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-[11px] rounded-lg shadow-sm shrink-0 active:scale-95"
-              >
-                Áp dụng
-              </button>
             </div>
 
             {/* 2. Bulk Subject/Category Change */}
-            <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
               <select
                 value={bulkSubject}
-                onChange={(e) => setBulkSubject(e.target.value)}
-                className="flex-1 text-xs bg-transparent font-medium text-slate-700 outline-none px-1"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBulkSubject(val);
+                  if (!val) return;
+                  if (selectedIds.length === 0) {
+                    setStatusMessage({ type: 'error', text: '⚠️ Vui lòng tick chọn ít nhất 1 bài tập trước khi chọn môn học!' });
+                    setTimeout(() => setStatusMessage(null), 3000);
+                    setBulkSubject('');
+                    return;
+                  }
+                  handleApplyBulkUpdates(
+                    { category: val },
+                    `Đổi môn học sang "${val}" (${selectedIds.length} bài)`
+                  );
+                  setBulkSubject('');
+                }}
+                disabled={isUpdating}
+                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
               >
-                <option value="">Chọn môn học / chủ đề...</option>
+                <option value="">📚 Đổi môn học cho mục đã chọn...</option>
                 {COMMON_SUBJECTS.map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <button
-                type="button"
-                disabled={selectedIds.length === 0 || !bulkSubject || isUpdating}
-                onClick={() => handleApplyBulkUpdates({ category: bulkSubject }, `Môn học "${bulkSubject}"`)}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-[11px] rounded-lg shadow-sm shrink-0 active:scale-95"
-              >
-                Áp dụng
-              </button>
             </div>
 
             {/* 3. Bulk Due Date Change */}
-            <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
+              <span className="text-[11px] font-bold text-slate-400 shrink-0">⏰ Hạn nộp:</span>
               <input
                 type="datetime-local"
                 value={bulkDueDate}
-                onChange={(e) => setBulkDueDate(e.target.value)}
-                className="flex-1 text-[11px] bg-transparent font-medium text-slate-700 outline-none px-1"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBulkDueDate(val);
+                  if (!val) return;
+                  if (selectedIds.length === 0) {
+                    setStatusMessage({ type: 'error', text: '⚠️ Vui lòng tick chọn ít nhất 1 bài tập trước khi đặt hạn nộp!' });
+                    setTimeout(() => setStatusMessage(null), 3000);
+                    setBulkDueDate('');
+                    return;
+                  }
+                  handleApplyBulkUpdates(
+                    { dueDate: new Date(val).toISOString() },
+                    `Đổi hạn chót nộp (${selectedIds.length} bài)`
+                  );
+                }}
+                disabled={isUpdating}
+                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
               />
-              <button
-                type="button"
-                disabled={selectedIds.length === 0 || !bulkDueDate || isUpdating}
-                onClick={() => handleApplyBulkUpdates({ dueDate: new Date(bulkDueDate).toISOString() }, 'Hạn nộp mới')}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-[11px] rounded-lg shadow-sm shrink-0 active:scale-95"
-              >
-                Áp dụng
-              </button>
             </div>
 
             {/* 4. Bulk Time Limit Change */}
-            <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
               <select
                 value={bulkTimeLimit}
-                onChange={(e) => setBulkTimeLimit(e.target.value)}
-                className="flex-1 text-xs bg-transparent font-medium text-slate-700 outline-none px-1"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setBulkTimeLimit(val);
+                  if (val === '') return;
+                  if (selectedIds.length === 0) {
+                    setStatusMessage({ type: 'error', text: '⚠️ Vui lòng tick chọn ít nhất 1 bài tập trước khi chỉnh thời gian!' });
+                    setTimeout(() => setStatusMessage(null), 3000);
+                    setBulkTimeLimit('');
+                    return;
+                  }
+                  handleApplyBulkUpdates(
+                    { timeLimit: Number(val) || 0 },
+                    `Đổi thời gian làm: ${val === '0' ? 'Không giới hạn' : `${val} phút`} (${selectedIds.length} bài)`
+                  );
+                  setBulkTimeLimit('');
+                }}
+                disabled={isUpdating}
+                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
               >
-                <option value="">Thời gian làm...</option>
+                <option value="">⏱️ Thời gian làm bài...</option>
                 <option value="0">Không giới hạn</option>
                 <option value="15">15 phút</option>
                 <option value="30">30 phút</option>
@@ -321,76 +353,45 @@ export function BatchEditAssignmentsModal({
                 <option value="60">60 phút</option>
                 <option value="90">90 phút</option>
               </select>
-              <button
-                type="button"
-                disabled={selectedIds.length === 0 || bulkTimeLimit === '' || isUpdating}
-                onClick={() => handleApplyBulkUpdates({ timeLimit: Number(bulkTimeLimit) || 0 }, `Thời gian ${bulkTimeLimit === '0' ? 'Không giới hạn' : `${bulkTimeLimit} phút`}`)}
-                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-[11px] rounded-lg shadow-sm shrink-0 active:scale-95"
-              >
-                Áp dụng
-              </button>
             </div>
           </div>
         </div>
 
-        {/* SEARCH & FILTER BAR FOR MODAL */}
-        <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Tìm theo tên bài tập, môn học, lớp..."
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-700 placeholder:text-slate-400"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={onAirFilter}
-              onChange={(e) => setOnAirFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="all">📻 Trạng thái On Air (Tất cả)</option>
-              <option value="on_air">🟢 Đang On Air</option>
-              <option value="draft">🟡 Bản Nháp</option>
-            </select>
-
-            <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-1 focus:ring-indigo-500"
-            >
-              <option value="all">🏫 Lớp học (Tất cả)</option>
-              <option value="none">Chưa gán lớp</option>
-              {availableClasses.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
         {/* TABLE CONTENT CONTAINER */}
-        <div className="flex-1 overflow-y-auto overflow-x-auto p-2 sm:p-4">
+        <div className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar relative">
           <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 text-xs font-bold text-slate-700 bg-slate-50 sticky top-0 z-10">
-                <th className="p-3 w-10 text-center">
+            <thead className="sticky top-0 z-30 bg-slate-100 shadow-xs">
+              <tr className="border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider bg-slate-100">
+                <th className="py-3 px-3 w-10 text-center bg-slate-100 sticky top-0 z-30">
                   <input
                     type="checkbox"
                     checked={filteredList.length > 0 && selectedIds.length === filteredList.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                    className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer border-slate-300 shadow-sm"
+                    title="Chọn tất cả"
                   />
                 </th>
-                <th className="p-3 min-w-[220px]">Tên bài tập & Thể loại</th>
-                <th className="p-3 min-w-[130px]">Trạng thái On Air</th>
-                <th className="p-3 min-w-[130px]">Phân lớp học</th>
-                <th className="p-3 min-w-[130px]">Môn học / Chủ đề</th>
-                <th className="p-3 min-w-[170px]">Hạn chót nộp</th>
-                <th className="p-3 min-w-[110px]">Thời gian làm</th>
-                <th className="p-3 min-w-[90px] text-center">Bắt buộc</th>
+                <th className="py-3 px-3 min-w-[220px] bg-slate-100 sticky top-0 z-30">
+                  Tên bài tập & Thể loại
+                </th>
+                <th className="py-3 px-3 min-w-[130px] bg-slate-100 sticky top-0 z-30">
+                  Trạng thái On Air
+                </th>
+                <th className="py-3 px-3 min-w-[130px] bg-slate-100 sticky top-0 z-30">
+                  Phân lớp học
+                </th>
+                <th className="py-3 px-3 min-w-[130px] bg-slate-100 sticky top-0 z-30">
+                  Môn học / Chủ đề
+                </th>
+                <th className="py-3 px-3 min-w-[170px] bg-slate-100 sticky top-0 z-30">
+                  Hạn chót nộp
+                </th>
+                <th className="py-3 px-3 min-w-[110px] bg-slate-100 sticky top-0 z-30">
+                  Thời gian làm
+                </th>
+                <th className="py-3 px-3 min-w-[90px] text-center bg-slate-100 sticky top-0 z-30">
+                  Bắt buộc
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -569,9 +570,10 @@ export function BatchEditAssignmentsModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all active:scale-95"
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-200 transition-all active:scale-95 flex items-center gap-1.5"
           >
-            Hoàn tất & Đóng
+            <Check className="w-4 h-4" />
+            <span>Lưu</span>
           </button>
         </div>
 

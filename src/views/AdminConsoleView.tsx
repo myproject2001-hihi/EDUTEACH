@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { User, Role, Assignment, ClassSession, HTMLSimulation, SystemNotification, Submission, LoveLetter } from '../types';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy, onSnapshot, setDoc, writeBatch } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History, Gamepad2, Radio, Play, GraduationCap, School } from 'lucide-react';
+import { Shield, Users, BookOpen, Key, Check, X, Search, Edit3, UserCheck, Trash2, Calendar, FileText, Cpu, AlertCircle, RefreshCw, Lock, Sparkles, RotateCcw, BellRing, Eye, Filter, UploadCloud, Clock, Layers, ExternalLink, LayoutGrid, ListFilter, Heart, Mail, History, Gamepad2, Radio, Play, GraduationCap, School, CheckSquare, UserCog } from 'lucide-react';
 import { useGameStatuses, getSampleQuestionsForGame } from '../lib/gameConfig';
 import { GamePreview } from '../components/GamePreview';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -13,6 +13,7 @@ import { TableSkeleton, NotificationListSkeleton } from '../components/Skeletons
 import { LoveLetterManager } from '../components/LoveLetterManager';
 import { ActivityLogsView } from './ActivityLogsView';
 import { logActivity } from '../lib/activityLogger';
+import { ClassManagementSubView } from '../components/ClassManagementSubView';
 
 export interface AuditItemDetails {
   description?: string;
@@ -60,7 +61,7 @@ interface AdminConsoleViewProps {
 }
 
 export function AdminConsoleView({ user, assignments, classes, simulations, submissions, loveLetters = [] }: AdminConsoleViewProps) {
-  const [activeTab, setActiveTab] = useState<'users' | 'resets' | 'resources' | 'notifications' | 'letters' | 'logs' | 'games'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'classes' | 'resets' | 'resources' | 'notifications' | 'letters' | 'logs' | 'games'>('users');
   const { gameStatuses, toggleGameStatus } = useGameStatuses();
   const [adminGameSearch, setAdminGameSearch] = useState('');
   const [adminGameStatusFilter, setAdminGameStatusFilter] = useState<'all' | 'on_air' | 'coming_soon'>('all');
@@ -88,77 +89,6 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   const [loadingResets, setLoadingResets] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'teacher' | 'student'>('all');
-
-  // Teacher Class Lookup Board state
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
-
-  const selectedTeacher = React.useMemo(() => {
-    return usersList.find(u => u.id === selectedTeacherId && u.role === 'teacher');
-  }, [usersList, selectedTeacherId]);
-
-  const teacherClasses = React.useMemo(() => {
-    if (!selectedTeacher) return [];
-
-    const classMap = new Map<string, {
-      className: string;
-      sources: ('profile' | 'session' | 'assignment')[];
-      sessionsCount: number;
-      assignmentsCount: number;
-    }>();
-
-    const addClass = (className: string, source: 'profile' | 'session' | 'assignment') => {
-      const name = className.trim();
-      if (!name) return;
-      if (!classMap.has(name)) {
-        classMap.set(name, {
-          className: name,
-          sources: [source],
-          sessionsCount: 0,
-          assignmentsCount: 0,
-        });
-      } else {
-        const item = classMap.get(name)!;
-        if (!item.sources.includes(source)) {
-          item.sources.push(source);
-        }
-      }
-    };
-
-    // 1. Check teacher's profile className
-    if (selectedTeacher.className) {
-      addClass(selectedTeacher.className, 'profile');
-    }
-
-    // 2. Check classes/sessions
-    classes.forEach(c => {
-      if (c.teacherId === selectedTeacher.id || c.teacherName === selectedTeacher.name || c.teacherId === selectedTeacher.connectionCode) {
-        if (c.className) {
-          addClass(c.className, 'session');
-          const item = classMap.get(c.className.trim())!;
-          item.sessionsCount += 1;
-        }
-        if (c.title && c.title !== c.className) {
-          addClass(c.title, 'session');
-          const item = classMap.get(c.title.trim())!;
-          item.sessionsCount += 1;
-        }
-      }
-    });
-
-    // 3. Check assignments list
-    assignments.forEach(a => {
-      const isOwner = a.teacherId === selectedTeacher.id || a.teacherName === selectedTeacher.name;
-      if (isOwner) {
-        if (a.className) {
-          addClass(a.className, 'assignment');
-          const item = classMap.get(a.className.trim())!;
-          item.assignmentsCount += 1;
-        }
-      }
-    });
-
-    return Array.from(classMap.values());
-  }, [selectedTeacher, classes, assignments]);
 
   // Resource Audit Console state
   const [resSearchTerm, setResSearchTerm] = useState('');
@@ -217,6 +147,118 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   const [tempPasswordInput, setTempPasswordInput] = useState('');
 
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // User Multi-select & Bulk Edit State
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkUserRole, setBulkUserRole] = useState<Role | ''>('');
+  const [bulkUserClass, setBulkUserClass] = useState<string>('');
+  const [isBulkUserUpdating, setIsBulkUserUpdating] = useState(false);
+  const [showBulkUserDeleteConfirm, setShowBulkUserDeleteConfirm] = useState(false);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
+  const [showSystemResetConfirm, setShowSystemResetConfirm] = useState(false);
+
+  const toggleSelectUser = (id: string) => {
+    setSelectedUserIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAllUsers = (visibleUsers: User[]) => {
+    if (selectedUserIds.length === visibleUsers.length && visibleUsers.length > 0) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(visibleUsers.map(u => u.id));
+    }
+  };
+
+  const handleBulkChangeUserRole = async (targetRole: Role) => {
+    if (selectedUserIds.length === 0) return;
+    setIsBulkUserUpdating(true);
+    try {
+      const batch = writeBatch(db);
+      for (const uId of selectedUserIds) {
+        batch.update(doc(db, 'users', uId), { role: targetRole });
+      }
+      await batch.commit();
+      
+      await logActivity({
+        user,
+        category: 'user_management',
+        actionType: 'bulk_update_role',
+        title: `Cập nhật quyền hàng loạt (${selectedUserIds.length} tài khoản -> ${targetRole})`
+      });
+      
+      showNotify('success', `Đã đổi quyền thành công cho ${selectedUserIds.length} tài khoản!`);
+      setSelectedUserIds([]);
+      setBulkUserRole('');
+    } catch (e) {
+      console.error(e);
+      showNotify('error', 'Lỗi khi cập nhật quyền hàng loạt.');
+    } finally {
+      setIsBulkUserUpdating(false);
+    }
+  };
+
+  const handleBulkAssignUserClass = async () => {
+    if (selectedUserIds.length === 0 || !bulkUserClass.trim()) return;
+    setIsBulkUserUpdating(true);
+    try {
+      const targetClass = bulkUserClass === '__CLEAR__' ? '' : bulkUserClass.trim();
+      const batch = writeBatch(db);
+      for (const uId of selectedUserIds) {
+        batch.update(doc(db, 'users', uId), { className: targetClass });
+      }
+      await batch.commit();
+
+      await logActivity({
+        user,
+        category: 'user_management',
+        actionType: 'bulk_assign_class',
+        title: `Gán lớp hàng loạt (${selectedUserIds.length} tài khoản -> ${targetClass || 'Chưa xếp lớp'})`
+      });
+
+      showNotify('success', `Đã cập nhật lớp cho ${selectedUserIds.length} tài khoản!`);
+      setSelectedUserIds([]);
+      setBulkUserClass('');
+    } catch (e) {
+      console.error(e);
+      showNotify('error', 'Lỗi khi cập nhật lớp đồng loạt.');
+    } finally {
+      setIsBulkUserUpdating(false);
+    }
+  };
+
+  const handleBulkDeleteUsers = async () => {
+    const safeIds = selectedUserIds.filter(id => id !== user.id);
+    if (safeIds.length === 0) {
+      showNotify('error', 'Không thể xóa tài khoản của chính bạn.');
+      return;
+    }
+    setIsBulkUserUpdating(true);
+    try {
+      const batch = writeBatch(db);
+      for (const uId of safeIds) {
+        batch.delete(doc(db, 'users', uId));
+      }
+      await batch.commit();
+
+      await logActivity({
+        user,
+        category: 'user_management',
+        actionType: 'bulk_delete_user',
+        title: `Xóa hàng loạt ${safeIds.length} tài khoản`
+      });
+
+      showNotify('success', `Đã xóa vĩnh viễn ${safeIds.length} tài khoản thành công!`);
+      setSelectedUserIds([]);
+      setShowBulkUserDeleteConfirm(false);
+    } catch (e) {
+      console.error(e);
+      showNotify('error', 'Lỗi khi xóa tài khoản đồng loạt.');
+    } finally {
+      setIsBulkUserUpdating(false);
+    }
+  };
 
   // Super admin logic: Find if any user is registered as Super Admin
   const superAdminUser = usersList.find(u => u.isSuperAdmin);
@@ -556,7 +598,6 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
 
   const handleBatchDelete = async () => {
     if (selectedItemKeys.length === 0) return;
-    if (!window.confirm(`XÁC NHẬN XÓA HÀNG LOẠT:\n\nBạn có chắc chắn muốn XÓA VĨNH VIỄN ${selectedItemKeys.length} tài nguyên/bài làm đã chọn khỏi Firestore? Thao tác này không thể hoàn tác.`)) return;
 
     setIsBatchDeleting(true);
     try {
@@ -570,6 +611,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
       }
       showNotify('success', `Đã xóa thành công ${count} tài nguyên khỏi hệ thống!`);
       setSelectedItemKeys([]);
+      setShowBatchDeleteConfirm(false);
     } catch (err: any) {
       console.error('Batch delete error:', err);
       showNotify('error', `Lỗi khi xóa hàng loạt: ${err.message || 'Lỗi hệ thống'}`);
@@ -806,9 +848,6 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   };
 
   const handleSystemReset = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn reset lại toàn bộ hệ thống và khởi động lại từ đầu không? Thao tác này sẽ xóa cache, đăng xuất và làm mới ứng dụng.')) {
-      return;
-    }
     try {
       localStorage.clear();
       sessionStorage.clear();
@@ -816,6 +855,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
     } catch (e) {
       console.error(e);
     }
+    setShowSystemResetConfirm(false);
     window.location.reload();
   };
 
@@ -940,7 +980,19 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
             }`}
           >
             <Users className="w-4 h-4" />
-            Quản Lý Tài Khoản & Phân Quyền ({usersList.length})
+            Quản Lý Tài Khoản ({usersList.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab('classes')}
+            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+              activeTab === 'classes'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <School className="w-4 h-4" />
+            Quản Lý Lớp Học
           </button>
 
           <button
@@ -969,7 +1021,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            Tài Nguyên Hệ Thống
+            Lịch Sử Thực Hiện
           </button>
 
           <button
@@ -995,157 +1047,13 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
             <Heart className="w-4 h-4 text-rose-500 fill-rose-100" />
             Thư Yêu Thương ({loveLetters.length})
           </button>
-
-          <button
-            onClick={() => setActiveTab('logs')}
-            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'logs'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <History className="w-4 h-4 text-indigo-500" />
-            Lịch Sử Thao Tác
-          </button>
-
-          <button
-            onClick={() => setActiveTab('games')}
-            className={`pb-4 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === 'games'
-                ? 'border-indigo-600 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Gamepad2 className="w-4 h-4 text-emerald-500" />
-            Quản Lý Game On Air
-          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={handleSystemReset}
-          className="mb-4 sm:mb-0 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 border border-rose-200 shadow-sm"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset</span>
-        </button>
       </div>
 
       {/* TAB 1: USER MANAGEMENT */}
       {activeTab === 'users' && (
         <div className="space-y-6">
-          {/* TEACHER CLASS LOOKUP BOARD */}
-          <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                <School className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-black text-slate-900">Bảng Tra Cứu Lớp Dạy Của Giáo Viên</h3>
-                <p className="text-xs font-semibold text-slate-500">Xem nhanh danh sách tất cả các lớp học thực tế mà từng giáo viên đang phụ trách.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Left Column: Teacher Selector */}
-              <div className="space-y-3">
-                <label className="block text-xs font-bold text-slate-700">Chọn giáo viên giảng dạy:</label>
-                <div className="relative">
-                  <select
-                    value={selectedTeacherId}
-                    onChange={(e) => setSelectedTeacherId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 hover:border-indigo-300 rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer appearance-none pr-10"
-                  >
-                    <option value="">-- Chọn giáo viên --</option>
-                    {usersList
-                      .filter(u => u.role === 'teacher')
-                      .map(t => (
-                        <option key={t.id} value={t.id}>
-                          👨‍🏫 {t.name} {t.className ? `(Lớp: ${t.className})` : ''}
-                        </option>
-                      ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                    <Filter className="w-4 h-4" />
-                  </div>
-                </div>
-
-                {selectedTeacher && (
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center gap-3">
-                    <UserAvatar name={selectedTeacher.name} firstName={selectedTeacher.firstName} avatar={selectedTeacher.avatar} size="md" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-black text-slate-900 truncate">{selectedTeacher.name}</p>
-                      <p className="text-[11px] text-slate-400">ID: {selectedTeacher.id.substring(0, 8)}</p>
-                      {selectedTeacher.className && (
-                        <span className="inline-block mt-1 text-[10px] font-bold text-indigo-600 bg-indigo-50/50 border border-indigo-100 px-1.5 py-0.5 rounded-md">
-                          Lớp chính: {selectedTeacher.className}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Columns: Class List & Details */}
-              <div className="md:col-span-2 border-t md:border-t-0 md:border-l border-slate-100 md:pl-6 pt-5 md:pt-0">
-                {!selectedTeacher ? (
-                  <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                    <GraduationCap className="w-8 h-8 text-slate-300 mb-2" />
-                    <p className="text-xs font-bold text-slate-500">Chưa chọn giáo viên</p>
-                    <p className="text-[11px] text-slate-400 max-w-xs">Vui lòng chọn một giáo viên ở danh sách bên trái để kiểm tra các lớp học họ đang phụ trách.</p>
-                  </div>
-                ) : teacherClasses.length === 0 ? (
-                  <div className="h-full min-h-[140px] flex flex-col items-center justify-center text-center p-4 bg-amber-50/30 rounded-2xl border border-dashed border-amber-200">
-                    <AlertCircle className="w-8 h-8 text-amber-500/60 mb-2" />
-                    <p className="text-xs font-bold text-amber-800">Không tìm thấy lớp học nào</p>
-                    <p className="text-[11px] text-amber-600/80 max-w-xs">Giáo viên này hiện chưa được liên kết với bất kỳ lớp học, bài kiểm tra hay bài học nào trong hệ thống.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-                      <span>Các lớp đang phụ trách ({teacherClasses.length}):</span>
-                      <span className="text-indigo-600">Dữ liệu thực tế</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[220px] overflow-y-auto pr-1.5 custom-scrollbar">
-                      {teacherClasses.map((cls) => (
-                        <div key={cls.className} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-indigo-200 transition-all">
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-sm font-extrabold text-slate-800 font-mono bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100">
-                              Lớp {cls.className}
-                            </span>
-                            <div className="flex flex-wrap gap-1">
-                              {cls.sources.map(src => (
-                                <span key={src} className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
-                                  src === 'profile'
-                                    ? 'bg-purple-50 text-purple-700 border-purple-150'
-                                    : src === 'session'
-                                    ? 'bg-blue-50 text-blue-700 border-blue-150'
-                                    : 'bg-emerald-50 text-emerald-700 border-emerald-150'
-                                }`}>
-                                  {src === 'profile' ? 'Hồ sơ' : src === 'session' ? 'Lớp học' : 'Bài tập'}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-                            <span>Bài giảng trực tuyến:</span>
-                            <span className="font-bold text-slate-700">{cls.sessionsCount} bài</span>
-                          </div>
-                          <div className="flex items-center justify-between text-[11px] text-slate-500">
-                            <span>Nhiệm vụ & Bài tập:</span>
-                            <span className="font-bold text-slate-700">{cls.assignmentsCount} bài</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
+          {/* Search, Filter & Bulk Action Toolbar */}
           <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
             <div className="relative flex-1 max-w-md">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1176,6 +1084,81 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
             </div>
           </div>
 
+          {/* BULK ACTION BAR (Redesigned per Image 2) */}
+          {selectedUserIds.length > 0 && (
+            <div className="p-4 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex flex-wrap items-center justify-between gap-4 shadow-sm animate-fadeIn">
+              <div className="flex items-center gap-3">
+                <span className="bg-indigo-600 text-white text-xs font-black px-3 py-1 rounded-xl shadow-sm">
+                  Đã chọn {selectedUserIds.length} tài khoản
+                </span>
+                <button
+                  onClick={() => setSelectedUserIds([])}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 underline underline-offset-2"
+                >
+                  Bỏ chọn tất cả
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Fast Role Change */}
+                <span className="text-xs font-bold text-slate-600">Đổi quyền nhanh:</span>
+                <button
+                  onClick={() => handleBulkChangeUserRole('student')}
+                  disabled={isBulkUserUpdating}
+                  className="px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-extrabold text-xs rounded-xl border border-emerald-300 transition-colors disabled:opacity-50"
+                >
+                  🎓 Học sinh
+                </button>
+                <button
+                  onClick={() => handleBulkChangeUserRole('teacher')}
+                  disabled={isBulkUserUpdating}
+                  className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-800 font-extrabold text-xs rounded-xl border border-blue-300 transition-colors disabled:opacity-50"
+                >
+                  👨‍🏫 Giáo viên
+                </button>
+                <button
+                  onClick={() => handleBulkChangeUserRole('admin')}
+                  disabled={isBulkUserUpdating}
+                  className="px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-800 font-extrabold text-xs rounded-xl border border-purple-300 transition-colors disabled:opacity-50"
+                >
+                  🛡️ Quản trị viên
+                </button>
+
+                {/* Bulk Assign Class */}
+                <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Nhập tên lớp..."
+                    value={bulkUserClass}
+                    onChange={(e) => setBulkUserClass(e.target.value)}
+                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 w-32"
+                  />
+                  <button
+                    onClick={handleBulkAssignUserClass}
+                    disabled={isBulkUserUpdating || !bulkUserClass.trim()}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Gán lớp
+                  </button>
+                </div>
+
+                {/* Bulk Delete */}
+                <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+
+                <button
+                  onClick={() => setShowBulkUserDeleteConfirm(true)}
+                  disabled={isBulkUserUpdating}
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl shadow-sm transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Xóa {selectedUserIds.length} tài khoản
+                </button>
+              </div>
+            </div>
+          )}
+
           {loadingUsers ? (
             <TableSkeleton rows={5} />
           ) : filteredUsers.length === 0 ? (
@@ -1185,100 +1168,105 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto custom-scrollbar">
-                <table className="min-w-[850px] w-full text-left border-collapse">
+                <table className="min-w-[900px] w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-4 px-4 w-12 text-center whitespace-nowrap">
+                        <input
+                          type="checkbox"
+                          checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                          onChange={() => handleSelectAllUsers(filteredUsers)}
+                          className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                          title="Chọn tất cả người dùng hiển thị"
+                        />
+                      </th>
                       <th className="py-4 px-5 whitespace-nowrap">Người dùng</th>
                       <th className="py-4 px-5 whitespace-nowrap">Vai trò</th>
                       <th className="py-4 px-5 whitespace-nowrap">Lớp / Mã kết nối</th>
                       <th className="py-4 px-5 whitespace-nowrap">SĐT HS / Phụ huynh</th>
-                      <th className="py-4 px-5 text-right whitespace-nowrap">Thao tác Quản trị</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs font-medium">
-                    {filteredUsers.map((u) => (
-                      <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-4 px-5">
-                          <div className="flex items-center gap-3">
-                            <UserAvatar name={u.name} firstName={u.firstName} avatar={u.avatar} size="md" />
-                            <div>
-                              <p className="font-extrabold text-slate-900 text-sm whitespace-nowrap">{u.name}</p>
-                              <p className="text-[11px] text-slate-400 font-mono">ID: {u.id.substring(0, 8)}...</p>
+                    {filteredUsers.map((u) => {
+                      const isSelected = selectedUserIds.includes(u.id);
+                      return (
+                        <tr 
+                          key={u.id} 
+                          className={`transition-colors ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}
+                        >
+                          <td className="py-4 px-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectUser(u.id)}
+                              className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                            />
+                          </td>
+
+                          <td className="py-4 px-5">
+                            <div className="flex items-center gap-3">
+                              <UserAvatar name={u.name} firstName={u.firstName} avatar={u.avatar} size="md" />
+                              <div>
+                                <p className="font-extrabold text-slate-900 text-sm whitespace-nowrap">{u.name}</p>
+                                <p className="text-[11px] text-slate-400 font-mono">ID: {u.id.substring(0, 8)}...</p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        <td className="py-4 px-5">
-                          {u.isSuperAdmin ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">
-                              👑 Quản trị viên chính
-                            </span>
-                          ) : u.role === 'admin' ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 whitespace-nowrap">
-                              🛡️ Quản trị viên
-                            </span>
-                          ) : u.role === 'teacher' ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
-                              👨‍🏫 Giáo viên
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
-                              🎓 Học sinh
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-5 text-slate-600 whitespace-nowrap">
-                          {u.className || u.connectionCode ? (
-                            <span className="font-mono text-indigo-600 font-extrabold bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 inline-block">
-                              {u.className || u.connectionCode}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 italic">Chưa tạo lớp</span>
-                          )}
-                        </td>
-
-                        <td className="py-4 px-5 text-slate-600 whitespace-nowrap">
-                          <p className="font-bold text-slate-800">{u.phoneStudent || '—'}</p>
-                          {u.phoneParent && <p className="text-[11px] text-slate-400">PH: {u.phoneParent}</p>}
-                        </td>
-
-                        <td className="py-4 px-5 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingUser(u);
-                                setNewRole(u.role);
-                                setMakeSuperAdmin(!!u.isSuperAdmin);
-                                setEditLastName(getLastName(u.name, u.lastName));
-                                setEditFirstName(getFirstName(u.name, u.firstName));
-                                setEditClassName(u.className || u.connectionCode || '');
-                              }}
-                              className="px-3.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold rounded-xl transition-colors flex items-center gap-1 border border-indigo-100/50"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              Đổi vai trò
-                            </button>
-
-                            {u.id !== user.id && (
-                              <button
-                                onClick={() => setDeleteConfirmUser({ id: u.id, name: u.name })}
-                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-100"
-                                title="Xóa tài khoản"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                          <td className="py-4 px-5">
+                            {u.isSuperAdmin ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">
+                                👑 Quản trị viên chính
+                              </span>
+                            ) : u.role === 'admin' ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-purple-100 text-purple-800 border border-purple-200 whitespace-nowrap">
+                                🛡️ Quản trị viên
+                              </span>
+                            ) : u.role === 'teacher' ? (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
+                                👨‍🏫 Giáo viên
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                                🎓 Học sinh
+                              </span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+
+                          <td className="py-4 px-5 text-slate-600 whitespace-nowrap">
+                            {u.className || u.connectionCode ? (
+                              <span className="font-mono text-indigo-600 font-extrabold bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 inline-block">
+                                {u.className || u.connectionCode}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">Chưa tạo lớp</span>
+                            )}
+                          </td>
+
+                          <td className="py-4 px-5 text-slate-600 whitespace-nowrap">
+                            <p className="font-bold text-slate-800">{u.phoneStudent || '—'}</p>
+                            {u.phoneParent && <p className="text-[11px] text-slate-400">PH: {u.phoneParent}</p>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB: CLASS MANAGEMENT (Quản lý lớp học) */}
+      {activeTab === 'classes' && (
+        <ClassManagementSubView
+          usersList={usersList}
+          classes={classes}
+          assignments={assignments}
+          currentUser={user}
+          showNotify={(type, msg) => showNotify(type, msg)}
+        />
       )}
 
       {/* TAB 2: PASSWORD RESETS APPROVAL */}
@@ -1571,7 +1559,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
                 <button
                   type="button"
                   disabled={isBatchDeleting}
-                  onClick={handleBatchDelete}
+                  onClick={() => setShowBatchDeleteConfirm(true)}
                   className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                   title="Xóa tất cả các mục đã chọn"
                 >
@@ -2829,6 +2817,44 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
         cancelText="Hủy bỏ"
         variant="danger"
         loading={deletingUser}
+      />
+
+      {/* Confirmation Modal for Bulk User Deletion */}
+      <ConfirmModal
+        isOpen={showBulkUserDeleteConfirm}
+        onClose={() => setShowBulkUserDeleteConfirm(false)}
+        onConfirm={handleBulkDeleteUsers}
+        title="Xác nhận xóa tài khoản đồng loạt"
+        message={`Bạn có chắc chắn muốn xóa vĩnh viễn ${selectedUserIds.filter(id => id !== user.id).length} tài khoản đã chọn? Thao tác này không thể hoàn tác!`}
+        confirmText="Xóa vĩnh viễn"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        loading={isBulkUserUpdating}
+      />
+
+      {/* Confirmation Modal for Batch Resources Deletion */}
+      <ConfirmModal
+        isOpen={showBatchDeleteConfirm}
+        onClose={() => setShowBatchDeleteConfirm(false)}
+        onConfirm={handleBatchDelete}
+        title="XÁC NHẬN XÓA HÀNG LOẠT TÀI NGUYÊN"
+        message={`Bạn có chắc chắn muốn XÓA VĨNH VIỄN ${selectedItemKeys.length} tài nguyên/bài làm đã chọn khỏi Firestore? Thao tác này không thể hoàn tác.`}
+        confirmText="Xóa vĩnh viễn"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        loading={isBatchDeleting}
+      />
+
+      {/* Confirmation Modal for System Reset */}
+      <ConfirmModal
+        isOpen={showSystemResetConfirm}
+        onClose={() => setShowSystemResetConfirm(false)}
+        onConfirm={handleSystemReset}
+        title="Xác nhận Reset Toàn bộ Hệ thống"
+        message="Bạn có chắc chắn muốn reset lại toàn bộ hệ thống và khởi động lại từ đầu không? Thao tác này sẽ xóa cache, đăng xuất và làm mới ứng dụng."
+        confirmText="Reset hệ thống"
+        cancelText="Hủy bỏ"
+        variant="danger"
       />
     </div>
   );

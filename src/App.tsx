@@ -895,6 +895,28 @@ export default function App() {
       return Array.from(names).filter(Boolean).sort();
     })();
 
+    // Calculate classes specific to the current teacher (or all for admin)
+    const teacherClasses = (() => {
+      if (role === 'admin' || currentUser.isSuperAdmin) {
+        return uniqueClassNames;
+      }
+      const names = new Set<string>();
+      if (currentUser.className) names.add(currentUser.className);
+      if (currentUser.connectionCode) names.add(currentUser.connectionCode);
+      classes.forEach(c => {
+        if (c.teacherId === currentUser.id || c.teacherName === currentUser.name) {
+          if (c.className) names.add(c.className);
+          if (c.title) names.add(c.title);
+        }
+      });
+      assignments.forEach(a => {
+        if (a.teacherId === currentUser.id || a.teacherName === currentUser.name) {
+          if (a.className) names.add(a.className);
+        }
+      });
+      return Array.from(names).filter(Boolean).sort();
+    })();
+
     switch (activeTab) {
       case 'dashboard':
         return (
@@ -1012,6 +1034,7 @@ export default function App() {
         return (
           <RewardStoreView
             user={activeUser}
+            classesList={teacherClasses}
             onUpdateUser={handleUpdateUser}
             onAwardPoints={handleAwardPoints}
             onNavigateToTab={setActiveTab}

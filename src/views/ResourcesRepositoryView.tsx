@@ -733,8 +733,8 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
+                <table className="w-full text-left border-collapse block md:table">
+                  <thead className="hidden md:table-header-group">
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
                       <th className="p-4">Tên tài nguyên</th>
                       <th className="p-4">Chủ sở hữu</th>
@@ -744,23 +744,29 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                       <th className="p-4 text-center">Thao tác</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                  <tbody className="block md:table-row-group divide-y divide-slate-100 text-xs text-slate-700">
                     {requests.filter(r => r.fromTeacherId === user.id).map(req => (
-                      <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4">
+                      <tr key={req.id} className="block md:table-row hover:bg-slate-50/50 transition-colors p-4 md:p-0 border-b border-slate-150 md:border-none space-y-2 md:space-y-0">
+                        <td className="block md:table-cell p-1 md:p-4">
                           <div className="font-bold text-slate-900">{req.assignmentTitle}</div>
                           <div className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">{req.assignmentType}</div>
                         </td>
-                        <td className="p-4 font-bold text-slate-800">{req.toTeacherName}</td>
-                        <td className="p-4">
+                        <td className="block md:table-cell p-1 md:p-4 font-bold text-slate-800">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Chủ sở hữu:</span>
+                          {req.toTeacherName}
+                        </td>
+                        <td className="block md:table-cell p-1 md:p-4">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Lớp nhận:</span>
                           <span className="bg-purple-50 text-purple-700 border border-purple-150 px-2 py-0.5 rounded font-black">
                             {req.targetGrade} - {req.targetClassName}
                           </span>
                         </td>
-                        <td className="p-4 font-medium text-slate-500">
+                        <td className="block md:table-cell p-1 md:p-4 font-medium text-slate-500">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Ngày yêu cầu:</span>
                           {new Date(req.createdAt).toLocaleDateString('vi-VN')}
                         </td>
-                        <td className="p-4">
+                        <td className="block md:table-cell p-1 md:p-4">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Trạng thái:</span>
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 ${
                             req.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
                             req.status === 'declined' ? 'bg-rose-100 text-rose-800' :
@@ -773,7 +779,8 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                              req.status === 'declined' ? 'Từ chối' : 'Đang chờ'}
                           </span>
                         </td>
-                        <td className="p-4 text-center">
+                        <td className="block md:table-cell p-1 md:p-4 text-left md:text-center">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Thao tác:</span>
                           {req.status === 'pending' ? (
                             <button
                               onClick={() => handleCancelRequest(req.id)}
@@ -803,8 +810,8 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
               </div>
             ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
+                <table className="w-full text-left border-collapse block md:table">
+                  <thead className="hidden md:table-header-group">
                     <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider">
                       <th className="p-4">Tên tài nguyên</th>
                       <th className="p-4">Người xin</th>
@@ -814,23 +821,29 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                       <th className="p-4 text-center">Hành động</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                  <tbody className="block md:table-row-group divide-y divide-slate-100 text-xs text-slate-700">
                     {requests.filter(r => r.toTeacherId === user.id || (isAdmin && r.toTeacherId === 'admin')).map(req => (
-                      <tr key={req.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4">
+                      <tr key={req.id} className="block md:table-row hover:bg-slate-50/50 transition-colors p-4 md:p-0 border-b border-slate-150 md:border-none space-y-2 md:space-y-0">
+                        <td className="block md:table-cell p-1 md:p-4">
                           <div className="font-bold text-slate-900">{req.assignmentTitle}</div>
                           <div className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">{req.assignmentType}</div>
                         </td>
-                        <td className="p-4 font-bold text-slate-850">{req.fromTeacherName}</td>
-                        <td className="p-4">
+                        <td className="block md:table-cell p-1 md:p-4 font-bold text-slate-850">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Người xin:</span>
+                          {req.fromTeacherName}
+                        </td>
+                        <td className="block md:table-cell p-1 md:p-4">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Lớp chuyển:</span>
                           <span className="bg-purple-50 text-purple-700 border border-purple-150 px-2 py-0.5 rounded font-black">
                             {req.targetGrade} - {req.targetClassName}
                           </span>
                         </td>
-                        <td className="p-4 font-medium text-slate-500">
+                        <td className="block md:table-cell p-1 md:p-4 font-medium text-slate-500">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Ngày yêu cầu:</span>
                           {new Date(req.createdAt).toLocaleDateString('vi-VN')}
                         </td>
-                        <td className="p-4">
+                        <td className="block md:table-cell p-1 md:p-4">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Trạng thái:</span>
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-black inline-flex items-center gap-1 ${
                             req.status === 'accepted' ? 'bg-emerald-100 text-emerald-800' :
                             req.status === 'declined' ? 'bg-rose-100 text-rose-800' :
@@ -843,18 +856,19 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                              req.status === 'declined' ? 'Từ chối' : 'Đang chờ'}
                           </span>
                         </td>
-                        <td className="p-4 text-center">
+                        <td className="block md:table-cell p-1 md:p-4 text-left md:text-center">
+                          <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2 w-24">Hành động:</span>
                           {req.status === 'pending' ? (
-                            <div className="flex gap-2 justify-center">
+                            <div className="flex gap-2 inline-flex md:justify-center">
                               <button
                                 onClick={() => handleApproveRequest(req)}
-                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-all active:scale-95 shadow-sm"
+                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg transition-all active:scale-95 shadow-sm cursor-pointer"
                               >
                                 Đồng ý
                               </button>
                               <button
                                 onClick={() => handleDeclineRequest(req)}
-                                className="px-3 py-1 bg-white hover:bg-rose-50 border border-slate-300 text-[11px] font-bold text-slate-700 hover:text-rose-600 rounded-lg transition-all active:scale-95 shadow-sm"
+                                className="px-3 py-1 bg-white hover:bg-rose-50 border border-slate-300 text-[11px] font-bold text-slate-700 hover:text-rose-600 rounded-lg transition-all active:scale-95 shadow-sm cursor-pointer"
                               >
                                 Từ chối
                               </button>

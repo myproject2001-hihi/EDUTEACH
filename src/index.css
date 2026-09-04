@@ -104,6 +104,17 @@ html, body {
     transform: rotateY(180deg);
     -webkit-transform: rotateY(180deg);
   }
+
+  /* iPad and Touch Scroll Optimizations */
+  .scrolling-touch {
+    -webkit-overflow-scrolling: touch;
+  }
+  .touch-none {
+    touch-action: none;
+  }
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
 }
 
 /* KaTeX Math block and inline layout wrapping optimizations */

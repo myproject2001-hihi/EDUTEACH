@@ -305,15 +305,13 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
   }, [studentUsers, progressData, className, submissions, assignments]);
 
   useEffect(() => {
-    if (combinedRoster.length > 0) {
-      if (!selectedStudent) {
-        setSelectedStudent(combinedRoster[0]);
+    if (selectedStudent && combinedRoster.length > 0) {
+      const updated = combinedRoster.find(s => s.studentId === selectedStudent.studentId);
+      if (updated) {
+        setSelectedStudent(updated);
       } else {
-        const updated = combinedRoster.find(s => s.studentId === selectedStudent.studentId);
-        if (updated) setSelectedStudent(updated);
+        setSelectedStudent(null);
       }
-    } else {
-      setSelectedStudent(null);
     }
   }, [combinedRoster]);
 
@@ -935,7 +933,7 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
               </div>
 
               {/* MOBILE CARD VIEW (X-SMALL TO MD) */}
-              <div className="block md:hidden divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+              <div className="block md:hidden divide-y divide-slate-100 max-h-[600px] overflow-y-auto scrolling-touch">
                 {sortedAndFilteredData.length === 0 ? (
                   <div className="py-12 px-4 text-center text-slate-400">
                     <User className="w-10 h-10 mx-auto text-slate-300 mb-2" />

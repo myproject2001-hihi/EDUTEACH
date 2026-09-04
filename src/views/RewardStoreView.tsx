@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { User, RedeemedRewardItem, Role } from '../types';
-import { ShoppingBag, Gift, Sparkles, Check, Lock, Star, PackageCheck, Search, ShieldCheck, HeartHandshake, Plus, Pencil, Trash2 } from 'lucide-react';
-import { doc, updateDoc, arrayUnion, increment, collection, getDocs, addDoc, deleteDoc } from 'firebase/firestore';
+import { ShoppingBag, Gift, Sparkles, Check, Lock, Star, PackageCheck, Search, ShieldCheck, HeartHandshake, Plus, Pencil, Trash2, AlertCircle } from 'lucide-react';
+import { doc, updateDoc, arrayUnion, increment, collection, getDocs, addDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import confetti from 'canvas-confetti';
 import { UserAvatar } from '../components/UserAvatar';
 
 interface RewardStoreViewProps {
   user: User;
+  classesList?: string[];
   onUpdateUser?: (updated: Partial<User>) => void;
   onAwardPoints?: (points: number, reason?: string) => void;
   onNavigateToTab?: (tab: string) => void;
@@ -82,7 +83,7 @@ const DEFAULT_CATALOG: StoreItem[] = [
   }
 ];
 
-export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateToTab }: RewardStoreViewProps) {
+export function RewardStoreView({ user, classesList, onUpdateUser, onAwardPoints, onNavigateToTab }: RewardStoreViewProps) {
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
   const [activeTab, setActiveTab] = useState<'all' | 'perk' | 'mystery' | 'inventory'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,13 +98,28 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
   const [newPerk, setNewPerk] = useState({ title: '', cost: 100, description: '', perkDetail: '', icon: '🌟', className: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // For Teacher Edit
+  // For Teacher Edit & Delete
   const [editingPerk, setEditingPerk] = useState<StoreItem | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingPerk, setDeletingPerk] = useState<StoreItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  const fullCatalog = [...DEFAULT_CATALOG, ...customPerks];
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const fullCatalog = [...customPerks];
 
   const availableClasses = React.useMemo(() => {
+    if (classesList !== undefined) {
+      return [...classesList].sort((a, b) => 
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
+    }
+    
+    // Fallback if classesList is not provided
     const classSet = new Set<string>();
     if (user.className) classSet.add(user.className.trim());
     fullCatalog.forEach(i => {
@@ -114,7 +130,7 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
     return Array.from(classSet).filter(Boolean).sort((a, b) => 
       a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
     );
-  }, [user.className, fullCatalog]);
+  }, [user.className, fullCatalog, classesList]);
 
   // Modal celebration state for unlocked item or mystery box
   const [celebratingItem, setCelebratingItem] = useState<{
@@ -126,23 +142,47 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
     try {
       setIsLoadingPerks(true);
       const snap = await getDocs(collection(db, 'privilege_cards'));
-      const fetched: StoreItem[] = [];
-      snap.forEach(docSnap => {
-        const data = docSnap.data();
-        fetched.push({
-          id: docSnap.id,
-          title: data.title,
-          category: 'perk',
-          cost: data.cost,
-          icon: data.icon || '🌟',
-          color: 'from-emerald-500 to-teal-600',
-          bgColor: 'bg-emerald-50',
-          borderColor: 'border-emerald-300',
-          description: data.description,
-          perkDetail: data.perkDetail,
-          className: data.className
+      let fetched: StoreItem[] = [];
+      
+      if (snap.empty) {
+        // Seed default catalog to Firestore to make them editable/deletable
+        for (const item of DEFAULT_CATALOG) {
+          const docRef = doc(db, 'privilege_cards', item.id);
+          await setDoc(docRef, {
+            title: item.title,
+            category: item.category,
+            cost: item.cost,
+            icon: item.icon,
+            color: item.color,
+            bgColor: item.bgColor,
+            borderColor: item.borderColor,
+            description: item.description,
+            perkDetail: item.perkDetail || '',
+            className: item.className || null,
+            isPopular: item.isPopular || false,
+            createdAt: new Date().toISOString()
+          });
+          fetched.push({ ...item });
+        }
+      } else {
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          fetched.push({
+            id: docSnap.id,
+            title: data.title,
+            category: data.category || 'perk',
+            cost: data.cost,
+            icon: data.icon || '🌟',
+            color: data.color || (data.category === 'mystery' ? 'from-rose-500 to-purple-600' : 'from-emerald-500 to-teal-600'),
+            bgColor: data.bgColor || (data.category === 'mystery' ? 'bg-rose-50' : 'bg-emerald-50'),
+            borderColor: data.borderColor || (data.category === 'mystery' ? 'border-rose-300' : 'border-emerald-300'),
+            description: data.description,
+            perkDetail: data.perkDetail,
+            className: data.className,
+            isPopular: data.isPopular || false
+          });
         });
-      });
+      }
       setCustomPerks(fetched);
     } catch (err) {
       console.error("Lỗi khi tải thẻ đặc quyền:", err);
@@ -273,24 +313,28 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
       setShowAddForm(false);
       setNewPerk({ title: '', cost: 100, description: '', perkDetail: '', icon: '🌟', className: '' });
       fetchPerks();
-      alert('Thêm thẻ đặc quyền thành công!');
+      showToast('Thêm thẻ đặc quyền thành công!', 'success');
     } catch (err) {
       console.error(err);
-      alert('Lỗi khi thêm thẻ đặc quyền.');
+      showToast('Lỗi khi thêm thẻ đặc quyền.', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeletePerk = async (id: string) => {
-    if (!window.confirm("Bạn có chắc muốn xóa thẻ đặc quyền này không?")) return;
+  const handleConfirmDeletePerk = async () => {
+    if (!deletingPerk) return;
+    setIsDeleting(true);
     try {
-      await deleteDoc(doc(db, 'privilege_cards', id));
+      await deleteDoc(doc(db, 'privilege_cards', deletingPerk.id));
+      setDeletingPerk(null);
       fetchPerks();
-      alert("Đã xóa thẻ đặc quyền!");
+      showToast('Đã xóa thẻ đặc quyền thành công!', 'success');
     } catch (err) {
       console.error(err);
-      alert("Lỗi khi xóa thẻ.");
+      showToast('Lỗi khi xóa thẻ đặc quyền.', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -309,10 +353,10 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
       });
       setEditingPerk(null);
       fetchPerks();
-      alert('Cập nhật thẻ đặc quyền thành công!');
+      showToast('Cập nhật thẻ đặc quyền thành công!', 'success');
     } catch (err) {
       console.error(err);
-      alert('Lỗi khi cập nhật thẻ đặc quyền.');
+      showToast('Lỗi khi cập nhật thẻ đặc quyền.', 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -432,9 +476,8 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {fullCatalog.filter(i => i.category === 'perk').map(item => {
-            const isCustom = item.id.length > 15;
             return (
-              <div key={item.id} className={`reward-card-item group relative bg-white rounded-3xl border-2 ${isCustom ? 'border-indigo-100 shadow-sm' : 'border-slate-100 bg-slate-50/50'} p-5 shadow-xs hover:shadow-xl hover:border-indigo-200 transition-all flex flex-col h-full`}>
+              <div key={item.id} className={`reward-card-item group relative bg-white rounded-3xl border-2 border-indigo-100 shadow-sm p-5 hover:shadow-xl hover:border-indigo-200 transition-all flex flex-col h-full`}>
                 <div className="flex items-start justify-between mb-3">
                   <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${item.color || 'from-emerald-500 to-teal-600'} flex items-center justify-center text-2xl shadow-lg transform group-hover:scale-110 transition-transform`}>
                     {item.icon}
@@ -472,36 +515,201 @@ export function RewardStoreView({ user, onUpdateUser, onAwardPoints, onNavigateT
 
                 {/* Edit & Delete Action Buttons */}
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
-                  {!isCustom ? (
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-1 rounded-md">
-                      Mặc định hệ thống
-                    </span>
-                  ) : (
-                    <div className="flex items-center gap-2 w-full justify-end">
-                      <button 
-                        onClick={() => setEditingPerk(item)} 
-                        className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition-all flex items-center gap-1.5 border border-indigo-100 text-xs font-bold"
-                        title="Chỉnh sửa thẻ đặc quyền này"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        <span>Sửa</span>
-                      </button>
-                      <button 
-                        onClick={() => handleDeletePerk(item.id)} 
-                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all flex items-center gap-1.5 border border-rose-100 text-xs font-bold" 
-                        title="Xóa thẻ đặc quyền này"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Xóa</span>
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 w-full justify-end">
+                    <button 
+                      type="button"
+                      onClick={() => setEditingPerk(item)} 
+                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 active:scale-95 rounded-xl transition-all flex items-center gap-1.5 border border-indigo-100 text-xs font-bold cursor-pointer"
+                      title="Chỉnh sửa thẻ đặc quyền này"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                      <span>Sửa</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setDeletingPerk(item)} 
+                      className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 active:scale-95 rounded-xl transition-all flex items-center gap-1.5 border border-rose-100 text-xs font-bold cursor-pointer" 
+                      title="Xóa thẻ đặc quyền này"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             );
           })}
           {isLoadingPerks && <div className="col-span-full text-center py-10 text-slate-500 font-medium text-sm">Đang tải thẻ đặc quyền...</div>}
         </div>
+
+        {/* TOAST NOTIFICATION */}
+        {toastMessage && (
+          <div className="fixed bottom-6 right-6 z-[120] animate-in slide-in-from-bottom-5 duration-300">
+            <div className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-sm font-bold ${
+              toastMessage.type === 'error'
+                ? 'bg-rose-600 text-white border-rose-700'
+                : 'bg-emerald-600 text-white border-emerald-700'
+            }`}>
+              {toastMessage.type === 'error' ? <AlertCircle className="w-5 h-5" /> : <Check className="w-5 h-5" />}
+              <span>{toastMessage.text}</span>
+            </div>
+          </div>
+        )}
+
+        {/* CONFIRM DELETE MODAL */}
+        {deletingPerk && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-md p-6 sm:p-7 shadow-2xl relative text-left overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4 border border-rose-100">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 mb-2">
+                Xác nhận xóa thẻ đặc quyền
+              </h3>
+              <p className="text-sm text-slate-600 mb-6 leading-relaxed">
+                Thầy/Cô có chắc chắn muốn xóa thẻ <strong className="text-slate-900">"{deletingPerk.title}"</strong> không? Học sinh sẽ không thể đổi thẻ này nữa.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeletingPerk(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-all"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={handleConfirmDeletePerk}
+                  className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-md shadow-rose-600/20"
+                >
+                  {isDeleting ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span>Xác nhận xóa</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EDIT PERK MODAL */}
+        {editingPerk && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-2xl relative text-left overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+              <h3 className="text-xl font-black text-slate-800 mb-4 flex items-center gap-2 pb-3 border-b border-slate-100">
+                <Pencil className="w-5 h-5 text-indigo-600" />
+                <span>Chỉnh Sửa Thẻ Đặc Quyền</span>
+              </h3>
+
+              <form onSubmit={handleUpdatePerk} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Tên thẻ đặc quyền <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    required
+                    value={editingPerk.title}
+                    onChange={e => setEditingPerk({ ...editingPerk, title: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    placeholder="VD: Phiếu miễn bài kiểm tra..."
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                      Giá trị điểm <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={editingPerk.cost}
+                      onChange={e => setEditingPerk({ ...editingPerk, cost: Number(e.target.value) })}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">
+                      Biểu tượng (Emoji)
+                    </label>
+                    <input
+                      value={editingPerk.icon}
+                      onChange={e => setEditingPerk({ ...editingPerk, icon: e.target.value })}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      placeholder="VD: 🎫, 🎁..."
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Mô tả ngắn
+                  </label>
+                  <textarea
+                    value={editingPerk.description}
+                    onChange={e => setEditingPerk({ ...editingPerk, description: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20 h-20 resize-none"
+                    placeholder="Mô tả công dụng của thẻ đặc quyền..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Chi tiết sử dụng (Tùy chọn)
+                  </label>
+                  <input
+                    value={editingPerk.perkDetail || ''}
+                    onChange={e => setEditingPerk({ ...editingPerk, perkDetail: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    placeholder="VD: Xuất trình phiếu cho Giáo viên bộ môn..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1">
+                    Lớp áp dụng (Tùy chọn)
+                  </label>
+                  <select
+                    value={editingPerk.className || ''}
+                    onChange={e => setEditingPerk({ ...editingPerk, className: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  >
+                    <option value="">🌐 Toàn bộ học sinh (Áp dụng toàn trường)</option>
+                    {availableClasses.map((cls) => (
+                      <option key={cls} value={cls}>
+                        🏫 Lớp {cls}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPerk(null)}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-sm"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdating}
+                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all text-sm flex items-center justify-center gap-2"
+                  >
+                    {isUpdating ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <span>Lưu Thay Đổi</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

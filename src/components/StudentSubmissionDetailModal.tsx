@@ -186,12 +186,12 @@ function StudentSubmissionDetailModalInner({
 
   // Quick feedback template suggestions
   const quickFeedbacks = [
-    '🌟 Bài làm rất tốt, nhớ bài chắc chắn và chọn đáp án chính xác!',
-    '👍 Hoàn thành tốt, chú ý cẩn thận hơn ở các câu tính toán/định nghĩa.',
-    '💡 Em cần xem lại lời giải chi tiết của những câu làm sai nhé.',
-    '👏 Nộp bài đúng hạn, tinh thần tự giác rất đáng khen ngợi!',
-    '📝 Chú ý đọc kỹ đề bài và kiểm tra lại trước khi bấm nộp.',
-    '⚠️ Cần ôn tập lại các công thức/khái niệm chưa vững.'
+    { emoji: '🌟', title: 'Rất tốt & Chính xác', text: 'Bài làm rất tốt, nhớ bài chắc chắn và chọn đáp án chính xác!' },
+    { emoji: '👍', title: 'Hoàn thành tốt', text: 'Hoàn thành tốt, chú ý cẩn thận hơn ở các câu tính toán/định nghĩa.' },
+    { emoji: '💡', title: 'Xem lại câu sai', text: 'Em cần xem lại lời giải chi tiết của những câu làm sai nhé.' },
+    { emoji: '👏', title: 'Tự giác & Đúng hạn', text: 'Nộp bài đúng hạn, tinh thần tự giác rất đáng khen ngợi!' },
+    { emoji: '📝', title: 'Đọc kỹ đề bài', text: 'Chú ý đọc kỹ đề bài và kiểm tra lại trước khi bấm nộp.' },
+    { emoji: '⚠️', title: 'Cần ôn tập thêm', text: 'Cần ôn tập lại các công thức/khái niệm chưa vững.' }
   ];
 
   // Quick score options
@@ -1196,19 +1196,50 @@ function StudentSubmissionDetailModalInner({
                 />
 
                 {/* Quick suggestions */}
-                <div className="space-y-1.5 pt-1">
-                  <p className="text-[11px] font-bold text-slate-500">💡 Gợi ý nhận xét nhanh:</p>
-                  <div className="space-y-1.5">
-                    {quickFeedbacks.map((fb, idx) => (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      Gợi ý nhận xét nhanh:
+                    </span>
+                    {feedbackInput && (
                       <button
-                        key={idx}
                         type="button"
-                        onClick={() => setFeedbackInput(fb)}
-                        className="w-full text-left p-2 rounded-xl bg-slate-50 hover:bg-indigo-50 hover:text-indigo-900 border border-slate-200/70 text-[11px] text-slate-700 font-medium transition-colors line-clamp-1"
+                        onClick={() => setFeedbackInput('')}
+                        className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors"
                       >
-                        {fb}
+                        Xóa nhận xét
                       </button>
-                    ))}
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {quickFeedbacks.map((fb, idx) => {
+                      const isSelected = feedbackInput === fb.text;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setFeedbackInput(fb.text)}
+                          title={fb.text}
+                          className={`p-2 rounded-xl text-left transition-all border flex items-start gap-1.5 ${
+                            isSelected
+                              ? 'bg-indigo-50/90 border-indigo-300 text-indigo-950 ring-1 ring-indigo-400/30'
+                              : 'bg-white hover:bg-slate-50 border-slate-200/80 text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="text-sm shrink-0 leading-none mt-0.5">{fb.emoji}</span>
+                          <div className="overflow-hidden">
+                            <div className="text-[11px] font-bold truncate text-slate-800 leading-snug">
+                              {fb.title}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate leading-snug">
+                              {fb.text}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1224,12 +1255,12 @@ function StudentSubmissionDetailModalInner({
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 {isTeacher && onResetSubmission && (
                   <button
                     type="button"
                     onClick={() => onResetSubmission(submission.id)}
-                    className="px-4 py-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-xs sm:text-sm rounded-2xl border border-amber-200 transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
+                    className="px-3.5 py-3 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-xs rounded-xl border border-amber-200/80 transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95 shadow-xs"
                     title="Kích hoạt lại trạng thái bài nộp để học sinh có thể làm lại bài tập"
                   >
                     <RotateCcw className="w-4 h-4 text-amber-600" />
@@ -1239,15 +1270,15 @@ function StudentSubmissionDetailModalInner({
                 <button
                   type="button"
                   onClick={handleSaveGrade}
-                  className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2"
                 >
                   <Send className="w-4 h-4" />
-                  <span>Lưu kết quả & Gửi nhận xét</span>
+                  <span>Lưu & Gửi</span>
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-colors"
+                  className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors shrink-0"
                 >
                   Đóng
                 </button>

@@ -3,7 +3,7 @@ import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcar
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, RotateCcw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer, SlidersHorizontal } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, RotateCcw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer, SlidersHorizontal, Tv } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -491,6 +491,47 @@ const isClassMatching = (assignClass: string | undefined | null, userClass: stri
   return clean(assignClass) === clean(userClass);
 };
 
+function PresentationRevealHelper({ 
+  correctAnswer, 
+  explanation, 
+  fontSize 
+}: { 
+  correctAnswer?: string; 
+  explanation?: string; 
+  fontSize: number;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="w-full space-y-3">
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setRevealed(!revealed)}
+          className={`px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider transition-all uppercase flex items-center gap-1.5 cursor-pointer shadow-xs ${
+            revealed 
+              ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30' 
+              : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md'
+          }`}
+        >
+          <span>{revealed ? '🙈 Ẩn đáp án' : '👁️ Hiện đáp án & giải thích'}</span>
+        </button>
+      </div>
+      {revealed && (
+        <div className="bg-emerald-950/40 border border-emerald-900/50 p-4 rounded-2xl space-y-2 animate-fadeIn">
+          <p className="font-extrabold text-emerald-400" style={{ fontSize: `${fontSize}px` }}>
+            Đáp án đúng: <span className="underline decoration-2 underline-offset-4">{correctAnswer || 'Chưa rõ'}</span>
+          </p>
+          {explanation && (
+            <p className="text-slate-300 leading-relaxed font-medium" style={{ fontSize: `${fontSize - 2}px` }}>
+              💡 <span className="font-bold">Giải thích:</span> {explanation}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AssignmentsView({ 
   user, 
   assignments: rawAssignments, 
@@ -707,6 +748,24 @@ export function AssignmentsView({
   const [chatQuestion, setChatQuestion] = useState('');
   const [chatType, setChatType] = useState<'system'>('system');
   const [chatStatus, setChatStatus] = useState<{ type: 'idle' | 'sending' | 'success' | 'error'; message: string }>({ type: 'idle', message: '' });
+
+  // Presentation / TV mode states
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [presentationFontSize, setPresentationFontSize] = useState<number>(24); // in pixels
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPresentationMode(false);
+      }
+    };
+    if (isPresentationMode) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPresentationMode]);
 
   const filteredAssignments = React.useMemo(() => {
     return assignments.filter(assignment => {
@@ -2752,6 +2811,198 @@ export function AssignmentsView({
     );
   }
 
+  if (isPresentationMode && selectedAssignment) {
+    return (
+      <div className="fixed inset-0 z-[999] bg-slate-900 text-white flex flex-col h-screen overflow-hidden animate-fadeIn">
+        {/* Top Control Bar */}
+        <div className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between shadow-md shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full border border-indigo-500">
+              {selectedAssignment.classSessionTitle || 'Bài tập buổi học'}
+            </span>
+            {selectedAssignment.isMandatory && (
+              <span className="bg-rose-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider font-extrabold">
+                Bắt buộc
+              </span>
+            )}
+            <span className="text-slate-400 text-sm hidden sm:inline">|</span>
+            <span className="text-slate-300 text-sm font-bold hidden sm:inline">📺 Chế độ trình chiếu lớp học (TV)</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Font Sizing Controls */}
+            <div className="flex items-center bg-slate-950 rounded-xl px-3 py-1.5 border border-slate-700 gap-2.5">
+              <span className="text-[10px] uppercase font-black tracking-wider text-slate-400">Cỡ chữ:</span>
+              <button
+                type="button"
+                onClick={() => setPresentationFontSize(Math.max(16, presentationFontSize - 2))}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-black flex items-center justify-center text-sm transition-colors border border-slate-600 cursor-pointer"
+                title="Giảm cỡ chữ"
+              >
+                A-
+              </button>
+              <span className="text-xs font-mono font-bold w-12 text-center text-indigo-400">{presentationFontSize}px</span>
+              <button
+                type="button"
+                onClick={() => setPresentationFontSize(Math.min(64, presentationFontSize + 2))}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-black flex items-center justify-center text-sm transition-colors border border-slate-600 cursor-pointer"
+                title="Tăng cỡ chữ"
+              >
+                A+
+              </button>
+            </div>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setIsPresentationMode(false)}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Đóng (ESC)</span>
+              <X className="w-4 h-4 shrink-0" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-6 sm:p-12 space-y-8 max-w-5xl mx-auto w-full custom-scrollbar">
+          {/* Assignment Title */}
+          <div>
+            <h1 
+              className="font-extrabold tracking-tight text-slate-100"
+              style={{ fontSize: `${presentationFontSize + 12}px`, lineHeight: 1.2 }}
+            >
+              {selectedAssignment.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-4 text-slate-400 mt-4 text-sm font-medium">
+              <span>Hạn nộp: {format(new Date(selectedAssignment.dueDate), 'HH:mm - dd/MM/yyyy', { locale: vi })}</span>
+              <span>•</span>
+              <span>{selectedAssignment.maxAttempts ? `Tối đa ${selectedAssignment.maxAttempts} lần làm` : 'Làm tự do'}</span>
+              {selectedAssignment.timeLimit && (
+                <>
+                  <span>•</span>
+                  <span>Thời gian: {selectedAssignment.timeLimit} phút</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          <hr className="border-slate-800" />
+
+          {/* Teacher Instructions */}
+          <div className="bg-slate-800/50 p-6 rounded-3xl border border-slate-700/60 shadow-lg space-y-4">
+            <h3 
+              className="font-black text-indigo-400 uppercase tracking-wide"
+              style={{ fontSize: `${presentationFontSize - 4}px` }}
+            >
+              📋 Hướng dẫn từ Giáo viên:
+            </h3>
+            <p 
+              className="text-slate-300 leading-relaxed font-medium whitespace-pre-wrap"
+              style={{ fontSize: `${presentationFontSize}px` }}
+            >
+              {selectedAssignment.description}
+            </p>
+          </div>
+
+          {/* Online Quiz Questions List (If any) */}
+          {displayQuestions && displayQuestions.length > 0 && (
+            <div className="space-y-6">
+              <h3 
+                className="font-black text-amber-400 uppercase tracking-wide border-b border-slate-800 pb-2 flex items-center justify-between"
+                style={{ fontSize: `${presentationFontSize - 2}px` }}
+              >
+                <span>📝 Đề thi / Câu hỏi trắc nghiệm ({displayQuestions.length})</span>
+                <span className="text-[11px] font-normal bg-amber-500/10 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full">
+                  Trình chiếu lớp học
+                </span>
+              </h3>
+
+              <div className="space-y-8">
+                {displayQuestions.map((q, qIdx) => (
+                  <div key={q.id || qIdx} className="bg-slate-800/30 p-6 rounded-3xl border border-slate-800 space-y-4">
+                    <p 
+                      className="font-extrabold text-slate-100"
+                      style={{ fontSize: `${presentationFontSize}px` }}
+                    >
+                      {q.question}
+                    </p>
+
+                    {/* Options list */}
+                    {q.options && q.options.length > 0 && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        {q.options.map((opt, optIdx) => {
+                          const optionLetter = String.fromCharCode(65 + optIdx); // A, B, C, D
+                          return (
+                            <div 
+                              key={optIdx} 
+                              className="bg-slate-900 border border-slate-850 p-4 rounded-2xl flex items-start gap-3"
+                              style={{ fontSize: `${presentationFontSize - 2}px` }}
+                            >
+                              <span className="w-8 h-8 rounded-full bg-slate-800 text-indigo-400 font-extrabold flex items-center justify-center shrink-0">
+                                {optionLetter}
+                              </span>
+                              <span className="text-slate-300 font-medium">{opt}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Reveal Answer Section (Highly active classroom engagement!) */}
+                    <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between gap-4 flex-wrap">
+                      <PresentationRevealHelper 
+                        correctAnswer={q.correctAnswer !== undefined ? String(q.correctAnswer) : undefined}
+                        explanation={(q as any).explanation}
+                        fontSize={presentationFontSize}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Attached documents preview */}
+          {selectedAssignment.pdfUrl && (
+            <div className="space-y-4">
+              <h3 
+                className="font-black text-sky-400 uppercase tracking-wide border-b border-slate-800 pb-2"
+                style={{ fontSize: `${presentationFontSize - 2}px` }}
+              >
+                📎 Tài liệu / Đề bài đính kèm:
+              </h3>
+              
+              {selectedAssignment.pdfUrl.startsWith('data:image') || selectedAssignment.pdfUrl.match(/\.(png|jpe?g|gif|svg|webp)/i) ? (
+                <div className="border border-slate-800 rounded-3xl overflow-hidden bg-slate-950 p-4 flex justify-center">
+                  <img 
+                    src={selectedAssignment.pdfUrl} 
+                    alt="Đề bài đính kèm" 
+                    className="max-h-[70vh] object-contain rounded-2xl" 
+                  />
+                </div>
+              ) : (
+                <div className="p-8 bg-slate-850 border border-slate-800 rounded-3xl text-center space-y-3">
+                  <p className="text-slate-300" style={{ fontSize: `${presentationFontSize}px` }}>
+                    Tài liệu đính kèm dạng tệp PDF/Khác
+                  </p>
+                  <a 
+                    href={selectedAssignment.pdfUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-6 py-3 rounded-2xl transition-all shadow-lg shrink-0"
+                  >
+                    Mở tài liệu trong tab mới ↗
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
@@ -2786,16 +3037,6 @@ export function AssignmentsView({
 
           {isTeacher && (
             <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-              {viewMode === 'games' && (
-                <button
-                  type="button"
-                  onClick={() => setShowGameLauncherModal(true)}
-                  className="px-5 py-3 bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-xs sm:text-sm rounded-2xl shadow-md hover:shadow-lg transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <Gamepad2 className="w-5 h-5 text-slate-900" />
-                  <span>🎮 Chọn 'Bộ Đề' Ngân Hàng & Chơi Game</span>
-                </button>
-              )}
               <button 
                 onClick={() => handleOpenCreateModal()}
                 className="px-5 py-3 bg-white text-slate-800 font-bold text-xs sm:text-sm rounded-2xl hover:bg-slate-50 transition-colors shadow-sm shrink-0 flex items-center gap-1.5"
@@ -2807,42 +3048,6 @@ export function AssignmentsView({
           )}
         </div>
       </div>
-
-      {/* QUICK GAME DASHBOARD CARD FOR TEACHERS IN GAMES TAB */}
-      {viewMode === 'games' && isTeacher && (
-        <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-rose-500/10 border-2 border-orange-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-rose-600 text-white flex items-center justify-center shadow-md shrink-0 text-2xl">
-              🎮
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 bg-orange-600 text-white font-black text-[10px] rounded-full uppercase tracking-wider">
-                  Bảng Điều Khiển
-                </span>
-                <span className="text-xs font-bold text-orange-950">
-                  Khởi động game từ Ngân hàng câu hỏi
-                </span>
-              </div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-                Chọn Bộ Đề Từ Ngân Hàng Để Bắt Đầu Trò Chơi Tương Tác
-              </h3>
-              <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed font-medium">
-                Cho phép giáo viên chọn 1 'Bộ đề' có sẵn trong Ngân hàng câu hỏi trước khi bắt đầu trò chơi (Đua xe, Kéo co, Đoàn tàu, Đập chuột, Từ ngữ biết bay, Lật thẻ...) mà không cần gõ lại mã đề!
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowGameLauncherModal(true)}
-            className="px-5 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md shadow-orange-200 hover:shadow-lg transition-all active:scale-95 shrink-0 flex items-center gap-2 w-full sm:w-auto justify-center"
-          >
-            <Folder className="w-4 h-4" />
-            <span>📂 Chọn Bộ Đề & Chơi Game Ngay</span>
-          </button>
-        </div>
-      )}
 
       {/* STATUS FILTER PILLS FOR STUDENTS */}
       {!isTeacher && (
@@ -2950,16 +3155,16 @@ export function AssignmentsView({
                 </select>
               )}
 
-              {/* Batch Edit Modal Trigger for Teachers (Thay thế nút On Air cũ bằng Bảng Đổi Đồng Loạt) */}
+              {/* Batch Edit Modal Trigger for Teachers (Bảng Hiệu Chỉnh) */}
               {isTeacher && (
                 <button
                   type="button"
                   onClick={() => setShowBatchEditModal(true)}
-                  className="px-3.5 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold border border-indigo-200 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                  title="Mở Bảng đổi & cập nhật đồng loạt trạng thái On Air, Lớp học, Môn học, Hạn nộp..."
+                  className="px-3.5 py-2 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-extrabold border border-indigo-200 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 whitespace-nowrap"
+                  title="Mở Bảng hiệu chỉnh trạng thái On Air, Lớp học, Môn học, Hạn nộp..."
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Bảng đổi đồng loạt</span>
+                  <span>Bảng hiệu chỉnh {selectedIdsForDeletion.length > 0 ? `(${selectedIdsForDeletion.length})` : ''}</span>
                 </button>
               )}
 
@@ -3100,25 +3305,31 @@ export function AssignmentsView({
                         )}
                       </div>
                       
-                      <div className="absolute top-3 right-3">
+                      <div className="absolute top-3 right-3 z-30">
                         {isTeacher && (
-                          <input
-                            type="checkbox"
-                            checked={selectedIdsForDeletion.includes(assignment.id)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              if (e.target.checked) {
-                                setSelectedIdsForDeletion(prev => [...prev, assignment.id]);
-                              } else {
-                                setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignment.id));
-                              }
-                            }}
-                            className="w-5 h-5 text-indigo-600 rounded-lg border-white/50 bg-white/20 backdrop-blur-sm focus:ring-indigo-500 cursor-pointer"
-                          />
+                          <label 
+                            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/90 hover:bg-white text-indigo-600 backdrop-blur-md shadow-md cursor-pointer transition-all border border-slate-200/80 hover:scale-105 active:scale-95"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Chọn bài tập này"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedIdsForDeletion.includes(assignment.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.checked) {
+                                  setSelectedIdsForDeletion(prev => [...prev, assignment.id]);
+                                } else {
+                                  setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignment.id));
+                                }
+                              }}
+                              className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                            />
+                          </label>
                         )}
                       </div>
 
-                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
                         <div className="w-12 h-12 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-indigo-600 shadow-lg scale-90 group-hover:scale-100 transition-transform">
                           <Play className="w-6 h-6 ml-1" />
                         </div>
@@ -3220,15 +3431,25 @@ export function AssignmentsView({
         <div className="space-y-6">
           {selectedAssignment ? (
             <div className="space-y-4">
-              {/* Mobile Back to List Button */}
-              <div className="flex items-center justify-between">
+              {/* Mobile Back to List & Presentation Mode Buttons */}
+              <div className="flex items-center justify-between gap-4 flex-wrap">
                 <button 
                   type="button"
                   onClick={() => setSelectedAssignment(null)}
-                  className="inline-flex items-center gap-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-2xl text-xs font-bold border border-indigo-200 shadow-sm transition-all active:scale-95"
+                  className="inline-flex items-center gap-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3.5 py-2 rounded-2xl text-xs font-bold border border-indigo-200 shadow-sm transition-all active:scale-95 cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4 shrink-0" />
                   <span>Quay lại danh sách {viewMode === 'flashcards' ? 'flashcard' : viewMode === 'games' ? 'game' : 'bài tập'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPresentationMode(true)}
+                  className="inline-flex items-center gap-2 text-slate-700 bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-2xl text-xs font-bold border border-slate-200 shadow-xs transition-all active:scale-95 cursor-pointer"
+                  title="Mở chế độ trình chiếu lên Tivi/Máy chiếu lớp học"
+                >
+                  <Tv className="w-4 h-4 shrink-0 text-indigo-600 animate-pulse" />
+                  <span>📺 Chế độ trình chiếu (TV)</span>
                 </button>
               </div>
 
@@ -6582,22 +6803,29 @@ export function AssignmentsView({
                   Danh sách các bài học / bài tập sẽ bị xóa vĩnh viễn khỏi hệ thống:
                 </p>
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
+                  <table className="w-full text-left text-xs border-collapse block md:table">
+                    <thead className="hidden md:table-header-group">
                       <tr className="bg-slate-50 border-b border-slate-200">
                         <th className="p-3 font-extrabold text-slate-700 w-12">#</th>
                         <th className="p-3 font-extrabold text-slate-700">Tiêu đề bài tập</th>
                         <th className="p-3 font-extrabold text-slate-700 w-24">Thể loại</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="block md:table-row-group divide-y divide-slate-100">
                       {assignments
                         .filter(a => selectedIdsForDeletion.includes(a.id))
                         .map((a, index) => (
-                          <tr key={a.id} className="hover:bg-slate-50/50 transition-colors">
-                            <td className="p-3 font-mono font-bold text-slate-500">{index + 1}</td>
-                            <td className="p-3 font-bold text-slate-800 truncate max-w-[250px]">{a.title}</td>
-                            <td className="p-3">
+                          <tr key={a.id} className="block md:table-row hover:bg-slate-50/50 transition-colors p-3 md:p-0">
+                            <td className="block md:table-cell p-1 md:p-3 font-mono font-bold text-slate-500">
+                              <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2">STT:</span>
+                              {index + 1}
+                            </td>
+                            <td className="block md:table-cell p-1 md:p-3 font-bold text-slate-800 truncate max-w-[250px]">
+                              <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2">Bài tập:</span>
+                              {a.title}
+                            </td>
+                            <td className="block md:table-cell p-1 md:p-3">
+                              <span className="inline-block md:hidden text-[10px] text-slate-400 font-extrabold uppercase tracking-wide mr-2">Thể loại:</span>
                               <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold uppercase">
                                 {a.type === 'online_test' ? 'Kiểm tra' : a.type === 'simulation' ? 'Mô phỏng' : a.type === 'game' ? 'Trò chơi' : a.type === 'flashcard' ? 'Flashcard' : 'Nộp bài'}
                               </span>
@@ -7349,7 +7577,7 @@ export function AssignmentsView({
         </div>
       )}
 
-      {/* Bảng Đổi & Cập Nhật Đồng Loạt Modal */}
+      {/* Bảng Hiệu Chỉnh Đồng Loạt Modal */}
       {showBatchEditModal && (
         <BatchEditAssignmentsModal
           isOpen={showBatchEditModal}
@@ -7357,6 +7585,7 @@ export function AssignmentsView({
           assignments={assignments}
           availableClasses={availableTeacherClasses}
           user={user}
+          initialSelectedIds={selectedIdsForDeletion}
         />
       )}
 

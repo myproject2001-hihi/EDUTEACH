@@ -370,32 +370,7 @@ export const GameWizard: React.FC<GameWizardProps> = ({
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none select-none flex-1">
-                  {[
-                    { id: 'all', name: 'Tất cả', emoji: '✨' },
-                    { id: 'ai', name: 'AI', emoji: '🤖' },
-                    { id: 'speed', name: 'Tốc độ', emoji: '⚡' },
-                    { id: 'puzzle', name: 'Giải đố', emoji: '🧩' },
-                    { id: 'adventure', name: 'Bản đồ', emoji: '🗺️' }
-                  ].map(cat => {
-                    const isCatSelected = selectedGameCategory === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setSelectedGameCategory(cat.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all flex items-center gap-1.5 border shrink-0 ${
-                          isCatSelected 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' 
-                            : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-800'
-                        }`}
-                      >
-                        <span>{cat.emoji}</span>
-                        <span>{cat.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <div className="flex-1"></div>
 
                 {/* Filter by Status */}
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
