@@ -69,12 +69,24 @@ export default function App() {
     }
   });
 
-  // Auto open Robot Guide for new/first-time users (both students and teachers)
+  // Auto open Robot Guide ONLY for newly created accounts on their first login session
   useEffect(() => {
     if (currentUser) {
-      const dismissed = localStorage.getItem(`robotGuideDismissed_${currentUser.id}`) || sessionStorage.getItem(`robotGuideDismissed_${currentUser.id}`);
-      if (!dismissed) {
+      const isWelcomedInLocal = localStorage.getItem(`robotWelcomed_${currentUser.id}`) === 'true';
+      const isDismissed = localStorage.getItem(`robotGuideDismissed_${currentUser.id}`) === 'true';
+      const isWelcomedInDb = currentUser.hasSeenRobotWelcome === true;
+
+      // If user has NOT been welcomed yet (first login right after account creation):
+      if (!isWelcomedInLocal && !isDismissed && !isWelcomedInDb) {
         setRobotOpen(true);
+        // Mark as welcomed immediately so future logins/refreshes won't auto open again
+        localStorage.setItem(`robotWelcomed_${currentUser.id}`, 'true');
+        localStorage.setItem(`robotGuideDismissed_${currentUser.id}`, 'true');
+        try {
+          updateDoc(doc(db, 'users', currentUser.id), { hasSeenRobotWelcome: true });
+        } catch (e) {
+          console.warn('Could not update user hasSeenRobotWelcome:', e);
+        }
       }
     }
   }, [currentUser]);
@@ -933,14 +945,6 @@ export default function App() {
             onNavigateToTab={setActiveTab}
           />
         ) : null;
-      case 'question-bank':
-        return isTeacherOrAdmin ? (
-          <QuestionBankView
-            user={activeUser}
-            onNavigateToTab={setActiveTab}
-            onAddAssignment={handleAddAssignment}
-          />
-        ) : null;
       case 'resources-repository':
         return isTeacherOrAdmin ? (
           <ResourcesRepositoryView
@@ -950,7 +954,7 @@ export default function App() {
           />
         ) : null;
       case 'students':
-        return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} user={activeUser} /> : null;
+        return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} user={activeUser} submissions={submissions} assignments={assignments} /> : null;
       case 'simulations':
         return <SimulationsView user={activeUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'rewards-store':

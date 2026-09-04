@@ -177,6 +177,11 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
   const [deleteConfirmResource, setDeleteConfirmResource] = useState<{ id: string; title: string; collectionName: string } | null>(null);
   const [deletingResource, setDeletingResource] = useState(false);
 
+  // Multi-select & Batch Actions state for Audit Table
+  const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([]);
+  const [isBatchAssignModalOpen, setIsBatchAssignModalOpen] = useState(false);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+
   // Resource Class Allocation state
   const [assignClassResource, setAssignClassResource] = useState<AuditItem | null>(null);
   const [targetClassScopeOption, setTargetClassScopeOption] = useState<'all' | 'specific' | 'custom'>('all');
@@ -537,6 +542,89 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
     } catch (err: any) {
       console.error(err);
       showNotify('error', `Không thể cập nhật phân bổ lớp: ${err.message || 'Lỗi hệ thống'}`);
+    } finally {
+      setSavingClassAllocation(false);
+    }
+  };
+
+  // Batch Multi-Select Handlers
+  const toggleSelectItem = (key: string) => {
+    setSelectedItemKeys(prev => 
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedItemKeys.length === 0) return;
+    if (!window.confirm(`XÁC NHẬN XÓA HÀNG LOẠT:\n\nBạn có chắc chắn muốn XÓA VĨNH VIỄN ${selectedItemKeys.length} tài nguyên/bài làm đã chọn khỏi Firestore? Thao tác này không thể hoàn tác.`)) return;
+
+    setIsBatchDeleting(true);
+    try {
+      let count = 0;
+      for (const key of selectedItemKeys) {
+        const item = filteredAuditItems.find(i => `${i.collectionName}_${i.id}` === key);
+        if (item) {
+          await deleteDoc(doc(db, item.collectionName, item.id));
+          count++;
+        }
+      }
+      showNotify('success', `Đã xóa thành công ${count} tài nguyên khỏi hệ thống!`);
+      setSelectedItemKeys([]);
+    } catch (err: any) {
+      console.error('Batch delete error:', err);
+      showNotify('error', `Lỗi khi xóa hàng loạt: ${err.message || 'Lỗi hệ thống'}`);
+    } finally {
+      setIsBatchDeleting(false);
+    }
+  };
+
+  const handleSaveBatchClassAllocation = async () => {
+    if (selectedItemKeys.length === 0) return;
+    setSavingClassAllocation(true);
+    try {
+      let finalScopeText = '';
+      if (targetClassScopeOption === 'all') {
+        finalScopeText = 'Toàn bộ học sinh';
+      } else if (targetClassScopeOption === 'specific') {
+        if (selectedClassesList.length === 0) {
+          showNotify('error', 'Vui lòng chọn ít nhất 1 lớp học phù hợp!');
+          setSavingClassAllocation(false);
+          return;
+        }
+        finalScopeText = selectedClassesList.join(', ');
+      } else {
+        if (!customClassInput.trim()) {
+          showNotify('error', 'Vui lòng nhập tên lớp hoặc phạm vi tùy chỉnh!');
+          setSavingClassAllocation(false);
+          return;
+        }
+        finalScopeText = customClassInput.trim();
+      }
+
+      let count = 0;
+      for (const key of selectedItemKeys) {
+        const item = filteredAuditItems.find(i => `${i.collectionName}_${i.id}` === key);
+        if (item) {
+          const ref = doc(db, item.collectionName, item.id);
+          if (item.collectionName === 'assignments') {
+            await updateDoc(ref, { classSessionTitle: finalScopeText, className: finalScopeText });
+          } else if (item.collectionName === 'simulations') {
+            await updateDoc(ref, { category: finalScopeText, classSessionTitle: finalScopeText });
+          } else if (item.collectionName === 'class_sessions') {
+            await updateDoc(ref, { subject: finalScopeText, classSessionTitle: finalScopeText });
+          } else if (item.collectionName === 'submissions') {
+            await updateDoc(ref, { assignmentTitle: `${item.rawObj.assignmentTitle || 'Bài làm'} (${finalScopeText})` });
+          }
+          count++;
+        }
+      }
+
+      showNotify('success', `Đã phân bổ hàng loạt ${count} tài nguyên đến lớp/phạm vi: ${finalScopeText}`);
+      setIsBatchAssignModalOpen(false);
+      setSelectedItemKeys([]);
+    } catch (err: any) {
+      console.error('Batch assign error:', err);
+      showNotify('error', `Lỗi khi phân bổ hàng loạt: ${err.message || 'Lỗi hệ thống'}`);
     } finally {
       setSavingClassAllocation(false);
     }
@@ -1459,6 +1547,49 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           </div>
 
           {/* Audit Items Render (Table / Grid) */}
+          {/* BULK ACTIONS TOOLBAR */}
+          {selectedItemKeys.length > 0 && (
+            <div className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3 border border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2.5 font-bold text-xs sm:text-sm">
+                <span className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+                  ✓
+                </span>
+                <span>Đã chọn <strong className="text-amber-400 font-extrabold text-sm">{selectedItemKeys.length}</strong> tài nguyên</span>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchAssignModalOpen(true)}
+                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-950 font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  title="Thay đổi quyền / Phân bổ lớp hàng loạt cho tất cả mục đã chọn"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>⚡ Phân bổ lớp hàng loạt</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isBatchDeleting}
+                  onClick={handleBatchDelete}
+                  className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Xóa tất cả các mục đã chọn"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isBatchDeleting ? 'Đang xóa...' : `🗑️ Xóa hàng loạt (${selectedItemKeys.length})`}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedItemKeys([])}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Bỏ chọn
+                </button>
+              </div>
+            </div>
+          )}
+
           {filteredAuditItems.length === 0 ? (
             <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
               <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto">
@@ -1476,6 +1607,22 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3.5 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={filteredAuditItems.length > 0 && filteredAuditItems.every(i => selectedItemKeys.includes(`${i.collectionName}_${i.id}`))}
+                          onChange={() => {
+                            const isAll = filteredAuditItems.length > 0 && filteredAuditItems.every(i => selectedItemKeys.includes(`${i.collectionName}_${i.id}`));
+                            if (isAll) {
+                              setSelectedItemKeys([]);
+                            } else {
+                              setSelectedItemKeys(filteredAuditItems.map(i => `${i.collectionName}_${i.id}`));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          title="Chọn / Bỏ chọn tất cả"
+                        />
+                      </th>
                       <th className="py-3.5 px-4">Tài nguyên & Mã Firestore</th>
                       <th className="py-3.5 px-4">Người tải lên / Tác giả</th>
                       <th className="py-3.5 px-4">Thời gian ghi nhận</th>
@@ -1484,114 +1631,129 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs font-medium">
-                    {filteredAuditItems.map((item) => (
-                      <tr key={`${item.collectionName}_${item.id}`} className="hover:bg-slate-50/60 transition-colors">
-                        {/* Title & Category Badge */}
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
-                              item.categoryType === 'assignment' ? 'bg-blue-50 text-blue-600' :
-                              item.categoryType === 'simulation' ? 'bg-purple-50 text-purple-600' :
-                              item.categoryType === 'class' ? 'bg-amber-50 text-amber-600' :
-                              'bg-emerald-50 text-emerald-600'
-                            }`}>
-                              {item.categoryType === 'assignment' && <FileText className="w-4 h-4" />}
-                              {item.categoryType === 'simulation' && <Cpu className="w-4 h-4" />}
-                              {item.categoryType === 'class' && <Calendar className="w-4 h-4" />}
-                              {item.categoryType === 'submission' && <UploadCloud className="w-4 h-4" />}
-                            </div>
-                            <div className="space-y-0.5 max-w-md">
-                              <p className="font-bold text-slate-900 text-xs line-clamp-1">{item.title}</p>
-                              <div className="flex items-center gap-2">
-                                <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                                  {item.categoryLabel}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">ID: {item.id}</span>
+                    {filteredAuditItems.map((item) => {
+                      const itemKey = `${item.collectionName}_${item.id}`;
+                      const isSelected = selectedItemKeys.includes(itemKey);
+
+                      return (
+                        <tr key={itemKey} className={`transition-colors ${isSelected ? 'bg-indigo-50/60' : 'hover:bg-slate-50/60'}`}>
+                          {/* Checkbox Cell */}
+                          <td className="py-3.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelectItem(itemKey)}
+                              className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </td>
+
+                          {/* Title & Category Badge */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                                item.categoryType === 'assignment' ? 'bg-blue-50 text-blue-600' :
+                                item.categoryType === 'simulation' ? 'bg-purple-50 text-purple-600' :
+                                item.categoryType === 'class' ? 'bg-amber-50 text-amber-600' :
+                                'bg-emerald-50 text-emerald-600'
+                              }`}>
+                                {item.categoryType === 'assignment' && <FileText className="w-4 h-4" />}
+                                {item.categoryType === 'simulation' && <Cpu className="w-4 h-4" />}
+                                {item.categoryType === 'class' && <Calendar className="w-4 h-4" />}
+                                {item.categoryType === 'submission' && <UploadCloud className="w-4 h-4" />}
+                              </div>
+                              <div className="space-y-0.5 max-w-md">
+                                <p className="font-bold text-slate-900 text-xs line-clamp-1">{item.title}</p>
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                    {item.categoryLabel}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono">ID: {item.id}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Uploader Info */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
-                              {item.uploaderName.charAt(0).toUpperCase()}
+                          {/* Uploader Info */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
+                                {item.uploaderName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-800 text-xs">{item.uploaderName}</p>
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase ${
+                                  item.uploaderRole === 'student' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'
+                                }`}>
+                                  {item.uploaderRole === 'student' ? 'Học sinh' : 'Giáo viên'}
+                                </span>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-xs">{item.uploaderName}</p>
-                              <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded uppercase ${
-                                item.uploaderRole === 'student' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'
-                              }`}>
-                                {item.uploaderRole === 'student' ? 'Học sinh' : 'Giáo viên'}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* Timestamp Info */}
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <div className="space-y-0.5">
-                            <p className="font-bold text-slate-800 text-xs flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              {item.createdAtFormatted}
-                            </p>
-                            {item.relativeTime && (
-                              <p className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block">
-                                {item.relativeTime}
+                          {/* Timestamp Info */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-slate-800 text-xs flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                {item.createdAtFormatted}
                               </p>
-                            )}
-                          </div>
-                        </td>
+                              {item.relativeTime && (
+                                <p className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full inline-block">
+                                  {item.relativeTime}
+                                </p>
+                              )}
+                            </div>
+                          </td>
 
-                        {/* Specific Details */}
-                        <td className="py-3.5 px-4 text-slate-600">
-                          <div className="space-y-0.5 text-xs">
-                            {item.classSessionTitle && (
-                              <p className="text-[11px] font-semibold text-slate-700">🏫 Lớp: {item.classSessionTitle}</p>
-                            )}
-                            {item.details.questionCount > 0 && (
-                              <p className="text-[11px] text-slate-500">❓ {item.details.questionCount} câu hỏi trắc nghiệm</p>
-                            )}
-                            {item.details.dueDate && (
-                              <p className="text-[11px] text-slate-500">⏳ Hạn: {item.details.dueDate}</p>
-                            )}
-                            {item.details.grade !== undefined && (
-                              <p className="text-[11px] font-bold text-emerald-600">💯 Điểm: {item.details.grade}</p>
-                            )}
-                          </div>
-                        </td>
+                          {/* Specific Details */}
+                          <td className="py-3.5 px-4 text-slate-600">
+                            <div className="space-y-0.5 text-xs">
+                              {item.classSessionTitle && (
+                                <p className="text-[11px] font-semibold text-slate-700">🏫 Lớp: {item.classSessionTitle}</p>
+                              )}
+                              {item.details.questionCount > 0 && (
+                                <p className="text-[11px] text-slate-500">❓ {item.details.questionCount} câu hỏi trắc nghiệm</p>
+                              )}
+                              {item.details.dueDate && (
+                                <p className="text-[11px] text-slate-500">⏳ Hạn: {item.details.dueDate}</p>
+                              )}
+                              {item.details.grade !== undefined && (
+                                <p className="text-[11px] font-bold text-emerald-600">💯 Điểm: {item.details.grade}</p>
+                              )}
+                            </div>
+                          </td>
 
-                        {/* Admin Action Buttons */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenAssignModal(item)}
-                              className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
-                              title="Thiết lập phân bổ tài nguyên cho lớp học phù hợp"
-                            >
-                              <Shield className="w-3.5 h-3.5 text-amber-600" />
-                              Phân bổ lớp
-                            </button>
-                            <button
-                              onClick={() => setInspectItem(item)}
-                              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
-                              title="Xem chi tiết thông tin nhật ký"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              Chi tiết
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmResource({ id: item.id, title: item.title, collectionName: item.collectionName })}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                              title="Xóa tài nguyên khỏi hệ thống"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                          {/* Admin Action Buttons */}
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleOpenAssignModal(item)}
+                                className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                                title="Thiết lập phân bổ tài nguyên cho lớp học phù hợp"
+                              >
+                                <Shield className="w-3.5 h-3.5 text-amber-600" />
+                                Phân bổ lớp
+                              </button>
+                              <button
+                                onClick={() => setInspectItem(item)}
+                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl transition-colors flex items-center gap-1"
+                                title="Xem chi tiết thông tin nhật ký"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                Chi tiết
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmResource({ id: item.id, title: item.title, collectionName: item.collectionName })}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                                title="Xóa tài nguyên khỏi hệ thống"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -2484,6 +2646,157 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
                   <>
                     <Check className="w-3.5 h-3.5" />
                     Xác Nhận Phân Bổ
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BATCH CLASS ALLOCATION MODAL */}
+      {isBatchAssignModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 border border-slate-200 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
+                  <Shield className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Phân Bổ Lớp Hàng Loạt ({selectedItemKeys.length} Mục)</h3>
+                  <p className="text-xs text-slate-500">Áp dụng lớp học/phạm vi mới cho toàn bộ tài nguyên được chọn</p>
+                </div>
+              </div>
+              <button onClick={() => setIsBatchAssignModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scope Selector Options */}
+            <div className="space-y-3">
+              <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">
+                Chọn Phạm Vi Lớp Áp Dụng Cho Hàng Loạt
+              </label>
+
+              <div className="space-y-2 text-xs">
+                <label className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
+                  targetClassScopeOption === 'all' ? 'bg-indigo-50/60 border-indigo-300 font-bold text-indigo-900' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="batchScopeOpt"
+                      checked={targetClassScopeOption === 'all'}
+                      onChange={() => setTargetClassScopeOption('all')}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>🌐 Toàn bộ học sinh (Áp dụng tất cả các lớp)</span>
+                  </div>
+                </label>
+
+                <label className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
+                  targetClassScopeOption === 'specific' ? 'bg-indigo-50/60 border-indigo-300 font-bold text-indigo-900' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="batchScopeOpt"
+                      checked={targetClassScopeOption === 'specific'}
+                      onChange={() => setTargetClassScopeOption('specific')}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>🏫 Phân bổ cho Danh sách Lớp cụ thể</span>
+                  </div>
+                </label>
+
+                <label className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer transition-all ${
+                  targetClassScopeOption === 'custom' ? 'bg-indigo-50/60 border-indigo-300 font-bold text-indigo-900' : 'bg-white border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="radio"
+                      name="batchScopeOpt"
+                      checked={targetClassScopeOption === 'custom'}
+                      onChange={() => setTargetClassScopeOption('custom')}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>✏️ Nhập tên Lớp / Nhóm tùy chỉnh</span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Class Selection Checkboxes */}
+              {targetClassScopeOption === 'specific' && (
+                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 max-h-40 overflow-y-auto">
+                  <p className="text-[11px] font-bold text-slate-500 uppercase">Tích chọn các lớp áp dụng:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {availableClassOptions.map((clsName) => {
+                      const isChecked = selectedClassesList.includes(clsName);
+                      return (
+                        <label
+                          key={clsName}
+                          className={`flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
+                            isChecked ? 'bg-indigo-100 border-indigo-300 text-indigo-900 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedClassesList([...selectedClassesList, clsName]);
+                              } else {
+                                setSelectedClassesList(selectedClassesList.filter(c => c !== clsName));
+                              }
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="truncate">{clsName}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Class Text Input */}
+              {targetClassScopeOption === 'custom' && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase">Nhập tên lớp / nhóm học áp dụng:</label>
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: Lớp 10A1 Specialist, Khối 11 Bồi dưỡng..."
+                    value={customClassInput}
+                    onChange={(e) => setCustomClassInput(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setIsBatchAssignModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleSaveBatchClassAllocation}
+                disabled={savingClassAllocation}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {savingClassAllocation ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Đang lưu...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Áp Dụng Phân Bổ Hàng Loạt ({selectedItemKeys.length})
                   </>
                 )}
               </button>

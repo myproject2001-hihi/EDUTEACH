@@ -5,7 +5,7 @@ import { MarkdownMath } from './MarkdownMath';
 import { UserAvatar } from './UserAvatar';
 import { 
   X, Check, CheckCircle2, XCircle, Eye, Download, ZoomIn, ZoomOut, 
-  RotateCw, Phone, Copy, FileText, Sparkles, Clock, ChevronLeft, 
+  RotateCw, RotateCcw, Phone, Copy, FileText, Sparkles, Clock, ChevronLeft, 
   ChevronRight, Send, Award, AlertTriangle, Gamepad2, BookOpen, 
   Camera, HelpCircle, CheckCircle, Filter, ListChecks, Layers, MessageSquare
 } from 'lucide-react';
@@ -19,6 +19,7 @@ interface StudentSubmissionDetailModalProps {
   allSubmissions?: Submission[];
   onSelectSubmission?: (sub: Submission) => void;
   onGrade: (submissionId: string, grade: number, feedback: string) => void;
+  onResetSubmission?: (submissionId: string) => void;
   isTeacher: boolean;
   currentUser: User;
   usersList?: User[];
@@ -44,6 +45,7 @@ export function StudentSubmissionDetailModal({
   allSubmissions = [],
   onSelectSubmission,
   onGrade,
+  onResetSubmission,
   isTeacher,
   currentUser,
   usersList = []
@@ -60,6 +62,7 @@ export function StudentSubmissionDetailModal({
       allSubmissions={allSubmissions}
       onSelectSubmission={onSelectSubmission}
       onGrade={onGrade}
+      onResetSubmission={onResetSubmission}
       isTeacher={isTeacher}
       currentUser={currentUser}
       usersList={usersList}
@@ -75,6 +78,7 @@ function StudentSubmissionDetailModalInner({
   allSubmissions = [],
   onSelectSubmission,
   onGrade,
+  onResetSubmission,
   isTeacher,
   currentUser,
   usersList = []
@@ -1027,6 +1031,17 @@ function StudentSubmissionDetailModalInner({
               )}
 
               <div className="flex gap-2">
+                {isTeacher && onResetSubmission && (
+                  <button
+                    type="button"
+                    onClick={() => onResetSubmission(submission.id)}
+                    className="px-4 py-3.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-xs sm:text-sm rounded-2xl border border-amber-200 transition-all flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
+                    title="Kích hoạt lại trạng thái bài nộp để học sinh có thể làm lại bài tập"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-600" />
+                    <span>Cho làm lại</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleSaveGrade}

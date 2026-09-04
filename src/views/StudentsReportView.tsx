@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { StudentProgress } from '../types';
+import { StudentProgress, Submission, Assignment, MonthlyProgress } from '../types';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -31,14 +31,39 @@ function removeVietnameseTones(str: string): string {
 interface StudentsReportProps {
   progressData: StudentProgress[];
   user?: any;
+  submissions?: Submission[];
+  assignments?: Assignment[];
 }
 
-export function StudentsReportView({ progressData, user }: StudentsReportProps) {
+export function StudentsReportView({ progressData, user, submissions = [], assignments = [] }: StudentsReportProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'grade-desc' | 'grade-asc' | 'completion-desc' | 'completion-asc' | 'attendance-desc' | 'attendance-asc'>('name-asc');
   const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [isSendingBulk, setIsSendingBulk] = useState(false);
+  const [subToResetInReport, setSubToResetInReport] = useState<Submission | null>(null);
+  const [isResettingReportSub, setIsResettingReportSub] = useState(false);
+
+  const handleConfirmResetReportSub = async () => {
+    if (!subToResetInReport) return;
+    setIsResettingReportSub(true);
+    try {
+      await deleteDoc(doc(db, 'submissions', subToResetInReport.id));
+      setNotification({
+        message: 'Đã kích hoạt cho học sinh làm lại bài tập thành công!',
+        type: 'success'
+      });
+      setSubToResetInReport(null);
+    } catch (err: any) {
+      console.error('Failed to reset submission in report:', err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi kích hoạt làm lại.',
+        type: 'error'
+      });
+    } finally {
+      setIsResettingReportSub(false);
+    }
+  };
 
   const [className, setClassName] = useState(() => {
     if (user?.className) return user.className;
@@ -195,6 +220,62 @@ export function StudentsReportView({ progressData, user }: StudentsReportProps) 
 
     return matchedUsers.map(u => {
       const existingProgress = progressData.find(p => p.studentId === u.id || (p.studentName && u.name && p.studentName.trim().toLowerCase() === u.name.trim().toLowerCase()));
+
+      // Calculate dynamic stats from actual submissions in real-time
+      const studentSubs = (submissions || []).filter(s =>
+        s.studentId === u.id ||
+        (s.studentName && u.name && s.studentName.trim().toLowerCase() === u.name.trim().toLowerCase())
+      );
+
+      // Published assignments relevant
+      const publishedAssigns = (assignments || []).filter(a => a.isPublished !== false);
+      const submittedAssignIds = new Set(studentSubs.map(s => s.assignmentId));
+
+      let calcCompletion = 0;
+      if (publishedAssigns.length > 0) {
+        calcCompletion = Math.min(100, Math.round((submittedAssignIds.size / publishedAssigns.length) * 100));
+      } else if (studentSubs.length > 0) {
+        calcCompletion = 100;
+      }
+
+      const validGrades = studentSubs
+        .map(s => typeof s.grade === 'number' ? s.grade : (s.grade !== undefined && s.grade !== null ? parseFloat(String(s.grade)) : NaN))
+        .filter(g => !isNaN(g));
+
+      let calcAvgGrade = 0;
+      if (validGrades.length > 0) {
+        const sum = validGrades.reduce((a, b) => a + b, 0);
+        calcAvgGrade = Math.round((sum / validGrades.length) * 10) / 10;
+      }
+
+      // Generate monthly progress if not present
+      let monthlyProgress: MonthlyProgress[] | undefined = existingProgress?.monthlyProgress;
+      if ((!monthlyProgress || monthlyProgress.length === 0) && studentSubs.length > 0) {
+        const monthMap: Record<string, number[]> = {};
+        studentSubs.forEach(s => {
+          const d = s.submittedAt ? new Date(s.submittedAt) : new Date();
+          const mKey = `Tháng ${d.getMonth() + 1}`;
+          if (!monthMap[mKey]) monthMap[mKey] = [];
+          if (typeof s.grade === 'number' && !isNaN(s.grade)) {
+            monthMap[mKey].push(s.grade);
+          }
+        });
+        const mList = Object.keys(monthMap).map(mKey => {
+          const arr = monthMap[mKey];
+          const avg = arr.length > 0 ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : calcAvgGrade;
+          return {
+            month: mKey,
+            quizScore: avg,
+            simScore: avg,
+            average: avg
+          };
+        });
+        if (mList.length > 0) monthlyProgress = mList;
+      }
+
+      const finalCompletion = Math.max(existingProgress?.completionRate || 0, calcCompletion);
+      const finalAvgGrade = validGrades.length > 0 ? calcAvgGrade : (existingProgress?.averageGrade || 0);
+
       if (existingProgress) {
         return {
           ...existingProgress,
@@ -203,6 +284,9 @@ export function StudentsReportView({ progressData, user }: StudentsReportProps) 
           phoneStudent: u.phoneStudent || existingProgress.phoneStudent || '',
           phoneParent: u.phoneParent || existingProgress.phoneParent || '',
           className: u.className || existingProgress.className || className,
+          completionRate: finalCompletion,
+          averageGrade: finalAvgGrade,
+          monthlyProgress: monthlyProgress || existingProgress.monthlyProgress
         };
       }
       return {
@@ -211,13 +295,14 @@ export function StudentsReportView({ progressData, user }: StudentsReportProps) 
         phoneStudent: u.phoneStudent || '',
         phoneParent: u.phoneParent || '',
         className: u.className || className,
-        completionRate: 0,
-        averageGrade: 0,
+        completionRate: finalCompletion,
+        averageGrade: finalAvgGrade,
         attendanceRate: 100,
-        recentGrades: [],
+        recentGrades: validGrades,
+        monthlyProgress
       };
     });
-  }, [studentUsers, progressData, className]);
+  }, [studentUsers, progressData, className, submissions, assignments]);
 
   useEffect(() => {
     if (combinedRoster.length > 0) {
@@ -387,6 +472,50 @@ export function StudentsReportView({ progressData, user }: StudentsReportProps) 
               </div>
             </div>
           )}
+
+          {/* Submissions & Redo Action List */}
+          {(() => {
+            const studentSubs = submissions.filter(
+              s => s.studentId === student.studentId || 
+              (s.studentName && student.studentName && s.studentName.trim().toLowerCase() === student.studentName.trim().toLowerCase())
+            );
+            if (studentSubs.length === 0) return null;
+
+            return (
+              <div className="space-y-2.5 pt-3 border-t border-slate-150">
+                <p className="font-extrabold text-slate-800 text-xs flex items-center justify-between">
+                  <span>Lịch sử bài tập & Kích hoạt làm lại ({studentSubs.length}):</span>
+                </p>
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                  {studentSubs.map(sub => {
+                    const ass = assignments.find(a => a.id === sub.assignmentId);
+                    const assTitle = ass?.title || 'Bài tập';
+                    return (
+                      <div key={sub.id} className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs transition-colors">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 truncate">{assTitle}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium mt-0.5">
+                            <span>Điểm: <strong className="text-indigo-600 font-bold">{sub.grade !== undefined ? `${sub.grade}/10` : 'Đã nộp'}</strong></span>
+                            <span>•</span>
+                            <span>{sub.submittedAt ? new Date(sub.submittedAt).toLocaleDateString('vi-VN') : 'Đã nộp'}</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSubToResetInReport(sub)}
+                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] rounded-xl border border-amber-200 transition-colors flex items-center gap-1 shrink-0 active:scale-95"
+                          title="Cho phép học sinh làm lại bài tập này để cải thiện điểm số"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Làm lại</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           <a 
             href={`tel:${student.phoneParent || '0912345678'}`}
@@ -1028,6 +1157,19 @@ export function StudentsReportView({ progressData, user }: StudentsReportProps) 
         cancelText="Hủy bỏ"
         variant="danger"
         loading={rejecting}
+      />
+
+      {/* Confirm Modal for Resetting Student Submission in Report */}
+      <ConfirmModal
+        isOpen={!!subToResetInReport}
+        onClose={() => setSubToResetInReport(null)}
+        onConfirm={handleConfirmResetReportSub}
+        title="Xác nhận cho học sinh làm lại"
+        message={`Bạn có chắc chắn muốn cho học sinh "${subToResetInReport?.studentName || 'Học sinh'}" làm lại bài tập này không? Bài làm cũ sẽ được đặt lại để học sinh có thể thực hiện lại từ đầu.`}
+        confirmText="Kích hoạt làm lại"
+        cancelText="Hủy bỏ"
+        variant="warning"
+        loading={isResettingReportSub}
       />
 
     </div>

@@ -5,7 +5,7 @@ import {
   FolderOpen, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpDown, Check, Layers, Search, ListOrdered, RotateCcw, FileQuestion
 } from 'lucide-react';
 import { SAMPLE_TEMPLATES, parseRawCodeToQuestions, questionsToRawCode } from '../views/AssignmentsView';
-import { SubFlashcardSet, Assignment } from '../types';
+import { SubFlashcardSet, Assignment, QuizQuestionSet } from '../types';
 
 interface Flashcard {
   id: string;
@@ -23,6 +23,10 @@ interface FlashcardWizardProps {
   setNewFlashcards: (cards: Flashcard[]) => void;
   newSubFlashcardSets?: SubFlashcardSet[];
   setNewSubFlashcardSets?: (sets: SubFlashcardSet[]) => void;
+  questionSets?: QuizQuestionSet[];
+  setQuestionSets?: (sets: QuizQuestionSet[]) => void;
+  activeQuestionSetId?: string;
+  setActiveQuestionSetId?: (id: string) => void;
   rawQuestionCode: string;
   setRawQuestionCode: (code: string) => void;
   setShowFlashcardPreview: (show: boolean) => void;
@@ -37,6 +41,10 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   setNewFlashcards,
   newSubFlashcardSets,
   setNewSubFlashcardSets,
+  questionSets,
+  setQuestionSets,
+  activeQuestionSetId,
+  setActiveQuestionSetId,
   rawQuestionCode,
   setRawQuestionCode,
   setShowFlashcardPreview,
@@ -52,6 +60,69 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   const [isReadingFiles, setIsReadingFiles] = useState(false);
   const [isDraggingFront, setIsDraggingFront] = useState(false);
   const [isDraggingBack, setIsDraggingBack] = useState(false);
+
+  // Editing Question Set Title inline ID
+  const [editingQsTitleId, setEditingQsTitleId] = useState<string | null>(null);
+
+  // Derived Active Question Sets
+  const activeQsList: QuizQuestionSet[] = questionSets && questionSets.length > 0 
+    ? questionSets 
+    : [{ id: 'qs_default', title: 'Đề 1 (Mặc định)', rawCode: rawQuestionCode }];
+
+  const currentQsId = activeQuestionSetId || activeQsList[0]?.id || 'qs_default';
+
+  const handleAddQs = () => {
+    const newQs: QuizQuestionSet = {
+      id: `qs_${Date.now()}`,
+      title: `Đề ${activeQsList.length + 1}`,
+      rawCode: '',
+      questions: []
+    };
+    const updated = [...activeQsList, newQs];
+    if (setQuestionSets) setQuestionSets(updated);
+    if (setActiveQuestionSetId) setActiveQuestionSetId(newQs.id);
+    setRawQuestionCode('');
+  };
+
+  const handleSelectQs = (qsId: string) => {
+    const found = activeQsList.find(q => q.id === qsId);
+    if (found) {
+      if (setActiveQuestionSetId) setActiveQuestionSetId(qsId);
+      setRawQuestionCode(found.rawCode || (found.questions ? questionsToRawCode(found.questions) : ''));
+    }
+  };
+
+  const handleRenameQs = (qsId: string, title: string) => {
+    const updated = activeQsList.map(q => q.id === qsId ? { ...q, title } : q);
+    if (setQuestionSets) setQuestionSets(updated);
+  };
+
+  const handleDeleteQs = (qsId: string) => {
+    if (activeQsList.length <= 1) return;
+    const updated = activeQsList.filter(q => q.id !== qsId);
+    if (setQuestionSets) setQuestionSets(updated);
+    if (currentQsId === qsId) {
+      const nextQs = updated[0];
+      if (nextQs) {
+        if (setActiveQuestionSetId) setActiveQuestionSetId(nextQs.id);
+        setRawQuestionCode(nextQs.rawCode || '');
+      }
+    }
+  };
+
+  const handleDuplicateQs = (qsId: string) => {
+    const target = activeQsList.find(q => q.id === qsId);
+    if (!target) return;
+    const newQs: QuizQuestionSet = {
+      id: `qs_${Date.now()}`,
+      title: `${target.title} - Bản sao`,
+      rawCode: target.rawCode || rawQuestionCode,
+      questions: target.questions
+    };
+    const updated = [...activeQsList, newQs];
+    if (setQuestionSets) setQuestionSets(updated);
+    if (setActiveQuestionSetId) setActiveQuestionSetId(newQs.id);
+  };
 
   // Modal selector for adding existing flashcards or new sub-sets
   const [showSelectSubSetModal, setShowSelectSubSetModal] = useState(false);
@@ -94,10 +165,21 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
 
   const handleRawQuestionCodeChange = (code: string) => {
     setRawQuestionCode(code);
+    const { parsedQuestions } = parseRawCodeToQuestions(code);
+
+    if (setQuestionSets && activeQsList.length > 0) {
+      const updated = activeQsList.map(q => {
+        if (q.id === currentQsId) {
+          return { ...q, rawCode: code, questions: parsedQuestions };
+        }
+        return q;
+      });
+      setQuestionSets(updated);
+    }
+
     if (hasSubSets && setNewSubFlashcardSets && newSubFlashcardSets) {
       const updated = [...newSubFlashcardSets];
       if (updated[safeSubIndex]) {
-        const { parsedQuestions } = parseRawCodeToQuestions(code);
         updated[safeSubIndex] = {
           ...updated[safeSubIndex],
           rawCode: code,
@@ -1087,6 +1169,89 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
                     <Play className="w-3.5 h-3.5" /> 
                     <span>Preview trắc nghiệm</span>
                   </button>
+                </div>
+              </div>
+
+              {/* MULTIPLE QUESTION SETS TABS SELECTOR */}
+              <div className="bg-white/90 border border-emerald-200 rounded-xl p-2.5 space-y-2 shadow-xs">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                    <Layers className="w-4 h-4 text-emerald-600" />
+                    <span>Danh sách Đề kiểm tra ({activeQsList.length} đề):</span>
+                    <span className="text-[10px] font-medium text-slate-500 italic hidden sm:inline">(Tạo thêm đề mới mà không làm thay đổi thẻ bài)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddQs}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-extrabold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Thêm đề mới</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 custom-scrollbar">
+                  {activeQsList.map((qs, idx) => {
+                    const isActive = qs.id === currentQsId;
+                    return (
+                      <div
+                        key={qs.id}
+                        onClick={() => handleSelectQs(qs.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer border shrink-0 ${
+                          isActive 
+                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span>📋</span>
+                        {editingQsTitleId === qs.id ? (
+                          <input
+                            type="text"
+                            value={qs.title}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => handleRenameQs(qs.id, e.target.value)}
+                            onBlur={() => setEditingQsTitleId(null)}
+                            onKeyDown={e => { if (e.key === 'Enter') setEditingQsTitleId(null); }}
+                            autoFocus
+                            className="bg-white text-slate-900 px-1.5 py-0.5 rounded text-xs font-bold outline-none border border-emerald-400 w-28"
+                          />
+                        ) : (
+                          <span onDoubleClick={(e) => { e.stopPropagation(); setEditingQsTitleId(qs.id); }}>
+                            {qs.title}
+                          </span>
+                        )}
+                        
+                        <button
+                          type="button"
+                          title="Đổi tên đề"
+                          onClick={(e) => { e.stopPropagation(); setEditingQsTitleId(qs.id); }}
+                          className={`p-1 rounded hover:bg-black/10 text-xs ${isActive ? 'text-emerald-100' : 'text-slate-400'}`}
+                        >
+                          ✏️
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Nhân bản đề này"
+                          onClick={(e) => { e.stopPropagation(); handleDuplicateQs(qs.id); }}
+                          className={`p-1 rounded hover:bg-black/10 text-xs ${isActive ? 'text-emerald-100' : 'text-slate-400'}`}
+                        >
+                          📋
+                        </button>
+
+                        {activeQsList.length > 1 && (
+                          <button
+                            type="button"
+                            title="Xóa đề này"
+                            onClick={(e) => { e.stopPropagation(); handleDeleteQs(qs.id); }}
+                            className={`p-1 rounded hover:bg-rose-500 hover:text-white text-xs ${isActive ? 'text-emerald-200' : 'text-slate-400'}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

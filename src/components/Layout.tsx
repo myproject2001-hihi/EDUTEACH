@@ -404,7 +404,6 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       { id: 'activity-logs', label: 'Lịch sử thao tác', icon: History }
     ] : []),
     ...(isTeacher || isAdmin ? [
-      { id: 'question-bank', label: 'Ngân hàng bộ đề', icon: Database },
       { id: 'resources-repository', label: 'Kho tài nguyên GV', icon: FolderArchive }
     ] : []),
     ...(isTeacher ? [

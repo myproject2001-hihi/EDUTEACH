@@ -832,12 +832,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
                           </div>
                           
                           <h5 
-                            onClick={() => {
-                              if (onSelectAssignment) {
-                                onSelectAssignment(assignment.id);
-                              }
-                              onNavigate(assignment.type === 'game' ? 'games' : 'assignments');
-                            }}
+                            onClick={() => handleStartAssignment(assignment)}
                             className="font-extrabold text-slate-800 hover:text-indigo-600 cursor-pointer text-sm leading-snug transition-colors"
                           >
                             {assignment.title}

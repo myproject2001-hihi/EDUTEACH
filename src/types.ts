@@ -29,6 +29,7 @@ export interface User {
   activeAvatarFrame?: string;
   activeBadge?: string;
   readNotifications?: string[]; // IDs of notifications marked as read
+  hasSeenRobotWelcome?: boolean;
   createdAt?: string;
 }
 
@@ -47,6 +48,15 @@ export interface QuizQuestion {
   image?: string;
 }
 
+export interface QuizQuestionSet {
+  id: string;
+  title: string; // Tên đề (VD: Đề 1, Đề 2, Đề A, Đề B...)
+  description?: string;
+  rawCode?: string;
+  questions?: QuizQuestion[];
+  createdAt?: string;
+}
+
 export interface SubFlashcardSet {
   id: string;
   title: string;
@@ -54,6 +64,9 @@ export interface SubFlashcardSet {
   flashcards: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
   questions?: QuizQuestion[];
   rawCode?: string;
+  questionSets?: QuizQuestionSet[]; // Nhiều đề kiểm tra cho bộ thẻ con này
+  activeQuestionSetId?: string;
+  studentQuestionSetMap?: Record<string, string>; // { [studentId]: questionSetId }
 }
 
 export interface QuestionSetItem {
@@ -92,6 +105,9 @@ export interface Assignment {
   flashcards?: { id: string; front: string; back: string; image?: string; frontImage?: string; backImage?: string }[];
   subFlashcardSets?: SubFlashcardSet[]; // Các bộ thẻ con khi gộp thành bộ lớn (Bộ cha)
   activeSubSetId?: string; // ID của bộ đề/tập thẻ con đang được giao cho học sinh làm
+  questionSets?: QuizQuestionSet[]; // Các đề trắc nghiệm kiểm tra (Đề 1, Đề 2, Đề A, Đề B...)
+  activeQuestionSetId?: string; // ID đề kiểm tra mặc định
+  studentQuestionSetMap?: Record<string, string>; // Phân công đề cụ thể cho từng học sinh: { [studentId]: questionSetId }
   thumbnail?: string; // Ảnh bìa cho bài tập
   category?: string; // Phân loại (Đại số, Hình học, v.v.)
   rawCode?: string; // Lưu giữ 100% nguyên vẹn mã nguồn đề thi người dùng nhập
@@ -103,6 +119,9 @@ export interface Assignment {
   isPublished?: boolean; // Nếu false, học sinh sẽ không thấy bài tập này
   grade?: string;
   className?: string;
+  requiresRetake?: boolean;
+  retakeRequestedAt?: string;
+  retakeNote?: string;
 }
 
 export interface SubmissionQuizQuestion {

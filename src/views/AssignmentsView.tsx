@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcardSet, QuestionSetItem } from '../types';
+import { Assignment, Submission, User, QuizQuestion, HTMLSimulation, SubFlashcardSet, QuestionSetItem, QuizQuestionSet } from '../types';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { MarkdownMath } from '../components/MarkdownMath';
-import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer } from 'lucide-react';
+import { Plus, Search, Upload, MessageSquare, Check, X, FileText, Send, Clock, BookOpen, AlertTriangle, ExternalLink, Play, Copy, Share2, Eye, EyeOff, RotateCw, RotateCcw, ZoomIn, ZoomOut, Download, Phone, MessageCircle, AlertCircle, Gamepad2, Camera, HelpCircle, Pencil, Trash2, Sparkles, CheckCircle2, Layers, Radio, LayoutGrid, List, ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, FileQuestion, ChevronDown, ChevronUp, Folder, Filter, Timer } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CameraCapture } from '../components/CameraCapture';
 import { GamePreview } from '../components/GamePreview';
@@ -11,7 +11,7 @@ import { FlashcardPreviewModal } from '../components/FlashcardPreviewModal';
 import { FlashcardQuizGame } from '../components/FlashcardQuizGame';
 import { SimulationFrame } from '../components/SimulationFrame';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -23,6 +23,7 @@ import { StudentSubmissionDetailModal } from '../components/StudentSubmissionDet
 import { shouldShowNewBadge } from '../utils/resourceVisits';
 import { QuestionSetPickerModal } from '../components/QuestionSetPickerModal';
 import { SaveToQuestionBankModal } from '../components/SaveToQuestionBankModal';
+import { logActivity } from '../lib/activityLogger';
 import { GameLauncherModal } from '../components/GameLauncherModal';
 
 interface AssignmentsProps {
@@ -905,6 +906,23 @@ export function AssignmentsView({
   const [newGameFormats, setNewGameFormats] = useState<string[]>(['multiple_choice', 'true_false']);
   const [newFlashcards, setNewFlashcards] = useState<{id: string, front: string, back: string, image?: string, frontImage?: string, backImage?: string}[]>([{ id: Date.now().toString(), front: '', back: '' }]);
   const [newSubFlashcardSets, setNewSubFlashcardSets] = useState<SubFlashcardSet[]>([]);
+  const [newQuestionSets, setNewQuestionSets] = useState<QuizQuestionSet[]>([]);
+  const [newActiveQuestionSetId, setNewActiveQuestionSetId] = useState<string>('qs_default');
+  const [newStudentQuestionSetMap, setNewStudentQuestionSetMap] = useState<Record<string, string>>({});
+
+  // Assign Question Sets Modal State for Teachers
+  const [showAssignQsModal, setShowAssignQsModal] = useState<boolean>(false);
+  const [assignQsAssignment, setAssignQsAssignment] = useState<Assignment | null>(null);
+  const [assignStudentMap, setAssignStudentMap] = useState<Record<string, string>>({});
+  const [assignActiveQsId, setAssignActiveQsId] = useState<string>('');
+  const [isSavingAssignQs, setIsSavingAssignQs] = useState<boolean>(false);
+
+  // Retake Signal Modal State for Teachers
+  const [showRetakeModal, setShowRetakeModal] = useState<boolean>(false);
+  const [retakeAssignment, setRetakeAssignment] = useState<Assignment | null>(null);
+  const [retakeNote, setRetakeNote] = useState<string>('');
+  const [retakeSendNotif, setRetakeSendNotif] = useState<boolean>(true);
+  const [isSendingRetake, setIsSendingRetake] = useState<boolean>(false);
   const [activeSubSetId, setActiveSubSetId] = useState<string>('all');
   const [expandedSubSetId, setExpandedSubSetId] = useState<string | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -1027,8 +1045,35 @@ export function AssignmentsView({
     return currentSubSets[0];
   }, [currentSubSets, selectedAssignment?.activeSubSetId]);
 
+  const resolvedAssignedQuestionSet = useMemo(() => {
+    if (!selectedAssignment || !selectedAssignment.questionSets || selectedAssignment.questionSets.length === 0) {
+      return null;
+    }
+    const mappedQsId = selectedAssignment.studentQuestionSetMap?.[user.id];
+    if (mappedQsId) {
+      const found = selectedAssignment.questionSets.find(q => q.id === mappedQsId);
+      if (found) return found;
+    }
+    if (selectedAssignment.activeQuestionSetId) {
+      const found = selectedAssignment.questionSets.find(q => q.id === selectedAssignment.activeQuestionSetId);
+      if (found) return found;
+    }
+    return selectedAssignment.questionSets[0];
+  }, [selectedAssignment, user.id]);
+
   const displayQuestions = useMemo(() => {
     if (!selectedAssignment) return [];
+
+    if (resolvedAssignedQuestionSet) {
+      if (resolvedAssignedQuestionSet.questions && resolvedAssignedQuestionSet.questions.length > 0) {
+        return resolvedAssignedQuestionSet.questions;
+      }
+      if (resolvedAssignedQuestionSet.rawCode) {
+        const { parsedQuestions } = parseRawCodeToQuestions(resolvedAssignedQuestionSet.rawCode);
+        if (parsedQuestions.length > 0) return parsedQuestions;
+      }
+    }
+
     if (activeSubSet) {
       if (activeSubSet.questions && activeSubSet.questions.length > 0) {
         return activeSubSet.questions;
@@ -1039,7 +1084,7 @@ export function AssignmentsView({
       }
     }
     return selectedAssignment.questions || [];
-  }, [selectedAssignment, activeSubSet]);
+  }, [selectedAssignment, activeSubSet, resolvedAssignedQuestionSet]);
 
   // Online test raw code input (Azota style)
   const [rawQuestionCode, setRawQuestionCode] = useState<string>(SAMPLE_TEMPLATES.mau2);
@@ -1549,6 +1594,8 @@ export function AssignmentsView({
   const [feedbackValue, setFeedbackValue] = useState<string>('');
   const [submissionToDelete, setSubmissionToDelete] = useState<Submission | null>(null);
   const [isDeletingSubmission, setIsDeletingSubmission] = useState(false);
+  const [submissionToReset, setSubmissionToReset] = useState<Submission | null>(null);
+  const [isResettingSubmission, setIsResettingSubmission] = useState(false);
 
   const handleDeleteSubmission = async () => {
     if (!submissionToDelete) return;
@@ -1561,6 +1608,34 @@ export function AssignmentsView({
       alert('Không thể xóa bài nộp. Vui lòng thử lại sau.');
     } finally {
       setIsDeletingSubmission(false);
+    }
+  };
+
+  const handleResetSubmission = async () => {
+    if (!submissionToReset) return;
+    setIsResettingSubmission(true);
+    try {
+      await deleteDoc(doc(db, 'submissions', submissionToReset.id));
+      if (user) {
+        logActivity({
+          user,
+          category: 'assignment',
+          actionType: 'reset_submission',
+          title: 'Kích hoạt cho học sinh làm lại bài tập',
+          description: `Đã mở lại bài làm cho học sinh ${submissionToReset.studentName || ''} trong bài tập "${selectedAssignment?.title || ''}"`,
+          targetId: submissionToReset.id,
+          targetName: submissionToReset.studentName,
+        });
+      }
+      setSubmissionToReset(null);
+      if (inspectingSubmission && inspectingSubmission.id === submissionToReset.id) {
+        setInspectingSubmission(null);
+      }
+    } catch (error) {
+      console.error('Error resetting submission:', error);
+      alert('Không thể kích hoạt làm lại. Vui lòng thử lại sau.');
+    } finally {
+      setIsResettingSubmission(false);
     }
   };
 
@@ -1735,6 +1810,9 @@ export function AssignmentsView({
       setNewFlashcards([{ id: Date.now().toString(), front: '', back: '' }]);
     }
     setNewSubFlashcardSets(initialSubFlashcardSets || []);
+    setNewQuestionSets([]);
+    setNewActiveQuestionSetId('qs_default');
+    setNewStudentQuestionSetMap({});
     setRawQuestionCode(SAMPLE_TEMPLATES.mau2);
     setQuestions([
       {
@@ -1780,6 +1858,9 @@ export function AssignmentsView({
     setNewMaxAttempts(assignment.maxAttempts !== undefined ? assignment.maxAttempts : 0);
     setNewFlashcards(assignment.flashcards && assignment.flashcards.length > 0 ? assignment.flashcards : [{ id: Date.now().toString(), front: '', back: '' }]);
     setNewSubFlashcardSets(assignment.subFlashcardSets || []);
+    setNewQuestionSets(assignment.questionSets || []);
+    setNewActiveQuestionSetId(assignment.activeQuestionSetId || 'qs_default');
+    setNewStudentQuestionSetMap(assignment.studentQuestionSetMap || {});
     
     if (assignment.rawCode) {
       setRawQuestionCode(assignment.rawCode);
@@ -1968,6 +2049,14 @@ export function AssignmentsView({
       }
     }
 
+    const processedQuestionSets = newQuestionSets.map(qs => {
+      const { parsedQuestions } = parseRawCodeToQuestions(qs.rawCode || '');
+      return {
+        ...qs,
+        questions: parsedQuestions
+      };
+    });
+
     const rawAssignmentData = {
       title: newTitle || (newType === 'game' ? 'Game Học Tập' : newType === 'flashcard' ? 'Bộ Flashcard' : 'Bài tập buổi học mới'),
       description: newDescription || 'Các em hoàn thành bài tập đầy đủ đúng hạn trước khi vào giờ học tiếp theo.',
@@ -1988,6 +2077,9 @@ export function AssignmentsView({
       className: newClassName || undefined,
       flashcards: newType === 'flashcard' ? (newSubFlashcardSets.length > 0 ? undefined : newFlashcards) : undefined,
       subFlashcardSets: newType === 'flashcard' && newSubFlashcardSets.length > 0 ? newSubFlashcardSets : undefined,
+      questionSets: processedQuestionSets.length > 0 ? processedQuestionSets : undefined,
+      activeQuestionSetId: processedQuestionSets.length > 0 ? newActiveQuestionSetId : undefined,
+      studentQuestionSetMap: Object.keys(newStudentQuestionSetMap).length > 0 ? newStudentQuestionSetMap : undefined,
       rawCode: (newType === 'online_test' || newType === 'game' || (newType === 'flashcard' && newSubFlashcardSets.length === 0)) ? rawQuestionCode : undefined,
       questions: (newType === 'online_test' || newType === 'game' || (newType === 'flashcard' && newSubFlashcardSets.length === 0)) ? finalQuestions : undefined,
     };
@@ -3120,6 +3212,31 @@ export function AssignmentsView({
 
               <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-6 lg:p-8 space-y-6">
               
+              {/* RETAKE NOTIFICATION BANNER */}
+              {selectedAssignment.requiresRetake && (
+                <div className="p-4 bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-2xl shadow-lg border border-rose-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-white/20 rounded-xl shrink-0 font-extrabold text-xl">
+                      🔁
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm sm:text-base flex items-center gap-2">
+                        <span>GIÁO VIÊN YÊU CẦU LÀM LẠI BÀI TẬP</span>
+                        <span className="text-[10px] bg-white text-rose-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold">Mới cập nhật</span>
+                      </h4>
+                      <p className="text-xs text-rose-100 mt-0.5 leading-relaxed">
+                        {selectedAssignment.retakeNote || 'Nội dung bài tập / bộ flashcard đã được giáo viên chỉnh sửa cập nhật mới. Các em vui lòng làm lại bài ôn luyện nhé!'}
+                      </p>
+                    </div>
+                  </div>
+                  {!isTeacher && (
+                    <span className="shrink-0 px-4 py-2 bg-white text-rose-700 font-extrabold text-xs rounded-xl shadow-md uppercase tracking-wider">
+                      Làm lại ngay ⚡
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Header Details */}
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -3179,6 +3296,39 @@ export function AssignmentsView({
                         <Pencil className="w-4 h-4 text-amber-600" />
                         Chỉnh sửa
                       </button>
+
+                      {isTeacher && selectedAssignment.questionSets && selectedAssignment.questionSets.length > 0 && (
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setAssignQsAssignment(selectedAssignment);
+                            setAssignActiveQsId(selectedAssignment.activeQuestionSetId || selectedAssignment.questionSets?.[0]?.id || 'qs_default');
+                            setAssignStudentMap(selectedAssignment.studentQuestionSetMap || {});
+                            setShowAssignQsModal(true);
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-extrabold bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-500 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer active:scale-95"
+                          title="Phân công Đề trắc nghiệm kiểm tra riêng cho từng học sinh"
+                        >
+                          <Layers className="w-4 h-4 text-emerald-100" />
+                          <span>🎯 Phân công Đề ({selectedAssignment.questionSets.length} đề)</span>
+                        </button>
+                      )}
+
+                      {isTeacher && (
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setRetakeAssignment(selectedAssignment);
+                            setRetakeNote(selectedAssignment.retakeNote || 'Giáo viên vừa cập nhật nội dung bài tập/flashcard và yêu cầu học sinh làm lại bài tập này.');
+                            setShowRetakeModal(true);
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-extrabold bg-purple-600 text-white hover:bg-purple-700 border border-purple-500 px-3 py-1.5 rounded-xl transition-all shadow-sm cursor-pointer active:scale-95"
+                          title="Phát tín hiệu thông báo yêu cầu tất cả học sinh làm lại bài tập này"
+                        >
+                          <RotateCw className="w-4 h-4 text-purple-100" />
+                          <span>🔁 Yêu cầu học sinh làm lại</span>
+                        </button>
+                      )}
                       <button 
                         type="button"
                         onClick={() => setDeleteConfirmAssignment(selectedAssignment)}
@@ -4850,6 +5000,16 @@ export function AssignmentsView({
                                   
                                   <button
                                     type="button"
+                                    onClick={() => setSubmissionToReset(sub)}
+                                    className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors border border-amber-200/80 flex items-center gap-1.5"
+                                    title="Kích hoạt cho học sinh làm lại bài tập để cải thiện điểm số"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                                    <span>Làm lại</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
                                     onClick={() => setSubmissionToDelete(sub)}
                                     className="p-1.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200"
                                     title="Xóa bài nộp"
@@ -5054,7 +5214,7 @@ export function AssignmentsView({
 
               {/* Right controls: Type switcher (if assignments & step 1) + Desktop Close Button */}
               <div className="flex items-center gap-2 justify-between sm:justify-end">
-                {createStep === 1 && viewMode === 'assignments' && (
+                {createStep === 1 && viewMode === 'assignments' && newType !== 'flashcard' && newType !== 'game' && (
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 overflow-x-auto custom-scrollbar w-full sm:w-auto">
                     {([
                       { key: 'file_upload', label: 'Offline', icon: '📁' },
@@ -5126,6 +5286,10 @@ export function AssignmentsView({
                       setNewFlashcards={setNewFlashcards}
                       newSubFlashcardSets={newSubFlashcardSets}
                       setNewSubFlashcardSets={setNewSubFlashcardSets}
+                      questionSets={newQuestionSets}
+                      setQuestionSets={setNewQuestionSets}
+                      activeQuestionSetId={newActiveQuestionSetId}
+                      setActiveQuestionSetId={setNewActiveQuestionSetId}
                       rawQuestionCode={rawQuestionCode}
                       setRawQuestionCode={setRawQuestionCode}
                       setShowFlashcardPreview={setShowFlashcardPreview}
@@ -6447,6 +6611,19 @@ export function AssignmentsView({
         )}
       </AnimatePresence>
 
+      {/* RESET SUBMISSION CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={!!submissionToReset}
+        onClose={() => setSubmissionToReset(null)}
+        onConfirm={handleResetSubmission}
+        title="Xác nhận cho học sinh làm lại"
+        message={`Bạn có chắc chắn muốn cho học sinh "${submissionToReset?.studentName || 'Học sinh'}" làm lại bài tập này không? Kết quả làm bài hiện tại sẽ được khởi tạo lại để học sinh thực hiện lại từ đầu.`}
+        confirmText="Kích hoạt làm lại"
+        cancelText="Hủy bỏ"
+        variant="warning"
+        loading={isResettingSubmission}
+      />
+
       {/* DELETE SUBMISSION CONFIRMATION MODAL */}
       <ConfirmModal
         isOpen={!!submissionToDelete}
@@ -6592,6 +6769,12 @@ export function AssignmentsView({
           // If the currently inspected submission was updated, update local state
           if (inspectingSubmission && inspectingSubmission.id === subId) {
             setInspectingSubmission(prev => prev ? { ...prev, grade, feedback } : null);
+          }
+        }}
+        onResetSubmission={(subId) => {
+          const sub = submissions.find(s => s.id === subId);
+          if (sub) {
+            setSubmissionToReset(sub);
           }
         }}
         isTeacher={isTeacher}
@@ -6934,6 +7117,355 @@ export function AssignmentsView({
           handleAssignGameFromBank(qSet, gType);
         }}
       />
+
+      {/* TEACHER MODAL: ASSIGN QUESTION SETS TO STUDENTS */}
+      {showAssignQsModal && assignQsAssignment && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg">
+                  🎯
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Phân công Đề cho Học sinh</h3>
+                  <p className="text-xs text-emerald-100 font-medium truncate max-w-md">
+                    Bài tập: {assignQsAssignment.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAssignQsModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+              {/* Info banner */}
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 flex items-start gap-2.5">
+                <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Bài tập này có <strong>{assignQsAssignment.questionSets?.length || 0} đề trắc nghiệm kiểm tra</strong>.
+                  Bạn có thể chọn 1 Đề mặc định cho cả lớp, hoặc phân từng học sinh làm một đề cụ thể để chống gian lận!
+                </p>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-emerald-600" /> Đề mặc định cả lớp:
+                    </label>
+                    <p className="text-[11px] text-slate-500">Học sinh chưa được phân công riêng sẽ làm đề này</p>
+                  </div>
+                  <select
+                    value={assignActiveQsId}
+                    onChange={(e) => setAssignActiveQsId(e.target.value)}
+                    className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-extrabold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {assignQsAssignment.questionSets?.map((qs) => (
+                      <option key={qs.id} value={qs.id}>
+                        📋 {qs.title} ({qs.questions?.length || 0} câu)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!assignQsAssignment.questionSets || assignQsAssignment.questionSets.length === 0) return;
+                      const qsList = assignQsAssignment.questionSets;
+                      const studentsList = usersList.filter(u => u.role === 'student' || (u as any).role === 'user' || !(u as any).role);
+                      const newMap: Record<string, string> = {};
+                      studentsList.forEach((st, idx) => {
+                        newMap[st.id] = qsList[idx % qsList.length].id;
+                      });
+                      setAssignStudentMap(newMap);
+                      alert(`Đã xoay vòng phân chia ${qsList.length} đề cho ${studentsList.length} học sinh!`);
+                    }}
+                    className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5"
+                  >
+                    🎲 Trộn ngẫu nhiên (Đề 1, Đề 2... xoay vòng)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAssignStudentMap({});
+                      alert('Đã xóa tất cả phân công riêng. Tất cả học sinh sẽ làm Đề mặc định.');
+                    }}
+                    className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 transition-all flex items-center gap-1.5"
+                  >
+                    🔄 Bỏ phân công riêng (Làm đề mặc định)
+                  </button>
+                </div>
+              </div>
+
+              {/* Student Assignment List Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    👥 Danh sách học sinh ({usersList.filter(u => u.role === 'student' || (u as any).role === 'user' || !(u as any).role).length})
+                  </h4>
+                  {Object.keys(assignStudentMap).length > 0 && (
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Đã phân công riêng {Object.keys(assignStudentMap).length} em
+                    </span>
+                  )}
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl overflow-hidden divide-y divide-slate-100 max-h-72 overflow-y-auto custom-scrollbar bg-white">
+                  {usersList
+                    .filter(u => u.role === 'student' || (u as any).role === 'user' || !(u as any).role)
+                    .map((st) => {
+                      const currentQsIdForStudent = assignStudentMap[st.id] || assignActiveQsId;
+                      const isCustomAssigned = Boolean(assignStudentMap[st.id]);
+
+                      return (
+                        <div key={st.id} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-extrabold text-xs flex items-center justify-center shrink-0 border border-indigo-200">
+                              {st.avatar ? (
+                                <img src={st.avatar} alt={st.name} className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                st.name ? st.name.charAt(0).toUpperCase() : 'H'
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-extrabold text-slate-800 truncate">{st.name || 'Học sinh'}</p>
+                              <p className="text-[10px] text-slate-500 truncate">{st.className || 'Chưa xếp lớp'}</p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-2">
+                            {isCustomAssigned && (
+                              <span className="text-[10px] font-extrabold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 hidden sm:inline">
+                                Phân công riêng
+                              </span>
+                            )}
+                            <select
+                              value={currentQsIdForStudent}
+                              onChange={(e) => {
+                                const selectedVal = e.target.value;
+                                setAssignStudentMap(prev => {
+                                  const updated = { ...prev };
+                                  if (selectedVal === assignActiveQsId) {
+                                    delete updated[st.id];
+                                  } else {
+                                    updated[st.id] = selectedVal;
+                                  }
+                                  return updated;
+                                });
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold outline-none border transition-all ${
+                                isCustomAssigned 
+                                  ? 'bg-purple-50 text-purple-900 border-purple-300 font-extrabold'
+                                  : 'bg-white text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {assignQsAssignment.questionSets?.map((qs) => (
+                                <option key={qs.id} value={qs.id}>
+                                  📋 {qs.title} {qs.id === assignActiveQsId ? '(Đề mặc định)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowAssignQsModal(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 font-bold text-xs rounded-xl transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isSavingAssignQs}
+                onClick={async () => {
+                  if (!assignQsAssignment) return;
+                  setIsSavingAssignQs(true);
+                  try {
+                    const docRef = doc(db, 'assignments', assignQsAssignment.id);
+                    await updateDoc(docRef, {
+                      activeQuestionSetId: assignActiveQsId,
+                      studentQuestionSetMap: assignStudentMap,
+                      updatedAt: new Date().toISOString()
+                    });
+
+                    if (selectedAssignment && selectedAssignment.id === assignQsAssignment.id) {
+                      setSelectedAssignment({
+                        ...selectedAssignment,
+                        activeQuestionSetId: assignActiveQsId,
+                        studentQuestionSetMap: assignStudentMap
+                      });
+                    }
+
+                    setShowAssignQsModal(false);
+                    alert('Đã lưu phân công Đề kiểm tra cho các học sinh thành công!');
+                  } catch (err) {
+                    console.error('Error saving assigned question sets:', err);
+                    alert('Không thể lưu phân công đề. Vui lòng thử lại.');
+                  } finally {
+                    setIsSavingAssignQs(false);
+                  }
+                }}
+                className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              >
+                {isSavingAssignQs ? 'Đang lưu...' : '✓ Lưu Phân Công'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEACHER MODAL: REQUEST STUDENTS TO RETAKE ASSIGNMENT */}
+      {showRetakeModal && retakeAssignment && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center font-bold text-lg">
+                  🔁
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">Phát Tín Hiệu Yêu Cầu Làm Lại</h3>
+                  <p className="text-xs text-purple-100 font-medium truncate max-w-xs">
+                    {retakeAssignment.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRetakeModal(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content Body */}
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-900 space-y-1">
+                <p className="font-extrabold text-purple-950 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-purple-600" />
+                  Gửi tín hiệu thông báo làm lại bài tập
+                </p>
+                <p className="text-purple-700 leading-relaxed">
+                  Dùng tính năng này khi bạn vừa cập nhật bộ Flashcard cũ, sửa đề thi hoặc bổ sung câu hỏi mới và muốn học sinh làm lại để ôn luyện & tính lại kết quả.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  💬 Lời nhắn / Hướng dẫn học sinh:
+                </label>
+                <textarea
+                  rows={3}
+                  value={retakeNote}
+                  onChange={(e) => setRetakeNote(e.target.value)}
+                  placeholder="Ví dụ: Thầy/cô vừa bổ sung thêm 15 từ vựng và câu hỏi trắc nghiệm mới. Các em vào làm lại bài để rèn luyện kĩ hơn nhé!"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                />
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="notif_check_retake"
+                  checked={retakeSendNotif}
+                  onChange={(e) => setRetakeSendNotif(e.target.checked)}
+                  className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                />
+                <label htmlFor="notif_check_retake" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Tự động phát thông báo trực tiếp đến thông báo hệ thống
+                </label>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowRetakeModal(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-200 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isSendingRetake}
+                onClick={async () => {
+                  if (!retakeAssignment) return;
+                  setIsSendingRetake(true);
+                  try {
+                    const assignmentRef = doc(db, 'assignments', retakeAssignment.id);
+                    const noteText = retakeNote.trim() || 'Giáo viên vừa cập nhật nội dung mới và yêu cầu học sinh làm lại bài tập này.';
+                    
+                    await updateDoc(assignmentRef, {
+                      requiresRetake: true,
+                      retakeRequestedAt: new Date().toISOString(),
+                      retakeNote: noteText,
+                      updatedAt: new Date().toISOString()
+                    });
+
+                    if (selectedAssignment && selectedAssignment.id === retakeAssignment.id) {
+                      setSelectedAssignment({
+                        ...selectedAssignment,
+                        requiresRetake: true,
+                        retakeRequestedAt: new Date().toISOString(),
+                        retakeNote: noteText
+                      });
+                    }
+
+                    // Send System Notification if checked
+                    if (retakeSendNotif) {
+                      await addDoc(collection(db, 'system_notifications'), {
+                        title: `🔴 YÊU CẦU LÀM LẠI: ${retakeAssignment.title}`,
+                        content: `Giáo viên ${user.name} vừa cập nhật nội dung bài tập / bộ flashcard và phát tín hiệu yêu cầu làm lại bài.\n\n💬 Lời nhắn từ giáo viên: "${noteText}"`,
+                        type: 'announcement',
+                        badge: '🔴 Yêu cầu làm lại',
+                        badgeColor: 'rose',
+                        targetClass: retakeAssignment.className || 'all',
+                        createdAt: new Date().toISOString(),
+                        senderName: user.name
+                      });
+                    }
+
+                    alert(`Đã phát tín hiệu yêu cầu học sinh làm lại bài tập "${retakeAssignment.title}" thành công!`);
+                    setShowRetakeModal(false);
+                    setRetakeAssignment(null);
+                  } catch (err: any) {
+                    console.error('Error sending retake signal:', err);
+                    alert(`Lỗi khi phát tín hiệu làm lại bài: ${err.message || 'Lỗi hệ thống'}`);
+                  } finally {
+                    setIsSendingRetake(false);
+                  }
+                }}
+                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-purple-200 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+              >
+                {isSendingRetake ? 'Đang gửi tín hiệu...' : '🚀 Phát Tín Hiệu Yêu Cầu Làm Lại'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
