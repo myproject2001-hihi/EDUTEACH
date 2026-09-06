@@ -834,6 +834,18 @@ export function AssignmentsView({
 
     // Ghi nhận thao tác khi học sinh nhấn vào bài tập (dù chưa nộp)
     if (selectedAssignment && user?.id && (user.role === 'student' || (!isTeacher && !isAdmin))) {
+      // 1. Luôn ghi nhận hoặc cập nhật tài liệu trong collection student_interactions để đồng bộ real-time
+      setDoc(doc(db, 'student_interactions', `${user.id}_${selectedAssignment.id}`), {
+        studentId: user.id,
+        studentName: user.name || 'Học sinh',
+        className: user.className || '',
+        assignmentId: selectedAssignment.id,
+        assignmentTitle: selectedAssignment.title,
+        accessedAt: new Date().toISOString(),
+        status: 'viewed'
+      }, { merge: true }).catch(err => console.error("Error writing to student_interactions:", err));
+
+      // 2. Ghi nhận cache nhanh cục bộ vào tài liệu bài tập (nếu chưa từng xem)
       const hasAlreadyViewed = selectedAssignment.viewedStudentIds?.includes(user.id);
       if (!hasAlreadyViewed) {
         const newViewedIds = Array.from(new Set([...(selectedAssignment.viewedStudentIds || []), user.id]));
@@ -909,6 +921,20 @@ export function AssignmentsView({
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (!isTeacher) return;
+    const unsub = onSnapshot(collection(db, 'student_interactions'), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach(docSnap => {
+        list.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      setStudentInteractions(list);
+    }, (error) => {
+      console.error("Error listening to student_interactions:", error);
+    });
+    return () => unsub();
+  }, [isTeacher]);
 
   const teacherClasses = React.useMemo(() => {
     return classList.filter(c => c.teacherId === user.id || user.role === 'admin');
@@ -1217,7 +1243,8 @@ export function AssignmentsView({
   } | null>(null);
   const [previewSub, setPreviewSub] = useState<Submission | null>(null);
   const [inspectingSubmission, setInspectingSubmission] = useState<Submission | null>(null);
-  const [submissionFilterStatus, setSubmissionFilterStatus] = useState<'all' | 'pending' | 'graded'>('all');
+  const [submissionFilterStatus, setSubmissionFilterStatus] = useState<'all' | 'pending' | 'graded' | 'viewed'>('all');
+  const [studentInteractions, setStudentInteractions] = useState<any[]>([]);
   const [submissionSearchQuery, setSubmissionSearchQuery] = useState<string>('');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [rotationAngle, setRotationAngle] = useState<number>(0);
@@ -4927,6 +4954,52 @@ export function AssignmentsView({
                 const gradedSubsCount = currentAssignmentSubs.filter(s => s.grade !== undefined).length;
                 const pendingSubsCount = currentAssignmentSubs.filter(s => s.grade === undefined).length;
 
+                const submittedStudentIds = new Set(currentAssignmentSubs.map(s => s.studentId));
+                const viewedButNotSubmitted = (() => {
+                  const combinedViews: { studentId: string; studentName: string; className: string; accessedAt: string }[] = [];
+                  const processedIds = new Set<string>();
+
+                  // 1. Đồng bộ real-time từ collection student_interactions mới tạo
+                  const viewedInteractions = studentInteractions.filter(item => item.assignmentId === selectedAssignment.id && item.status === 'viewed');
+                  viewedInteractions.forEach(item => {
+                    if (!submittedStudentIds.has(item.studentId) && !processedIds.has(item.studentId)) {
+                      processedIds.add(item.studentId);
+                      combinedViews.push({
+                        studentId: item.studentId,
+                        studentName: item.studentName || 'Học sinh',
+                        className: item.className || '',
+                        accessedAt: item.accessedAt
+                      });
+                    }
+                  });
+
+                  // 2. Fallback từ cache viewedStudentLogs của bài tập
+                  if (selectedAssignment.viewedStudentLogs) {
+                    selectedAssignment.viewedStudentLogs.forEach(log => {
+                      if (!submittedStudentIds.has(log.studentId) && !processedIds.has(log.studentId)) {
+                        processedIds.add(log.studentId);
+                        combinedViews.push({
+                          studentId: log.studentId,
+                          studentName: log.studentName || 'Học sinh',
+                          className: log.className || '',
+                          accessedAt: log.accessedAt
+                        });
+                      }
+                    });
+                  }
+
+                  return combinedViews;
+                })();
+
+                const filteredViewedButNotSubmitted = viewedButNotSubmitted.filter(v => {
+                  if (submissionSearchQuery.trim()) {
+                    const q = submissionSearchQuery.trim().toLowerCase();
+                    const name = (v.studentName || '').toLowerCase();
+                    return name.includes(q);
+                  }
+                  return true;
+                });
+
                 const displayedSubs = currentAssignmentSubs.filter(sub => {
                   if (submissionSearchQuery.trim()) {
                     const q = submissionSearchQuery.trim().toLowerCase();
@@ -4949,14 +5022,14 @@ export function AssignmentsView({
                           <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-black rounded-full border border-indigo-200">
                             {currentAssignmentSubs.length} đã nộp
                           </span>
-                          {selectedAssignment.viewedStudentIds && selectedAssignment.viewedStudentIds.length > 0 && (
+                          {viewedButNotSubmitted.length > 0 && (
                             <button
                               type="button"
-                              onClick={() => setUnsubmittedModalAssignment(selectedAssignment)}
+                              onClick={() => setSubmissionFilterStatus('viewed')}
                               className="px-2.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
                               title="Bấm để xem danh sách học sinh đã mở bài tập nhưng chưa hoàn thành nộp bài"
                             >
-                              👁️ {selectedAssignment.viewedStudentIds.length} HS đã mở bài (chưa nộp)
+                              👁️ {viewedButNotSubmitted.length} HS đã mở bài (chưa nộp)
                             </button>
                           )}
                         </div>
@@ -5012,11 +5085,22 @@ export function AssignmentsView({
                             {gradedSubsCount}
                           </span>
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setSubmissionFilterStatus('viewed')}
+                          className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 ${
+                            submissionFilterStatus === 'viewed'
+                              ? 'bg-amber-600 text-white shadow-sm'
+                              : 'text-slate-500 hover:text-amber-800'
+                          }`}
+                        >
+                          <span>Đã xem ({viewedButNotSubmitted.length})</span>
+                        </button>
                       </div>
                     </div>
 
                     {/* Search bar when there are submissions */}
-                    {currentAssignmentSubs.length > 2 && (
+                    {(currentAssignmentSubs.length > 2 || viewedButNotSubmitted.length > 2) && (
                       <div className="relative">
                         <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
@@ -5042,6 +5126,85 @@ export function AssignmentsView({
                     <div className="space-y-3">
                       {isLoadingSubmissions ? (
                         <SubmissionsListSkeleton count={3} />
+                      ) : submissionFilterStatus === 'viewed' ? (
+                        filteredViewedButNotSubmitted.length === 0 ? (
+                          <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-center space-y-2">
+                            <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
+                            <p className="font-bold text-slate-700 text-sm">Chưa có học sinh nào xem bài tập này mà chưa nộp</p>
+                            <p className="text-slate-500 text-xs">Học sinh mở xem giao diện làm bài tập sẽ hiển thị trạng thái tại đây.</p>
+                          </div>
+                        ) : (
+                          filteredViewedButNotSubmitted.map(v => {
+                            const studentUser = usersList.find(u => u.id === v.studentId);
+                            const formattedTime = v.accessedAt 
+                              ? format(new Date(v.accessedAt), 'HH:mm dd/MM/yyyy', { locale: vi }) 
+                              : 'Chưa rõ thời gian';
+
+                            return (
+                              <div 
+                                key={v.studentId} 
+                                className="group p-4 sm:p-5 bg-white hover:bg-amber-50/10 rounded-2xl border border-slate-200 hover:border-amber-300 shadow-sm hover:shadow-md transition-all space-y-3"
+                              >
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                                  <div className="flex items-center gap-3">
+                                    <UserAvatar 
+                                      name={v.studentName || 'Học sinh'} 
+                                      avatar={studentUser?.avatar} 
+                                      size="md" 
+                                    />
+                                    <div>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-extrabold text-slate-900 text-sm">
+                                          {v.studentName || 'Học sinh'}
+                                        </p>
+                                        {(studentUser?.className || v.className) && (
+                                          <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-md">
+                                            Lớp: {studentUser?.className || v.className}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                        <Clock className="w-3 h-3 text-slate-400" />
+                                        <span>Đã xem lúc: {formattedTime}</span>
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2">
+                                    <span className="bg-amber-50 text-amber-800 font-extrabold text-xs px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1 shadow-xs">
+                                      <span>👁️ Đã xem (Chưa nộp)</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="bg-amber-50/30 p-3 rounded-xl border border-amber-100/60 text-xs text-amber-950 font-medium">
+                                  <p>Học sinh đã truy cập mở xem bài tập nhưng chưa hoàn tất nộp bài.</p>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                  <div className="text-[11px] text-slate-400 font-medium">
+                                    SĐT: {studentUser?.phoneStudent || studentUser?.phoneParent || 'Chưa cập nhật'}
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const text = `🔔 [NHẮC NHỞ BÀI TẬP]: Thầy/cô thấy em ${v.studentName} đã vào làm bài tập "${selectedAssignment.title}" nhưng chưa hoàn tất nộp bài. Em kiểm tra lại để gửi bài nhé!`;
+                                      navigator.clipboard.writeText(text);
+                                      setCopiedStudentId(v.studentId);
+                                      alert(`Đã sao chép tin nhắn nhắc nhở riêng của ${v.studentName} vào bộ nhớ tạm!\n\nNội dung:\n"${text}"`);
+                                      setTimeout(() => setCopiedStudentId(null), 2000);
+                                    }}
+                                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>{copiedStudentId === v.studentId ? 'Đã sao chép' : 'Sao chép nhắc nhở'}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )
                       ) : currentAssignmentSubs.length === 0 ? (
                         <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-center space-y-2">
                           <BookOpen className="w-8 h-8 text-slate-400 mx-auto" />
