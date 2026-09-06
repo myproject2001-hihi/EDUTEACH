@@ -328,7 +328,7 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
   };
 
   const handleOpenNotice = (session: ClassSession) => {
-    const msg = `[THÔNG BÁO LỊCH HỌC TRỰC TUYẾN - LỚP 10A1]\nXin chào các em học sinh và Quý Phụ huynh,\nChuẩn bị diễn ra buổi học: "${session.title}".\nThời gian: ${format(new Date(session.startTime), 'HH:mm dd/MM/yyyy', { locale: vi })}\nLink phòng học Google Meet / Zoom: ${session.link}\nLưu ý: ${session.note || 'Vào phòng học đúng giờ trước 5 phút!'}`;
+    const msg = `[THÔNG BÁO LỊCH HỌC TRỰC TUYẾN]\nXin chào các em học sinh và Quý Phụ huynh,\nChuẩn bị diễn ra buổi học: "${session.title}".\nThời gian: ${format(new Date(session.startTime), 'HH:mm dd/MM/yyyy', { locale: vi })}\nLink phòng học Google Meet / Zoom: ${session.link}\nLưu ý: ${session.note || 'Vào phòng học đúng giờ trước 5 phút!'}`;
     setNotifyMsg(msg);
     setNotifyModal(true);
     setCopied(false);

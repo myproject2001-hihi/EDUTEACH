@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Gamepad2, X, Play, Camera, UserCheck, Download, Check, HelpCircle, Maximize2, Minimize2, Volume2, VolumeX } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { CameraCapture } from './CameraCapture';
 import { FaceLandmarker, HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { MarkdownMath } from './MarkdownMath';
@@ -691,6 +692,30 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
   const [isCrossingFinish, setIsCrossingFinish] = useState(false);
   const [correctAnswersCount, setCorrectAnswersCount] = useState(0);
   const [answersMap, setAnswersMap] = useState<Record<string, number>>({});
+
+  // Reset confetti and fireworks on unmount so they never bleed into outside screens
+  useEffect(() => {
+    return () => {
+      setShowFireworks(false);
+      setShowVictoryFireworks(false);
+      try {
+        confetti.reset();
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  const handleSafeClose = useCallback(() => {
+    setShowFireworks(false);
+    setShowVictoryFireworks(false);
+    try {
+      confetti.reset();
+    } catch {
+      // ignore
+    }
+    onClose();
+  }, [onClose]);
 
   const gameQuestions = React.useMemo(() => {
     if (questions && questions.length > 0) return questions;
@@ -1630,7 +1655,7 @@ export function GamePreview({ gameType, questions, onClose, isStudentMode = fals
               <HelpCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-indigo-400 group-hover:text-white group-hover:scale-110 transition-all" />
               <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider hidden sm:inline">Cách Chơi</span>
             </button>
-            <button onClick={onClose} className="p-1.5 bg-slate-800 hover:bg-rose-500 text-slate-400 hover:text-white rounded-full transition-colors group shrink-0">
+            <button onClick={handleSafeClose} className="p-1.5 bg-slate-800 hover:bg-rose-500 text-slate-400 hover:text-white rounded-full transition-colors group shrink-0" title="Thoát trò chơi">
               <X className="w-4 h-4 sm:w-5 sm:h-5 group-hover:rotate-90 transition-transform" />
             </button>
           </div>

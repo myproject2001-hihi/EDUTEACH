@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { RotateCw, CheckCircle2, Brain, Hand, HelpCircle, Lightbulb, Image as ImageIcon, FileText, Sparkles, ZoomIn, X, Volume2, VolumeX, Music } from 'lucide-react';
+import { RotateCw, CheckCircle2, Brain, Hand, HelpCircle, Lightbulb, Image as ImageIcon, FileText, Sparkles, ZoomIn, X, Volume2, VolumeX, Music, Sliders } from 'lucide-react';
 import { MarkdownMath } from './MarkdownMath';
 import { ParsedQuestionItem, cleanQuestionText } from '../views/AssignmentsView';
 import { gameAudio, getSoundConfig, saveSoundConfig } from '../utils/gameAudio';
+import { GameAudioSettingsModal } from './GameAudioSettingsModal';
 
 export interface MemoryFlipGameProps {
   questions: ParsedQuestionItem[];
@@ -218,6 +219,7 @@ export function MemoryFlipGame({
   const [isWinModalOpen, setIsWinModalOpen] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<{ src: string; caption?: string } | null>(null);
   const [soundConfig, setSoundConfig] = useState(getSoundConfig);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -542,6 +544,16 @@ export function MemoryFlipGame({
             </span>
           </div>
 
+          {/* Sound Settings Modal Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowAudioSettings(true)}
+            className="p-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:text-indigo-600 hover:border-indigo-200 transition active:scale-95 flex items-center justify-center"
+            title="Cài đặt Âm thanh & Nhạc nền"
+          >
+            <Sliders className="w-3.5 h-3.5 text-indigo-500" />
+          </button>
+
           {/* BGM Toggle */}
           <button
             type="button"
@@ -849,6 +861,14 @@ export function MemoryFlipGame({
           </div>
         </div>
       )}
+
+      {/* Audio Settings Modal */}
+      <GameAudioSettingsModal
+        isOpen={showAudioSettings}
+        onClose={() => setShowAudioSettings(false)}
+        gameName="Lật Thẻ Trí Nhớ & Khớp Cặp"
+        bgmTrack="puzzle"
+      />
 
     </div>
   );

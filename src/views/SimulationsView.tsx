@@ -48,11 +48,11 @@ export function SimulationsView({ user, simulations: initialSims, onAddSimulatio
     initialSims.forEach(s => {
       if (s.className) classSet.add(s.className.trim());
     });
-    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
-    defaults.forEach(d => classSet.add(d));
-    return Array.from(classSet).filter(Boolean).sort((a, b) => 
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    );
+    return Array.from(classSet)
+      .filter(c => c && c.trim() !== '' && !c.match(/^\d+$/) && c !== 'N/A' && c !== 'Chưa có lớp')
+      .sort((a, b) => 
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
   }, [user.className, initialSims]);
 
   // Auto scroll to top when selecting simulation or category

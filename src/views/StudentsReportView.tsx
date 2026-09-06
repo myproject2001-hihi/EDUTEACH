@@ -1,10 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProgress, Submission, Assignment, MonthlyProgress } from '../types';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy, ArrowUpDown, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { 
+  Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, 
+  Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy, ArrowUpDown, 
+  ArrowUp, ArrowDown, RotateCcw, Upload, FileSpreadsheet, Sparkles, Star, Shuffle, 
+  Users, Timer, CheckCircle2, PlusCircle, Plus, FolderPlus, BookOpen
+} from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { CustomSelect } from '../components/CustomSelect';
+import { BatchActionBar } from '../components/BatchActionBar';
+import { BulkStudentImportModal } from '../components/BulkStudentImportModal';
+import { TeacherClassroomToolsModal, ToolTab } from '../components/TeacherClassroomToolsModal';
+import { exportRosterToExcel } from '../utils/studentExcelHelper';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -44,6 +54,70 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
   const [subToResetInReport, setSubToResetInReport] = useState<Submission | null>(null);
   const [isResettingReportSub, setIsResettingReportSub] = useState(false);
 
+  // New Modals for Teacher Tools & Bulk Import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showClassroomToolsModal, setShowClassroomToolsModal] = useState(false);
+  const [classroomToolsTab, setClassroomToolsTab] = useState<ToolTab>('attendance');
+
+  // Student deletion state
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<StudentProgress | null>(null);
+  const [isDeletingSingle, setIsDeletingSingle] = useState(false);
+
+  const handleBulkDeleteStudents = async () => {
+    if (selectedStudents.length === 0) return;
+    setIsDeletingBulk(true);
+    try {
+      const deletePromises = selectedStudents.map(studentId => deleteDoc(doc(db, 'users', studentId)));
+      await Promise.all(deletePromises);
+      setNotification({
+        message: `Đã xóa thành công ${selectedStudents.length} học sinh khỏi hệ thống.`,
+        type: 'success'
+      });
+      setSelectedStudents([]);
+      setShowBulkDeleteConfirm(false);
+    } catch (err) {
+      console.error('Lỗi khi xóa học sinh:', err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi xóa học sinh.',
+        type: 'error'
+      });
+    } finally {
+      setIsDeletingBulk(false);
+    }
+  };
+
+  const handleSingleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setIsDeletingSingle(true);
+    try {
+      await deleteDoc(doc(db, 'users', studentToDelete.studentId));
+      setNotification({
+        message: `Đã xóa học sinh "${studentToDelete.studentName}" thành công.`,
+        type: 'success'
+      });
+      if (selectedStudent?.studentId === studentToDelete.studentId) {
+        setSelectedStudent(null);
+      }
+      setSelectedStudents(prev => prev.filter(id => id !== studentToDelete.studentId));
+      setStudentToDelete(null);
+    } catch (err) {
+      console.error('Lỗi khi xóa học sinh:', err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi xóa học sinh.',
+        type: 'error'
+      });
+    } finally {
+      setIsDeletingSingle(false);
+    }
+  };
+
+  const openClassroomTool = (tab: ToolTab) => {
+    setClassroomToolsTab(tab);
+    setShowClassroomToolsModal(true);
+  };
+
   const handleConfirmResetReportSub = async () => {
     if (!subToResetInReport) return;
     setIsResettingReportSub(true);
@@ -80,6 +154,84 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'roster' | 'requests'>('roster');
+
+  // Modal tạo lớp mới cho giáo viên
+  const [showCreateClassModal, setShowCreateClassModal] = useState(false);
+  const [newClassNameInput, setNewClassNameInput] = useState('');
+  const [newClassSubjectInput, setNewClassSubjectInput] = useState('');
+  const [selectedStudentsForNewClass, setSelectedStudentsForNewClass] = useState<string[]>([]);
+  const [isCreatingClass, setIsCreatingClass] = useState(false);
+
+  // Xử lý Tạo & Lưu lớp mới cho Giáo viên
+  const handleCreateNewClassSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const nameTrimmed = newClassNameInput.trim();
+    if (!nameTrimmed) {
+      setNotification({ message: 'Vui lòng nhập tên lớp học!', type: 'error' });
+      return;
+    }
+
+    setIsCreatingClass(true);
+    try {
+      const classId = `class_${Date.now()}`;
+      const newClassData = {
+        id: classId,
+        className: nameTrimmed,
+        title: nameTrimmed,
+        teacherId: user?.id || 'teacher',
+        teacherName: user?.name || 'Giáo viên',
+        subject: newClassSubjectInput.trim() || 'Chung',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // 1. Lưu lớp mới vào bộ sưu tập class_sessions
+      await setDoc(doc(db, 'class_sessions', classId), newClassData);
+
+      // 2. Cập nhật mã lớp cho học sinh được chọn (nếu có)
+      if (selectedStudentsForNewClass.length > 0) {
+        const batch = writeBatch(db);
+        selectedStudentsForNewClass.forEach(sId => {
+          batch.update(doc(db, 'users', sId), { className: nameTrimmed });
+        });
+        await batch.commit();
+      }
+
+      // 3. Cập nhật mã lớp hiện tại của giáo viên
+      if (user?.id && (user.role === 'teacher' || user.role === 'admin' || user.isTeacher)) {
+        try {
+          await updateDoc(doc(db, 'users', user.id), {
+            className: nameTrimmed
+          });
+        } catch (err) {
+          console.error('Failed to update teacher user doc className:', err);
+        }
+      }
+
+      // 4. Chuyển bộ chọn lớp sang lớp mới tạo
+      setClassName(nameTrimmed);
+      localStorage.setItem('class_name', nameTrimmed);
+      window.dispatchEvent(new Event('storage'));
+
+      // 5. Đóng modal và reset form
+      setShowCreateClassModal(false);
+      setNewClassNameInput('');
+      setNewClassSubjectInput('');
+      setSelectedStudentsForNewClass([]);
+      setNotification({
+        message: `Đã tạo thành công lớp "${nameTrimmed}" và lưu vào hệ thống!`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error("Lỗi khi tạo lớp học mới:", err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi tạo lớp học. Vui lòng thử lại.',
+        type: 'error'
+      });
+    } finally {
+      setIsCreatingClass(false);
+    }
+  };
 
   // Auto scroll to top when selecting a student or switching sub-tabs
   useEffect(() => {
@@ -199,6 +351,60 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
     return allUsers.filter(u => u.role === 'student');
   }, [allUsers]);
 
+  // Đổi lớp học đang chọn
+  const handleClassChange = async (newClass: string) => {
+    setClassName(newClass);
+    localStorage.setItem('class_name', newClass);
+    window.dispatchEvent(new Event('storage'));
+
+    if (user?.id && (user.role === 'teacher' || user.role === 'admin')) {
+      try {
+        await updateDoc(doc(db, 'users', user.id), {
+          className: newClass
+        });
+      } catch (err) {
+        console.error('Failed to update user className on Firestore:', err);
+      }
+    }
+  };
+
+  // Danh sách các lớp khả dụng cho bộ chọn
+  const classOptions = React.useMemo(() => {
+    const set = new Set<string>();
+
+    if (className && className.trim() && className.trim().toLowerCase() !== 'tất cả') {
+      set.add(className.trim());
+    }
+
+    teacherClasses.forEach(c => {
+      const name = (c.className || c.title || '').trim();
+      if (name) set.add(name);
+    });
+
+    studentUsers.forEach(u => {
+      const name = (u.className || u.connectionCode || '').trim();
+      if (name) set.add(name);
+    });
+
+    const sorted = Array.from(set).sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
+
+    return [
+      { value: 'Tất cả', label: 'Tất cả các lớp' },
+      ...sorted.map(cls => {
+        const count = studentUsers.filter(u => {
+          const uClass = (u.className || u.connectionCode || '').trim().toLowerCase();
+          return uClass === cls.toLowerCase();
+        }).length;
+
+        return {
+          value: cls,
+          label: `Lớp ${cls}`,
+          badge: count > 0 ? `${count} HS` : undefined,
+        };
+      })
+    ];
+  }, [className, teacherClasses, studentUsers]);
+
   // Tổng hợp danh sách học sinh theo mã lớp học đang chọn
   const combinedRoster = React.useMemo(() => {
     const filterClass = className.trim().toLowerCase();
@@ -251,23 +457,37 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
       // Generate monthly progress if not present
       let monthlyProgress: MonthlyProgress[] | undefined = existingProgress?.monthlyProgress;
       if ((!monthlyProgress || monthlyProgress.length === 0) && studentSubs.length > 0) {
-        const monthMap: Record<string, number[]> = {};
+        const monthMap: Record<string, { all: number[], quiz: number[], sim: number[] }> = {};
+        
         studentSubs.forEach(s => {
           const d = s.submittedAt ? new Date(s.submittedAt) : new Date();
           const mKey = `Tháng ${d.getMonth() + 1}`;
-          if (!monthMap[mKey]) monthMap[mKey] = [];
+          if (!monthMap[mKey]) monthMap[mKey] = { all: [], quiz: [], sim: [] };
+          
           if (typeof s.grade === 'number' && !isNaN(s.grade)) {
-            monthMap[mKey].push(s.grade);
+            monthMap[mKey].all.push(s.grade);
+            
+            // Determine type
+            const assignment = assignments?.find(a => a.id === s.assignmentId);
+            if (assignment?.type === 'simulation') {
+              monthMap[mKey].sim.push(s.grade);
+            } else {
+              monthMap[mKey].quiz.push(s.grade);
+            }
           }
         });
+        
         const mList = Object.keys(monthMap).map(mKey => {
-          const arr = monthMap[mKey];
-          const avg = arr.length > 0 ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : calcAvgGrade;
+          const data = monthMap[mKey];
+          const avgAll = data.all.length > 0 ? Math.round((data.all.reduce((a, b) => a + b, 0) / data.all.length) * 10) / 10 : calcAvgGrade;
+          const avgQuiz = data.quiz.length > 0 ? Math.round((data.quiz.reduce((a, b) => a + b, 0) / data.quiz.length) * 10) / 10 : null;
+          const avgSim = data.sim.length > 0 ? Math.round((data.sim.reduce((a, b) => a + b, 0) / data.sim.length) * 10) / 10 : null;
+          
           return {
             month: mKey,
-            quizScore: avg,
-            simScore: avg,
-            average: avg
+            quizScore: avgQuiz !== null ? avgQuiz : avgAll, // fallback just in case chart needs a number
+            simScore: avgSim, // null means they didn't do simulation
+            average: avgAll
           };
         });
         if (mList.length > 0) monthlyProgress = mList;
@@ -276,25 +496,39 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
       const finalCompletion = Math.max(existingProgress?.completionRate || 0, calcCompletion);
       const finalAvgGrade = validGrades.length > 0 ? calcAvgGrade : (existingProgress?.averageGrade || 0);
 
+      const displayName = u.name || (u as any).displayName || (u as any).fullName || (u as any).studentName || existingProgress?.studentName || 'Học sinh';
+
       if (existingProgress) {
         return {
           ...existingProgress,
+          id: u.id,
+          name: displayName,
           studentId: u.id,
-          studentName: u.name || existingProgress.studentName,
+          studentName: displayName,
           phoneStudent: u.phoneStudent || existingProgress.phoneStudent || '',
           phoneParent: u.phoneParent || existingProgress.phoneParent || '',
           className: u.className || existingProgress.className || className,
+          isOffline: u.isOffline || false,
+          studentCode: u.studentCode || u.connectionCode || '',
+          meritPoints: u.meritPoints || 0,
+          points: u.points || 0,
           completionRate: finalCompletion,
           averageGrade: finalAvgGrade,
           monthlyProgress: monthlyProgress || existingProgress.monthlyProgress
         };
       }
       return {
+        id: u.id,
+        name: displayName,
         studentId: u.id,
-        studentName: u.name || 'Học sinh',
+        studentName: displayName,
         phoneStudent: u.phoneStudent || '',
         phoneParent: u.phoneParent || '',
         className: u.className || className,
+        isOffline: u.isOffline || false,
+        studentCode: u.studentCode || u.connectionCode || '',
+        meritPoints: u.meritPoints || 0,
+        points: u.points || 0,
         completionRate: finalCompletion,
         averageGrade: finalAvgGrade,
         attendanceRate: 100,
@@ -463,7 +697,12 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                 {student.monthlyProgress.map((m, idx) => (
                   <div key={idx} className="p-2 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-[10px]">
                     <span className="font-bold text-slate-800">{m.month}</span>
-                    <span className="text-slate-500">Trắc nghiệm: <strong className="text-emerald-600">{m.quizScore}</strong> | Mô phỏng: <strong className="text-amber-600">{m.simScore}</strong></span>
+                    <span className="text-slate-500">
+                      Trắc nghiệm: <strong className="text-emerald-600">{m.quizScore}</strong> 
+                      {m.simScore !== null && m.simScore !== undefined && (
+                        <> | Mô phỏng: <strong className="text-amber-600">{m.simScore}</strong></>
+                      )}
+                    </span>
                     <span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md font-extrabold">{m.average} đ</span>
                   </div>
                 ))}
@@ -482,16 +721,25 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
             return (
               <div className="space-y-2.5 pt-3 border-t border-slate-150">
                 <p className="font-extrabold text-slate-800 text-xs flex items-center justify-between">
-                  <span>Lịch sử bài tập & Kích hoạt làm lại ({studentSubs.length}):</span>
+                  <span>Lịch sử bài tập ({studentSubs.length}):</span>
                 </p>
                 <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
                   {studentSubs.map(sub => {
                     const ass = assignments.find(a => a.id === sub.assignmentId);
                     const assTitle = ass?.title || 'Bài tập';
+                    let typeBadge = null;
+                    if (ass?.type === 'flashcard') typeBadge = <span className="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold shrink-0">Flashcard</span>;
+                    else if (ass?.type === 'simulation') typeBadge = <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold shrink-0">Mô phỏng</span>;
+                    else if (ass?.type === 'online_test' || (ass?.type as any) === 'quiz') typeBadge = <span className="bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold shrink-0">Trắc nghiệm</span>;
+                    else typeBadge = <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold shrink-0">Bài tập</span>;
+                    
                     return (
                       <div key={sub.id} className="p-2.5 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2 text-xs transition-colors">
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-slate-900 truncate">{assTitle}</p>
+                          <div className="flex items-start gap-1.5">
+                            <p className="font-bold text-slate-900 truncate">{assTitle}</p>
+                            {typeBadge}
+                          </div>
                           <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium mt-0.5">
                             <span>Điểm: <strong className="text-indigo-600 font-bold">{sub.grade !== undefined ? `${sub.grade}/10` : 'Đã nộp'}</strong></span>
                             <span>•</span>
@@ -587,65 +835,150 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            Quản lý Học sinh & Tiến độ
+            Quản lý Học sinh & Lớp học
           </h2>
-          <p className="text-slate-500 text-sm mt-0.5">Quản lý thông tin học sinh, khóa học, SĐT và tiến trình làm bài</p>
+          <p className="text-slate-500 text-sm mt-0.5">Quản lý sĩ số lớp, điểm danh, ghi điểm tích cực và theo dõi tiến trình làm bài</p>
         </div>
         
-        {/* Class Details Inline Editor */}
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 items-end bg-slate-50 border border-slate-100 p-3.5 rounded-2xl w-full md:w-auto">
-          <div className="space-y-1 col-span-1">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tên lớp học</span>
-            <input 
-              type="text"
-              value={className}
-              onChange={async (e) => {
-                const val = e.target.value;
-                setClassName(val);
-                localStorage.setItem('class_name', val);
-                window.dispatchEvent(new Event('storage'));
-
-                if (user?.id && (user.role === 'teacher' || user.role === 'admin')) {
-                  try {
-                    await updateDoc(doc(db, 'users', user.id), {
-                      className: val
-                    });
-                  } catch (err) {
-                    console.error('Failed to update user className on Firestore:', err);
-                  }
-                }
-              }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none w-full sm:w-24 text-center"
-              placeholder="123456"
-            />
+        {/* Class Details & Action Toolbar */}
+        <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto">
+          {/* Class selector */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 p-1.5 rounded-2xl min-w-[180px] sm:min-w-[220px]">
+            <span className="text-[11px] font-bold text-slate-500 pl-2 shrink-0">Lớp:</span>
+            <div className="w-full">
+              <CustomSelect
+                value={className || 'Tất cả'}
+                onChange={handleClassChange}
+                options={classOptions}
+                size="sm"
+                searchable={classOptions.length > 5}
+                searchPlaceholder="Tìm lớp..."
+              />
+            </div>
           </div>
 
-          <div className="space-y-1 col-span-1">
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Khóa học</span>
-            <input 
-              type="text"
-              value={academicYear}
-              onChange={(e) => {
-                const val = e.target.value;
-                setAcademicYear(val);
-                localStorage.setItem('academic_year', val);
-                window.dispatchEvent(new Event('storage'));
-              }}
-              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none w-full sm:w-36 text-center"
-              placeholder="Khóa 2024 - 2025"
-            />
-          </div>
-          
+          {/* Create Class Button for Teachers */}
+          {(user?.role === 'teacher' || user?.role === 'admin' || user?.isTeacher) && (
+            <button
+              type="button"
+              onClick={() => setShowCreateClassModal(true)}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm shrink-0"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Tạo lớp mới</span>
+            </button>
+          )}
+
+          {/* Import Excel Modal Button */}
           <button
-            onClick={handleExportPDF}
-            className="col-span-2 w-full sm:w-auto px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 print:hidden shadow-sm h-9"
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
           >
-            <Download className="w-4 h-4 animate-bounce" /> Xuất PDF
+            <Upload className="w-3.5 h-3.5" />
+            <span>Nhập DS (Excel/CSV)</span>
+          </button>
+
+          {/* Export Excel */}
+          <button
+            type="button"
+            onClick={() => {
+              exportRosterToExcel(combinedRoster, className);
+              setNotification({ message: 'Đã xuất danh sách lớp ra file Excel (.xlsx) thành công!', type: 'success' });
+            }}
+            className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+            title="Xuất file Excel đầy đủ danh sách học sinh"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Xuất Excel</span>
+          </button>
+
+          {/* Export PDF */}
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+          >
+            <Download className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Xuất PDF</span>
           </button>
         </div>
+      </div>
+
+      {/* Teacher Quick Tools Banner */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+        <button
+          type="button"
+          onClick={() => openClassroomTool('attendance')}
+          className="p-3 bg-white hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300 rounded-2xl shadow-xs transition-all flex items-center gap-2.5 text-left group"
+        >
+          <div className="w-8 h-8 rounded-xl bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-slate-800">Điểm danh</p>
+            <p className="text-[10px] text-slate-500 font-medium truncate">Ghi nhận chuyên cần</p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openClassroomTool('merits')}
+          className="p-3 bg-white hover:bg-amber-50/50 border border-slate-200 hover:border-amber-300 rounded-2xl shadow-xs transition-all flex items-center gap-2.5 text-left group"
+        >
+          <div className="w-8 h-8 rounded-xl bg-amber-100/70 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Star className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-slate-800">Điểm tích cực</p>
+            <p className="text-[10px] text-slate-500 font-medium truncate">Thưởng sao rèn luyện</p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openClassroomTool('random_picker')}
+          className="p-3 bg-white hover:bg-indigo-50/50 border border-slate-200 hover:border-indigo-300 rounded-2xl shadow-xs transition-all flex items-center gap-2.5 text-left group"
+        >
+          <div className="w-8 h-8 rounded-xl bg-indigo-100/70 text-indigo-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Shuffle className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-slate-800">Gọi ngẫu nhiên</p>
+            <p className="text-[10px] text-slate-500 font-medium truncate">Quay số gọi tên</p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openClassroomTool('group_maker')}
+          className="p-3 bg-white hover:bg-purple-50/50 border border-slate-200 hover:border-purple-300 rounded-2xl shadow-xs transition-all flex items-center gap-2.5 text-left group"
+        >
+          <div className="w-8 h-8 rounded-xl bg-purple-100/70 text-purple-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Users className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-slate-800">Chia nhóm</p>
+            <p className="text-[10px] text-slate-500 font-medium truncate">Tổ chức hoạt động</p>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => openClassroomTool('timer')}
+          className="p-3 bg-white hover:bg-rose-50/50 border border-slate-200 hover:border-rose-300 rounded-2xl shadow-xs transition-all flex items-center gap-2.5 text-left group col-span-2 sm:col-span-1"
+        >
+          <div className="w-8 h-8 rounded-xl bg-rose-100/70 text-rose-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Timer className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-slate-800">Bấm giờ</p>
+            <p className="text-[10px] text-slate-500 font-medium truncate">Đếm ngược làm bài</p>
+          </div>
+        </button>
       </div>
 
       {/* Progress Charts */}
@@ -662,9 +995,20 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
           </div>
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={combinedRoster} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={combinedRoster} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="studentName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }} dy={8} angle={-20} textAnchor='end' />
+                <XAxis 
+                  dataKey="studentName" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }} 
+                  dy={12} 
+                  tickFormatter={(val) => {
+                    if (!val) return '';
+                    const parts = val.trim().split(' ');
+                    return parts[parts.length - 1];
+                  }}
+                />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} domain={[0, 10]} />
                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0' }} />
                 <Bar dataKey="averageGrade" name="Điểm TB" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={28} />
@@ -685,9 +1029,20 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
           </div>
           <div className="h-60 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={combinedRoster} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={combinedRoster} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="studentName" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }} dy={8} angle={-20} textAnchor='end' />
+                <XAxis 
+                  dataKey="studentName" 
+                  axisLine={false} 
+                  tickLine={false} 
+                  tick={{ fill: '#64748b', fontSize: 10, fontWeight: 600 }} 
+                  dy={12} 
+                  tickFormatter={(val) => {
+                    if (!val) return '';
+                    const parts = val.trim().split(' ');
+                    return parts[parts.length - 1];
+                  }}
+                />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} domain={[0, 100]} />
                 <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '16px', border: '1px solid #e2e8f0' }} />
                 <Bar dataKey="completionRate" name="Tỷ lệ hoàn thành" fill="#10b981" radius={[4, 4, 0, 0]} barSize={28} />
@@ -724,85 +1079,140 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
         
         {/* Roster Table / Requests Container */}
         <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          {/* Sub tabs header */}
-          <div className="border-b border-slate-100 bg-slate-50/50 p-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 print:hidden">
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl">
-              <button
-                type="button"
-                onClick={() => setActiveSubTab('roster')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 ${
-                  activeSubTab === 'roster' 
-                    ? 'bg-white text-indigo-600 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                Danh sách Học sinh
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveSubTab('requests')}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 relative ${
-                  activeSubTab === 'requests' 
-                    ? 'bg-white text-indigo-600 shadow-sm' 
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Key className="w-3.5 h-3.5" />
-                Yêu cầu khôi phục mật khẩu
-                {resetRequests.filter(r => r.status === 'pending').length > 0 && (
-                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-rose-500 text-white rounded-full text-[9px] font-black animate-pulse">
-                    {resetRequests.filter(r => r.status === 'pending').length}
+          {/* Sub tabs & Filter controls header */}
+          <div className="border-b border-slate-200/80 bg-slate-50/70 p-3 flex flex-col gap-3 print:hidden">
+            {/* Subtab Navigation Row */}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-200/60 rounded-2xl border border-slate-200/80 shadow-2xs max-w-full overflow-x-auto scrolling-touch">
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('roster')}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap shrink-0 active:scale-95 ${
+                    activeSubTab === 'roster' 
+                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 font-extrabold' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Danh sách Học sinh</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200/60">
+                    {combinedRoster.length}
                   </span>
-                )}
-              </button>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('requests')}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 relative whitespace-nowrap shrink-0 active:scale-95 ${
+                    activeSubTab === 'requests' 
+                      ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/80 font-extrabold' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                  }`}
+                >
+                  <Key className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Yêu cầu khôi phục mật khẩu</span>
+                  {resetRequests.filter(r => r.status === 'pending').length > 0 && (
+                    <span className="px-2 py-0.5 bg-rose-500 text-white rounded-full text-[10px] font-black animate-pulse">
+                      {resetRequests.filter(r => r.status === 'pending').length}
+                    </span>
+                  )}
+                </button>
+              </div>
             </div>
 
+            {/* Filter controls row for Roster tab */}
             {activeSubTab === 'roster' && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
-                {selectedStudents.length > 0 && (
-                  <button
-                    onClick={handleBulkMessage}
-                    disabled={isSendingBulk}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-indigo-100 disabled:opacity-50"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    {isSendingBulk ? 'Đang gửi...' : `Nhắc nộp bài (${selectedStudents.length})`}
-                  </button>
-                )}
+              <div className="flex flex-wrap items-center gap-2.5 pt-1 border-t border-slate-200/60">
+                {/* Lọc Lớp học */}
+                <div className="w-full sm:w-48 shrink-0">
+                  <CustomSelect
+                    value={className || 'Tất cả'}
+                    onChange={handleClassChange}
+                    options={classOptions}
+                    size="sm"
+                    searchable={classOptions.length > 5}
+                    searchPlaceholder="Tìm lớp..."
+                  />
+                </div>
+
                 {/* Sắp xếp */}
-                <div className="relative flex items-center bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs text-slate-700 font-semibold shadow-sm">
-                  <span className="text-slate-400 text-[10px] uppercase font-black tracking-wider mr-1.5 shrink-0 select-none">Xếp theo:</span>
-                  <select
+                <div className="w-full sm:w-52 shrink-0">
+                  <CustomSelect
                     value={sortBy}
-                    onChange={(e: any) => setSortBy(e.target.value)}
-                    className="bg-transparent border-none outline-none font-bold text-indigo-600 focus:ring-0 py-0.5 cursor-pointer pr-1"
-                  >
-                    <option value="name-asc">Họ tên (A-Z)</option>
-                    <option value="name-desc">Họ tên (Z-A)</option>
-                    <option value="grade-desc">Điểm TB (Cao nhất)</option>
-                    <option value="grade-asc">Điểm TB (Thấp nhất)</option>
-                    <option value="completion-desc">Nộp bài (Cao nhất)</option>
-                    <option value="completion-asc">Nộp bài (Thấp nhất)</option>
-                    <option value="attendance-desc">Chuyên cần (Cao nhất)</option>
-                    <option value="attendance-asc">Chuyên cần (Thấp nhất)</option>
-                  </select>
+                    onChange={(val) => setSortBy(val as any)}
+                    options={[
+                      { value: 'name-asc', label: 'Họ tên (A-Z)' },
+                      { value: 'name-desc', label: 'Họ tên (Z-A)' },
+                      { value: 'grade-desc', label: 'Điểm TB (Cao nhất)' },
+                      { value: 'grade-asc', label: 'Điểm TB (Thấp nhất)' },
+                      { value: 'completion-desc', label: 'Nộp bài (Cao nhất)' },
+                      { value: 'completion-asc', label: 'Nộp bài (Thấp nhất)' },
+                      { value: 'attendance-desc', label: 'Chuyên cần (Cao nhất)' },
+                      { value: 'attendance-asc', label: 'Chuyên cần (Thấp nhất)' },
+                    ]}
+                    size="sm"
+                    searchable={false}
+                  />
                 </div>
 
                 {/* Tìm kiếm */}
-                <div className="relative w-full sm:w-48">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                   <input 
                     type="text" 
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     placeholder="Tìm học sinh..." 
-                    className="w-full pl-9 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 outline-none placeholder:text-slate-400 font-medium"
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200/90 rounded-xl text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none placeholder:text-slate-400 font-medium transition-all shadow-2xs"
                   />
                 </div>
               </div>
             )}
           </div>
+
+          {/* Batch Action Bar for Selected Students */}
+          {selectedStudents.length > 0 && activeSubTab === 'roster' && (
+            <div className="p-3 bg-indigo-50/70 border-b border-indigo-100">
+              <BatchActionBar
+                count={selectedStudents.length}
+                itemLabel="học sinh"
+                description="Bạn có thể gửi tin nhắn nhắc nhở hoặc chấm điểm rèn luyện hàng loạt cho các em."
+                onDeselectAll={() => setSelectedStudents([])}
+                actionLabel={isSendingBulk ? 'Đang gửi...' : 'Nhắc nộp bài'}
+                actionIcon={MessageCircle}
+                actionVariant="primary"
+                isActionLoading={isSendingBulk}
+                onAction={handleBulkMessage}
+                customActions={
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => openClassroomTool('merits')}
+                      className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Star className="w-3.5 h-3.5 fill-white" />
+                      <span>Ghi điểm tích cực ⭐</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openClassroomTool('attendance')}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Điểm danh nhanh</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBulkDeleteConfirm(true)}
+                      className="px-3.5 py-2 bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 hover:border-rose-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa đã chọn ({selectedStudents.length})</span>
+                    </button>
+                  </div>
+                }
+              />
+            </div>
+          )}
 
           {activeSubTab === 'roster' ? (
             <>
@@ -825,6 +1235,7 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                           className="w-4 h-4 text-[#0068ff] border-slate-300 rounded focus:ring-[#0068ff] cursor-pointer"
                         />
                       </th>
+                      <th className="px-3 py-3.5 font-bold w-12 text-center text-slate-500">STT</th>
                       <th 
                         onClick={() => toggleSort('name')}
                         className="px-5 py-3.5 font-bold cursor-pointer hover:bg-slate-100 select-none transition-colors group"
@@ -875,7 +1286,7 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                   <tbody className="divide-y divide-slate-100">
                     {sortedAndFilteredData.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
                           <User className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                           <p className="font-bold text-slate-700 text-sm">Chưa có học sinh nào trong lớp "{className}"</p>
                           <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
@@ -884,7 +1295,7 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                         </td>
                       </tr>
                     ) : (
-                      sortedAndFilteredData.map((student) => (
+                      sortedAndFilteredData.map((student, idx) => (
                         <tr 
                           key={student.studentId} 
                           onClick={() => setSelectedStudent(student)}
@@ -906,10 +1317,28 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                               className="w-4 h-4 text-[#0068ff] border-slate-300 rounded focus:ring-[#0068ff] cursor-pointer"
                             />
                           </td>
+                          <td className="px-3 py-4 w-12 text-center font-bold text-xs text-slate-400">
+                            {idx + 1}
+                          </td>
                           <td className="px-5 py-4 font-bold text-slate-900">
-                            <div>
-                              <p className="text-sm">{student.studentName}</p>
-                              <p className="text-[11px] text-slate-400 font-normal">PH: {student.phoneParent || '0912345678'}</p>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-sm font-black text-slate-900">{student.studentName}</p>
+                                {(student as any).isOffline && (
+                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[9px] font-bold">
+                                    Ngoại tuyến
+                                  </span>
+                                )}
+                                {typeof (student as any).meritPoints === 'number' && (student as any).meritPoints > 0 && (
+                                  <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-black flex items-center gap-0.5">
+                                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                                    +{(student as any).meritPoints}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-400 font-normal">
+                                PH: {student.phoneParent || 'Chưa cập nhật'}
+                              </p>
                             </div>
                           </td>
                           <td className="px-5 py-4 text-center">
@@ -923,7 +1352,26 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                           </td>
                           <td className="px-5 py-4 text-center font-semibold">{student.attendanceRate}%</td>
                           <td className="px-5 py-4 text-right">
-                            <button className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline">Xem tiến độ</button>
+                            <div className="flex items-center justify-end gap-2">
+                              <button 
+                                type="button"
+                                onClick={() => setSelectedStudent(student)}
+                                className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline text-xs"
+                              >
+                                Xem tiến độ
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setStudentToDelete(student);
+                                }}
+                                title="Xóa học sinh này"
+                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-lg transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -940,7 +1388,7 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                     <p className="font-bold text-slate-700 text-sm">Chưa có học sinh nào</p>
                   </div>
                 ) : (
-                  sortedAndFilteredData.map((student) => (
+                  sortedAndFilteredData.map((student, idx) => (
                     <div 
                       key={student.studentId}
                       onClick={() => setSelectedStudent(student)}
@@ -965,13 +1413,44 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                             />
                           </div>
                           <div>
-                            <p className="font-bold text-slate-900 text-sm">{student.studentName}</p>
-                            <p className="text-[11px] text-slate-400 font-medium">PH: {student.phoneParent || '0912345678'}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="w-5 text-center text-xs font-bold text-slate-400">#{idx + 1}</span>
+                              <p className="font-bold text-slate-900 text-sm">{student.studentName}</p>
+                              {(student as any).isOffline && (
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 rounded text-[9px] font-bold">
+                                  Ngoại tuyến
+                                </span>
+                              )}
+                              {typeof (student as any).meritPoints === 'number' && (student as any).meritPoints > 0 && (
+                                <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[10px] font-black flex items-center gap-0.5">
+                                  <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                                  +{(student as any).meritPoints}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-400 font-medium">PH: {student.phoneParent || 'Chưa cập nhật'}</p>
                           </div>
                         </div>
-                        <button className="text-indigo-600 hover:text-indigo-800 font-bold text-xs hover:underline shrink-0 flex items-center gap-0.5">
-                          Chi tiết <TrendingUp className="w-3 h-3" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            type="button"
+                            onClick={() => setSelectedStudent(student)}
+                            className="text-indigo-600 hover:text-indigo-800 font-bold text-xs hover:underline shrink-0 flex items-center gap-0.5"
+                          >
+                            Chi tiết <TrendingUp className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setStudentToDelete(student);
+                            }}
+                            title="Xóa học sinh"
+                            className="p-1 text-rose-500 hover:text-rose-700 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
@@ -1169,6 +1648,205 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
         variant="warning"
         loading={isResettingReportSub}
       />
+
+      {/* Bulk Student Import Modal (Excel/CSV with offline support) */}
+      <BulkStudentImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        defaultClassName={className}
+        currentUser={user}
+        onImportSuccess={() => {
+          setNotification({
+            message: 'Đã nhập thành công danh sách học sinh vào hệ thống!',
+            type: 'success'
+          });
+        }}
+      />
+
+      {/* Teacher Classroom Interactive Tools Modal */}
+      <TeacherClassroomToolsModal
+        isOpen={showClassroomToolsModal}
+        onClose={() => setShowClassroomToolsModal(false)}
+        initialTab={classroomToolsTab}
+        studentsList={combinedRoster}
+        className={className}
+        availableClasses={[className, ...teacherClasses.map(c => c.className || c.title || '')].filter(Boolean)}
+        currentUser={user}
+        showToast={(msg) => setNotification({ message: msg, type: 'success' })}
+      />
+
+      {/* Bulk Delete Confirm Modal */}
+      <ConfirmModal
+        isOpen={showBulkDeleteConfirm}
+        onClose={() => setShowBulkDeleteConfirm(false)}
+        onConfirm={handleBulkDeleteStudents}
+        loading={isDeletingBulk}
+        title="Xác nhận xóa nhiều học sinh"
+        message={`Bạn có chắc chắn muốn xóa ${selectedStudents.length} học sinh đã chọn khỏi hệ thống? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa học sinh"
+        variant="danger"
+      />
+
+      {/* Single Delete Confirm Modal */}
+      <ConfirmModal
+        isOpen={Boolean(studentToDelete)}
+        onClose={() => setStudentToDelete(null)}
+        onConfirm={handleSingleDeleteStudent}
+        loading={isDeletingSingle}
+        title="Xác nhận xóa học sinh"
+        message={`Bạn có chắc chắn muốn xóa học sinh "${studentToDelete?.studentName}" khỏi hệ thống?`}
+        confirmText="Xóa học sinh"
+        variant="danger"
+      />
+
+      {/* Teacher Create Class Modal */}
+      {showCreateClassModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 border border-indigo-200/80 flex items-center justify-center text-indigo-600 shadow-2xs">
+                  <FolderPlus className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Tạo lớp học mới</h3>
+                  <p className="text-xs font-medium text-slate-500">Lưu thông tin lớp học vào danh sách của bạn</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateClassModal(false)}
+                className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-all active:scale-95"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleCreateNewClassSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Tên lớp */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                  Tên lớp học <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newClassNameInput}
+                  onChange={(e) => setNewClassNameInput(e.target.value)}
+                  placeholder="Ví dụ: Lớp 12A1, Lớp Ôn Thi Cấp Tốc..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* Môn học */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                  Môn học / Mô tả (Không bắt buộc)
+                </label>
+                <input
+                  type="text"
+                  value={newClassSubjectInput}
+                  onChange={(e) => setNewClassSubjectInput(e.target.value)}
+                  placeholder="Ví dụ: Toán Học, Ngữ Văn, Tiếng Anh..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* Chọn học sinh gán vào lớp */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-extrabold text-slate-700">
+                    Gán học sinh vào lớp ({selectedStudentsForNewClass.length} đã chọn)
+                  </label>
+                  {allUsers.filter(u => u.role === 'student').length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allStIds = allUsers.filter(u => u.role === 'student').map(u => u.id);
+                        if (selectedStudentsForNewClass.length === allStIds.length) {
+                          setSelectedStudentsForNewClass([]);
+                        } else {
+                          setSelectedStudentsForNewClass(allStIds);
+                        }
+                      }}
+                      className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800"
+                    >
+                      {selectedStudentsForNewClass.length === allUsers.filter(u => u.role === 'student').length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-2xl p-2 bg-slate-50/50 space-y-1">
+                  {allUsers.filter(u => u.role === 'student').length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4">Chưa có học sinh nào trong hệ thống</p>
+                  ) : (
+                    allUsers.filter(u => u.role === 'student').map(st => {
+                      const isChecked = selectedStudentsForNewClass.includes(st.id);
+                      return (
+                        <label
+                          key={st.id}
+                          className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all ${
+                            isChecked ? 'bg-indigo-50/80 border border-indigo-200 text-indigo-900 font-bold' : 'hover:bg-white text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedStudentsForNewClass(prev => [...prev, st.id]);
+                                } else {
+                                  setSelectedStudentsForNewClass(prev => prev.filter(id => id !== st.id));
+                                }
+                              }}
+                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span className="truncate">{st.name}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                            {st.className ? `Lớp ${st.className}` : 'Chưa có lớp'}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateClassModal(false)}
+                  className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-all active:scale-95"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newClassNameInput.trim() || isCreatingClass}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                >
+                  {isCreatingClass ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Tạo & Lưu lớp</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

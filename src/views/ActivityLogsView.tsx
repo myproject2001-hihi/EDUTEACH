@@ -7,14 +7,18 @@ import {
   User as UserIcon, Shield, Laptop, Smartphone, CheckCircle, Clock, 
   BookOpen, Gamepad2, Library, Microscope, Heart, BellRing, Key, 
   LogIn, LogOut, FileText, Check, AlertCircle, ChevronRight, X, 
-  Activity, ArrowUpDown, Eye, Users, BarChart3, Layers
+  Activity, ArrowUpDown, Eye, Users, BarChart3, Layers, GraduationCap,
+  CheckSquare, Square
 } from 'lucide-react';
 import { UserAvatar } from '../components/UserAvatar';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { CustomSelect } from '../components/CustomSelect';
+import { BatchActionBar } from '../components/BatchActionBar';
 
 interface ActivityLogsViewProps {
   currentUser: User;
   onNavigateToTab?: (tab: string) => void;
+  onOpenAssignment?: (id: string) => void;
 }
 
 const CATEGORY_CONFIG: Record<ActivityActionCategory, { label: string; icon: any; color: string; bg: string; border: string }> = {
@@ -65,7 +69,7 @@ function formatRelativeTime(isoStr: string): string {
   }
 }
 
-export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
+export function ActivityLogsView({ currentUser, onOpenAssignment }: ActivityLogsViewProps) {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -201,6 +205,15 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
   const handleRefresh = () => {
     setIsRefreshing(true);
     setTimeout(() => setIsRefreshing(false), 800);
+  };
+
+  const handleGoToAssignment = (assignmentId: string) => {
+    if (!assignmentId) return;
+    if (onOpenAssignment) {
+      onOpenAssignment(assignmentId);
+    } else {
+      window.dispatchEvent(new CustomEvent('open-assignment', { detail: assignmentId }));
+    }
   };
 
   // Reset selectedLogIds when filters change to prevent ghost selections
@@ -523,29 +536,31 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
           {/* Controls: Role, Time, View Mode */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Role Filter */}
-            <select
+            <CustomSelect
               value={selectedRole}
-              onChange={(e) => setSelectedRole(e.target.value)}
-              className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
-            >
-              <option value="all">👥 Tất cả vai trò</option>
-              <option value="admin">👑 Quản trị viên</option>
-              <option value="teacher">👨‍🏫 Giáo viên</option>
-              <option value="student">🎓 Học sinh</option>
-            </select>
+              onChange={(val) => setSelectedRole(val)}
+              options={[
+                { value: 'all', label: 'Tất cả vai trò', icon: <Users className="w-4 h-4 text-indigo-500" /> },
+                { value: 'admin', label: 'Quản trị viên', icon: <Shield className="w-4 h-4 text-amber-500" /> },
+                { value: 'teacher', label: 'Giáo viên', icon: <UserIcon className="w-4 h-4 text-emerald-500" /> },
+                { value: 'student', label: 'Học sinh', icon: <GraduationCap className="w-4 h-4 text-blue-500" /> },
+              ]}
+              className="min-w-[155px]"
+            />
 
             {/* Time Range Filter */}
-            <select
+            <CustomSelect
               value={selectedTimeRange}
-              onChange={(e) => setSelectedTimeRange(e.target.value as any)}
-              className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 cursor-pointer"
-            >
-              <option value="all">⏳ Mọi thời gian</option>
-              <option value="today">☀️ Hôm nay</option>
-              <option value="24h">⏱️ 24 giờ qua</option>
-              <option value="7days">📅 7 ngày qua</option>
-              <option value="30days">🗓️ 30 ngày qua</option>
-            </select>
+              onChange={(val) => setSelectedTimeRange(val as any)}
+              options={[
+                { value: 'all', label: 'Mọi thời gian', icon: <Clock className="w-4 h-4 text-indigo-500" /> },
+                { value: 'today', label: 'Hôm nay', icon: <Calendar className="w-4 h-4 text-amber-500" /> },
+                { value: '24h', label: '24 giờ qua', icon: <Clock className="w-4 h-4 text-blue-500" /> },
+                { value: '7days', label: '7 ngày qua', icon: <Calendar className="w-4 h-4 text-emerald-500" /> },
+                { value: '30days', label: '30 ngày qua', icon: <Calendar className="w-4 h-4 text-purple-500" /> },
+              ]}
+              className="min-w-[145px]"
+            />
 
             {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
@@ -689,58 +704,41 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
       ) : (
         <div className="space-y-4">
           {/* Batch Actions Bar */}
-          {selectedLogIds.length > 0 && (
-            <div className="bg-indigo-50/80 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in slide-in-from-top-3 duration-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100/60 rounded-xl flex items-center justify-center text-indigo-750">
-                  <Check className="w-5 h-5 stroke-[2.5]" />
-                </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900">Đang chọn {selectedLogIds.length} nhật ký thao tác</p>
-                  <p className="text-xs font-semibold text-slate-500">Bạn có thể thực hiện xóa hàng loạt các mục đã chọn này cùng lúc.</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedLogIds([])}
-                  className="px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
-                >
-                  Bỏ chọn tất cả
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingSelected}
-                  onClick={handleDeleteSelectedLogs}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
-                >
-                  {deletingSelected ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                  <span>Xóa các mục đã chọn ({selectedLogIds.length})</span>
-                </button>
-              </div>
-            </div>
-          )}
+          <BatchActionBar
+            count={selectedLogIds.length}
+            itemLabel="nhật ký thao tác"
+            actionLabel="Xóa các mục đã chọn"
+            description="Bạn có thể thực hiện xóa hàng loạt các mục đã chọn này cùng lúc."
+            onDeselectAll={() => setSelectedLogIds([])}
+            onAction={handleDeleteSelectedLogs}
+            isActionLoading={deletingSelected}
+          />
 
           {viewMode === 'timeline' ? (
             /* Timeline View */
             <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center justify-between px-2 text-xs font-bold text-slate-500">
-                <div className="flex items-center gap-3">
-                  <span>Hiển thị {filteredLogs.length} thao tác gần nhất</span>
+              <div className="flex flex-wrap items-center justify-between gap-2.5 px-1 py-1 text-xs font-bold text-slate-500">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-slate-600 font-extrabold">Hiển thị {filteredLogs.length} thao tác gần nhất</span>
                   <button
                     type="button"
                     onClick={toggleSelectAll}
-                    className="text-indigo-600 hover:text-indigo-800 font-extrabold hover:underline"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100/80 active:scale-95 text-indigo-700 font-extrabold rounded-xl text-xs border border-indigo-200/80 transition-all shadow-xs"
                   >
-                    {filteredLogs.every(l => selectedLogIds.includes(l.id)) ? '✓ Bỏ chọn tất cả' : '☐ Chọn tất cả trang này'}
+                    {filteredLogs.length > 0 && filteredLogs.every(l => selectedLogIds.includes(l.id)) ? (
+                      <>
+                        <CheckSquare className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>Bỏ chọn tất cả ({filteredLogs.length})</span>
+                      </>
+                    ) : (
+                      <>
+                        <Square className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Chọn tất cả ({filteredLogs.length})</span>
+                      </>
+                    )}
                   </button>
                 </div>
-                <span className="flex items-center gap-1 text-emerald-600 font-extrabold">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-200/80 text-[11px]">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   Live Sync
                 </span>
@@ -821,8 +819,23 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                             </p>
                           )}
 
-                          {/* Metadata row: Device info & Target */}
+                          {/* Metadata row: Device info & Target & Assignment Quick Link */}
                           <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1 font-medium">
+                            {(log.meta?.assignmentId || (log.category === 'assignment' && log.targetId)) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGoToAssignment(log.meta?.assignmentId || log.targetId!);
+                                }}
+                                className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors shadow-2xs active:scale-95 text-[11px]"
+                                title="Bấm để chuyển nhanh tới bài tập này"
+                              >
+                                <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Mã bài: <strong className="underline">{log.meta?.assignmentId || log.targetId}</strong></span>
+                              </button>
+                            )}
+
                             {log.targetName && (
                               <span className="flex items-center gap-1 bg-indigo-50/50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100">
                                 🎯 Đối tượng: <strong>{log.targetName}</strong>
@@ -950,10 +963,25 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                             </span>
                           </td>
                           <td className="py-3 px-4">
-                            <p className="font-bold text-slate-800">{log.title}</p>
-                            {log.description && (
-                              <p className="text-[11px] text-slate-500 truncate max-w-xs">{log.description}</p>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              <p className="font-bold text-slate-800">{log.title}</p>
+                              {(log.meta?.assignmentId || (log.category === 'assignment' && log.targetId)) && (
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGoToAssignment(log.meta?.assignmentId || log.targetId!)}
+                                    className="inline-flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px] border border-indigo-200 transition-colors"
+                                    title="Mở bài tập"
+                                  >
+                                    <BookOpen className="w-3 h-3 text-indigo-600" />
+                                    <span>Mã: <strong>{log.meta?.assignmentId || log.targetId}</strong></span>
+                                  </button>
+                                </div>
+                              )}
+                              {log.description && (
+                                <p className="text-[11px] text-slate-500 truncate max-w-xs">{log.description}</p>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3 px-4 whitespace-nowrap text-[11px] text-slate-500">
                             {log.device || 'Web'}
@@ -1045,41 +1073,75 @@ export function ActivityLogsView({ currentUser }: ActivityLogsViewProps) {
                 </div>
               </div>
 
-              {/* Grid Metadata */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500">Mã định danh Log:</span>
-                  <p className="text-xs font-mono font-bold text-slate-800 break-all">{inspectedLog.id}</p>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500">Mã Người dùng (User ID):</span>
-                  <p className="text-xs font-mono font-bold text-slate-800 break-all">{inspectedLog.userId}</p>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500">Loại Thao tác (Action Type):</span>
-                  <p className="text-xs font-bold text-indigo-700">{inspectedLog.actionType}</p>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
-                  <span className="text-[11px] font-bold text-slate-500">Thiết bị & Trình duyệt:</span>
-                  <p className="text-xs font-bold text-slate-800">{inspectedLog.device || 'Web'}</p>
-                </div>
-                {inspectedLog.targetName && (
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 sm:col-span-2">
-                    <span className="text-[11px] font-bold text-slate-500">Đối tượng tác động (Target):</span>
-                    <p className="text-xs font-bold text-slate-800">{inspectedLog.targetName} {inspectedLog.targetId ? `(ID: ${inspectedLog.targetId})` : ''}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Raw JSON Meta if any */}
+              {/* Action Context (Readable Meta) */}
               {inspectedLog.meta && Object.keys(inspectedLog.meta).length > 0 && (
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Dữ liệu chi tiết bổ sung (Payload Meta):</label>
-                  <pre className="p-3.5 bg-slate-900 text-emerald-400 font-mono text-xs rounded-2xl overflow-x-auto">
-                    {JSON.stringify(inspectedLog.meta, null, 2)}
-                  </pre>
+                <div className="space-y-2">
+                  <label className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">Thông tin bổ sung:</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {Object.entries(inspectedLog.meta).map(([key, value]) => {
+                      if (typeof value === 'object' && value !== null) {
+                        return (
+                          <div key={key} className="p-3 bg-white border border-slate-200 rounded-xl sm:col-span-2 shadow-sm">
+                            <span className="text-xs font-bold text-slate-500 block mb-1">{key}</span>
+                            <pre className="text-[10px] font-mono text-slate-700 bg-slate-50 p-2 rounded-lg overflow-x-auto">
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          </div>
+                        );
+                      }
+                      
+                      let displayKey = key;
+                      let displayValue = String(value);
+
+                      // Translate some common keys
+                      if (key === 'grade') displayKey = 'Điểm số';
+                      if (key === 'assignmentId') displayKey = 'Mã Bài tập';
+                      if (key === 'points') displayKey = 'Điểm thưởng';
+                      if (key === 'reason') displayKey = 'Lý do';
+                      if (key === 'className') displayKey = 'Lớp học';
+                      if (key === 'title') displayKey = 'Tiêu đề';
+                      if (key === 'action') displayKey = 'Hành động';
+                      if (key === 'duration') displayKey = 'Thời lượng (s)';
+                      if (key === 'type') displayKey = 'Phân loại';
+
+                      return (
+                        <div key={key} className="p-3 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2 shadow-sm">
+                          <span className="text-xs font-bold text-slate-500">{displayKey}</span>
+                          {(key === 'assignmentId' || (key === 'targetId' && inspectedLog.category === 'assignment')) ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInspectedLog(null);
+                                handleGoToAssignment(displayValue);
+                              }}
+                              className="text-xs font-black text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors truncate max-w-[170px] shadow-sm flex items-center gap-1 border border-indigo-200"
+                              title={`Tới bài tập: ${displayValue}`}
+                            >
+                              <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>{displayValue}</span>
+                            </button>
+                          ) : (
+                            <span className="text-xs font-black text-slate-800 text-right truncate max-w-[150px]" title={displayValue}>{displayValue}</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
+
+              {/* Technical Details Footer */}
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[10px] font-medium text-slate-400 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                <span>Loại thao tác: <span className="font-bold text-slate-500">{inspectedLog.actionType}</span></span>
+                <span>•</span>
+                <span>Thiết bị: <span className="font-bold text-slate-500">{inspectedLog.device || 'Web'}</span></span>
+                {inspectedLog.targetName && (
+                  <>
+                    <span>•</span>
+                    <span>Mục tiêu: <span className="font-bold text-slate-500">{inspectedLog.targetName}</span></span>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Modal Footer */}

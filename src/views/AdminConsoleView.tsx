@@ -14,6 +14,7 @@ import { LoveLetterManager } from '../components/LoveLetterManager';
 import { ActivityLogsView } from './ActivityLogsView';
 import { logActivity } from '../lib/activityLogger';
 import { ClassManagementSubView } from '../components/ClassManagementSubView';
+import { CustomSelect } from '../components/CustomSelect';
 
 export interface AuditItemDetails {
   description?: string;
@@ -58,9 +59,10 @@ interface AdminConsoleViewProps {
   submissions?: Submission[];
   loveLetters?: LoveLetter[];
   isLoadingAssignments?: boolean;
+  onOpenAssignment?: (id: string) => void;
 }
 
-export function AdminConsoleView({ user, assignments, classes, simulations, submissions, loveLetters = [] }: AdminConsoleViewProps) {
+export function AdminConsoleView({ user, assignments, classes, simulations, submissions, loveLetters = [], onOpenAssignment }: AdminConsoleViewProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'classes' | 'resets' | 'resources' | 'notifications' | 'letters' | 'logs' | 'games'>('users');
   const { gameStatuses, toggleGameStatus } = useGameStatuses();
   const [adminGameSearch, setAdminGameSearch] = useState('');
@@ -524,8 +526,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
     ...classes.map(c => c.title),
     ...classes.map(c => c.subject).filter(Boolean),
     ...usersList.map(u => u.className).filter(Boolean) as string[],
-    'Lớp 10A1', 'Lớp 10A2', 'Lớp 11A1', 'Lớp 11A2', 'Lớp 12A1', 'Lớp 12A2', 'Khối 10', 'Khối 11', 'Khối 12', 'Đội tuyển Học sinh giỏi'
-  ])).filter(Boolean);
+  ])).filter(c => c && c.trim() !== '' && !c.match(/^\d+$/) && c !== 'N/A' && c !== 'Chưa có lớp').sort();
 
   const handleOpenAssignModal = (item: AuditItem) => {
     setAssignClassResource(item);
@@ -1456,30 +1457,30 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
               {/* Uploader Dropdown */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Người đăng:</span>
-                <select
+                <CustomSelect
                   value={resUploaderFilter}
-                  onChange={(e) => setResUploaderFilter(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="all">Tất cả người đăng ({uniqueUploaders.length})</option>
-                  {uniqueUploaders.map((name) => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+                  onChange={(val) => setResUploaderFilter(val)}
+                  options={[
+                    { value: 'all', label: `Tất cả người đăng (${uniqueUploaders.length})`, icon: <Users className="w-4 h-4 text-indigo-500" /> },
+                    ...uniqueUploaders.map((name) => ({ value: name, label: name, icon: <UserCheck className="w-4 h-4 text-emerald-500" /> }))
+                  ]}
+                  className="min-w-[170px]"
+                />
               </div>
 
               {/* Sort Order */}
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Sắp xếp:</span>
-                <select
+                <CustomSelect
                   value={resSortOrder}
-                  onChange={(e) => setResSortOrder(e.target.value as any)}
-                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                >
-                  <option value="newest">⏰ Mới nhất trước</option>
-                  <option value="oldest">⌛ Cũ nhất trước</option>
-                  <option value="title">🔤 Theo tên (A-Z)</option>
-                </select>
+                  onChange={(val) => setResSortOrder(val as any)}
+                  options={[
+                    { value: 'newest', label: 'Mới nhất trước', icon: <Clock className="w-4 h-4 text-indigo-500" /> },
+                    { value: 'oldest', label: 'Cũ nhất trước', icon: <History className="w-4 h-4 text-amber-500" /> },
+                    { value: 'title', label: 'Theo tên (A-Z)', icon: <Layers className="w-4 h-4 text-blue-500" /> }
+                  ]}
+                  className="min-w-[150px]"
+                />
               </div>
 
               {/* Display Mode Toggle */}
@@ -1827,7 +1828,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           user={user}
           loveLetters={loveLetters}
           usersList={usersList}
-          classesList={classes.map(c => c.title || c.id)}
+          classesList={availableClassOptions}
         />
       )}
 
@@ -1837,7 +1838,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
           currentUser={user}
           letters={loveLetters}
           usersList={usersList}
-          classesList={classes.map(c => c.title || c.id)}
+          classesList={availableClassOptions}
           showNotify={showNotify}
         />
       )}
@@ -1846,6 +1847,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
       {activeTab === 'logs' && (
         <ActivityLogsView
           currentUser={user}
+          onOpenAssignment={onOpenAssignment}
         />
       )}
 
@@ -1946,17 +1948,11 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
               { id: 'do_min', name: 'Dò Mìn', category: 'Giải đố', desc: 'Dò mìn an toàn thông qua giải toán', emoji: '💣' },
               { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức', category: 'Giải đố', desc: 'Đưa đoàn tàu vượt các ga học liệu', emoji: '🚂' },
               { id: 'keo_co', name: 'Kéo Co Kiến Thức', category: 'Tốc độ', desc: 'Đấu trí kéo co kịch tính', emoji: '🪢' },
-              { id: 'game_map', name: 'Game Map (Bản đồ thử thách)', category: 'Phiêu lưu', desc: 'Bản đồ truy tìm kho báu toán học cổ xưa', emoji: '🗺️' },
               { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay', category: 'Phiêu lưu', desc: 'Chạm từ chuyển động đúng chính tả', emoji: '🛸' },
               { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý', category: 'Phiêu lưu', desc: 'Ghép nối vế trái logic với vế phải', emoji: '🔗' },
               { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật', category: 'Giải đố', desc: 'Giải ô chữ giải mã từ khóa cốt lõi', emoji: '🔐' },
-              { id: 'san_kho_bau', name: 'Săn Kho Báu', category: 'Phiêu lưu', desc: 'Săn rương vàng cổ vật thử thách toán học', emoji: '🏴‍☠️' },
               { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép', category: 'Giải đố', desc: 'Lật và ghép nối các cặp câu hỏi', emoji: '🧩' },
-              { id: 'domino', name: 'Đấu Trường Domino', category: 'Giải đố', desc: 'Chuỗi ghép nối domino liên tiếp', emoji: '🀄' },
               { id: 'dao_chu', name: 'Đảo Chữ Anagram', category: 'Giải đố', desc: 'Xáo trộn ký tự xếp thuật ngữ', emoji: '🔠' },
-              { id: 'mo_hop', name: 'Mở Hộp Bí Mật', category: 'Giải đố', desc: 'Hộp quà thử thách toán học bất ngờ', emoji: '🎁' },
-              { id: 'gan_nhan_so_do', name: 'Gắn Nhãn Sơ Đồ', category: 'Phiêu lưu', desc: 'Gắn nhãn vào sơ đồ hình học', emoji: '📊' },
-              { id: 'no_bong_bay', name: 'Nổ Bóng Bay', category: 'Tốc độ', desc: 'Chạm nổ bóng bay đáp án đúng', emoji: '🎈' },
               { id: 'dap_chuot_chui', name: 'Đập Chuột Chũi', category: 'Tốc độ', desc: 'Đập búa chú chuột mang đáp án đúng', emoji: '🔨' }
             ].filter(g => {
               const st = gameStatuses[g.id] || 'coming_soon';
@@ -2221,7 +2217,7 @@ export function AdminConsoleView({ user, assignments, classes, simulations, subm
                   type="text"
                   value={editClassName}
                   onChange={(e) => setEditClassName(e.target.value)}
-                  placeholder="Ví dụ: 123456 hoặc Lớp 10A1"
+                  placeholder="Ví dụ: Lớp Toán, Khóa K12"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-indigo-700 font-bold"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Gán đúng mã lớp của Giáo viên để tự động link học sinh về lớp.</p>

@@ -3,6 +3,7 @@ import { Layers, X, Check, FileText } from 'lucide-react';
 import { QuestionSetItem, QuizQuestion, User } from '../types';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { CustomSelect } from './CustomSelect';
 
 interface SaveToQuestionBankModalProps {
   isOpen: boolean;
@@ -106,45 +107,49 @@ export const SaveToQuestionBankModal: React.FC<SaveToQuestionBankModalProps> = (
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Môn Học / Chủ Đề:
               </label>
-              <select
+              <CustomSelect
                 value={subject}
-                onChange={e => setSubject(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
-              >
-                <option value="Toán">Toán</option>
-                <option value="Ngữ Văn">Ngữ Văn</option>
-                <option value="Tiếng Anh">Tiếng Anh</option>
-                <option value="Vật Lý">Vật Lý</option>
-                <option value="Hóa Học">Hóa Học</option>
-                <option value="Sinh Học">Sinh Học</option>
-                <option value="Lịch Sử">Lịch Sử</option>
-                <option value="Địa Lý">Địa Lý</option>
-                <option value="Tin Học">Tin Học</option>
-                <option value="GDCD">GDCD / GDKT-PL</option>
-                <option value="Khác">Khác</option>
-              </select>
+                onChange={setSubject}
+                options={[
+                  { value: 'Toán', label: 'Toán' },
+                  { value: 'Ngữ Văn', label: 'Ngữ Văn' },
+                  { value: 'Tiếng Anh', label: 'Tiếng Anh' },
+                  { value: 'Vật Lý', label: 'Vật Lý' },
+                  { value: 'Hóa Học', label: 'Hóa Học' },
+                  { value: 'Sinh Học', label: 'Sinh Học' },
+                  { value: 'Lịch Sử', label: 'Lịch Sử' },
+                  { value: 'Địa Lý', label: 'Địa Lý' },
+                  { value: 'Tin Học', label: 'Tin Học' },
+                  { value: 'GDCD', label: 'GDCD / GDKT-PL' },
+                  { value: 'Khác', label: 'Khác' },
+                ]}
+                size="sm"
+                searchable={true}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                 Khối Lớp:
               </label>
-              <select
+              <CustomSelect
                 value={grade}
-                onChange={e => setGrade(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-600 text-slate-800"
-              >
-                <option value="Khối 12">Khối 12</option>
-                <option value="Khối 11">Khối 11</option>
-                <option value="Khối 10">Khối 10</option>
-                <option value="THCS">Khối THCS</option>
-                <option value="Tiểu học">Khối Tiểu học</option>
-              </select>
+                onChange={setGrade}
+                options={[
+                  { value: 'Khối 12', label: 'Khối 12' },
+                  { value: 'Khối 11', label: 'Khối 11' },
+                  { value: 'Khối 10', label: 'Khối 10' },
+                  { value: 'THCS', label: 'Khối THCS' },
+                  { value: 'Tiểu học', label: 'Khối Tiểu học' },
+                ]}
+                size="sm"
+                searchable={false}
+              />
             </div>
           </div>
 

@@ -909,16 +909,13 @@ export const QuestionBankView: React.FC<QuestionBankViewProps> = ({
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Chọn Lớp Nhận Bài Tập:
                 </label>
-                <select
+                <input
+                  type="text"
                   value={assignClassName}
                   onChange={e => setAssignClassName(e.target.value)}
+                  placeholder="Nhập tên hoặc mã lớp..."
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-600"
-                >
-                  <option value="123456">Lớp 12A1 (Mã: 123456)</option>
-                  <option value="12A2">Lớp 12A2</option>
-                  <option value="11A1">Lớp 11A1</option>
-                  <option value="10A1">Lớp 10A1</option>
-                </select>
+                />
               </div>
 
               <div>

@@ -75,9 +75,13 @@ export default function App() {
       const isWelcomedInLocal = localStorage.getItem(`robotWelcomed_${currentUser.id}`) === 'true';
       const isDismissed = localStorage.getItem(`robotGuideDismissed_${currentUser.id}`) === 'true';
       const isWelcomedInDb = currentUser.hasSeenRobotWelcome === true;
+      const createdAt = currentUser.createdAt ? new Date(currentUser.createdAt).getTime() : 0;
+      
+      // Consider "new user" if account was created within the last 24 hours
+      const isNewUser = createdAt > 0 && (Date.now() - createdAt) < (24 * 60 * 60 * 1000);
 
-      // If user has NOT been welcomed yet (first login right after account creation):
-      if (!isWelcomedInLocal && !isDismissed && !isWelcomedInDb) {
+      // If user is NEW, and has NOT been welcomed yet:
+      if (isNewUser && !isWelcomedInLocal && !isDismissed && !isWelcomedInDb) {
         setRobotOpen(true);
         // Mark as welcomed immediately so future logins/refreshes won't auto open again
         localStorage.setItem(`robotWelcomed_${currentUser.id}`, 'true');
@@ -448,10 +452,20 @@ export default function App() {
           sessionStorage.setItem('session_read_letters', JSON.stringify(updatedSession));
         }
         
-        // For analytics and status tracking (or global read for Image 2), save to readByUsers in Firestore
+        const readDetail = {
+          userId: currentUser.id,
+          userName: currentUser.name || 'Người dùng',
+          userRole: currentUser.role || 'student',
+          userClass: currentUser.className || '',
+          userAvatar: currentUser.avatar || '',
+          readAt: new Date().toISOString()
+        };
+
+        // For analytics and status tracking (or global read for Image 2), save to readByUsers and readDetails in Firestore
         const letterRef = doc(db, 'love_letters', letterId);
         await updateDoc(letterRef, {
-          readByUsers: arrayUnion(currentUser.id)
+          readByUsers: arrayUnion(currentUser.id),
+          readDetails: arrayUnion(readDetail)
         });
       }
       setActiveUnreadLetter(null);
@@ -459,6 +473,32 @@ export default function App() {
       console.error('Lỗi khi cập nhật trạng thái đã đọc thư:', err);
     }
   };
+
+  const handleOpenAssignment = (assignmentId: string) => {
+    setSelectedAssignmentId(assignmentId);
+    const target = assignments.find(a => a.id === assignmentId);
+    if (target) {
+      if (target.type === 'game') {
+        setActiveTab('games');
+      } else if (target.type === 'flashcard') {
+        setActiveTab('flashcards');
+      } else {
+        setActiveTab('assignments');
+      }
+    } else {
+      setActiveTab('assignments');
+    }
+  };
+
+  useEffect(() => {
+    const handleCustomOpenAssignment = (e: any) => {
+      if (e.detail) {
+        handleOpenAssignment(e.detail);
+      }
+    };
+    window.addEventListener('open-assignment', handleCustomOpenAssignment);
+    return () => window.removeEventListener('open-assignment', handleCustomOpenAssignment);
+  }, [assignments]);
 
   const handleUpdateUser = async (updated: User) => {
     if (auth.currentUser) {
@@ -884,15 +924,14 @@ export default function App() {
     const uniqueClassNames = (() => {
       const names = new Set<string>();
       if (currentUser.className) names.add(currentUser.className);
-      if (currentUser.connectionCode) names.add(currentUser.connectionCode);
       allUsers.forEach((u) => {
         if (u.className) names.add(u.className);
-        if (u.connectionCode) names.add(u.connectionCode);
       });
       classes.forEach((c) => {
         if (c.className) names.add(c.className);
+        if (c.title) names.add(c.title);
       });
-      return Array.from(names).filter(Boolean).sort();
+      return Array.from(names).filter(n => n && n.trim() !== '' && !n.match(/^\d+$/) && n !== 'N/A' && n !== 'Chưa có lớp').sort();
     })();
 
     // Calculate classes specific to the current teacher (or all for admin)
@@ -902,7 +941,6 @@ export default function App() {
       }
       const names = new Set<string>();
       if (currentUser.className) names.add(currentUser.className);
-      if (currentUser.connectionCode) names.add(currentUser.connectionCode);
       classes.forEach(c => {
         if (c.teacherId === currentUser.id || c.teacherName === currentUser.name) {
           if (c.className) names.add(c.className);
@@ -914,7 +952,7 @@ export default function App() {
           if (a.className) names.add(a.className);
         }
       });
-      return Array.from(names).filter(Boolean).sort();
+      return Array.from(names).filter(n => n && n.trim() !== '' && !n.match(/^\d+$/) && n !== 'N/A' && n !== 'Chưa có lớp').sort();
     })();
 
     switch (activeTab) {
@@ -941,6 +979,7 @@ export default function App() {
             submissions={submissions}
             loveLetters={loveLetters}
             isLoadingAssignments={isLoadingAssignments}
+            onOpenAssignment={handleOpenAssignment}
           />
         ) : null;
       case 'assignments':
@@ -1016,6 +1055,7 @@ export default function App() {
           <ActivityLogsView
             currentUser={activeUser}
             onNavigateToTab={setActiveTab}
+            onOpenAssignment={handleOpenAssignment}
           />
         ) : null;
       case 'resources-repository':
@@ -1099,6 +1139,10 @@ export default function App() {
                 submissions={submissions}
                 systemNotifications={filteredNotifications}
                 classes={classes}
+                onOpenAssignment={(id) => {
+                  setSelectedAssignmentId(id);
+                  setActiveTab('assignments');
+                }}
               >
                 {renderContent()}
               </Layout>

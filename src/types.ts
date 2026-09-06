@@ -260,6 +260,26 @@ export interface SystemNotification {
   teacherId?: string;
 }
 
+export interface LoveLetterReply {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole?: 'admin' | 'teacher' | 'student';
+  senderAvatar?: string;
+  senderClass?: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface LoveLetterReadDetail {
+  userId: string;
+  userName?: string;
+  userRole?: 'admin' | 'teacher' | 'student';
+  userClass?: string;
+  userAvatar?: string;
+  readAt: string;
+}
+
 export interface LoveLetter {
   id: string;
   senderId: string;
@@ -274,6 +294,8 @@ export interface LoveLetter {
   targetUserName?: string;
   createdAt: string;
   readByUsers?: string[];
+  readDetails?: LoveLetterReadDetail[];
+  replies?: LoveLetterReply[];
   alreadyClaimedUserId?: string;
 }
 

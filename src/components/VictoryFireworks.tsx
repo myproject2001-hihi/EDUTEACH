@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import confetti from 'canvas-confetti';
 
 interface Particle {
   id: string;
@@ -32,6 +33,11 @@ export function VictoryFireworks({ active, type = 'burst' }: VictoryFireworksPro
   useEffect(() => {
     if (!active) {
       setParticles([]);
+      try {
+        confetti.reset();
+      } catch {
+        // ignore
+      }
       return;
     }
 
@@ -74,7 +80,15 @@ export function VictoryFireworks({ active, type = 'burst' }: VictoryFireworksPro
       setParticles([]);
     }, 1500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      setParticles([]);
+      try {
+        confetti.reset();
+      } catch {
+        // ignore
+      }
+    };
   }, [active, type]);
 
   if (particles.length === 0) return null;

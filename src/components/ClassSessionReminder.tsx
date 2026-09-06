@@ -96,7 +96,7 @@ export function ClassSessionReminder({ user, classes }: ClassSessionReminderProp
       const simulatedToast: ToastNotification = {
         id: `toast_sim_${Date.now()}`,
         classId: `sim_${Date.now()}`,
-        title: customTitle || 'Lớp Học Thử Nghiệm (Toán Học 10A1)',
+        title: customTitle || 'Lớp Học Thử Nghiệm',
         subject: 'Toán Đại Số',
         startTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
         link: 'https://meet.google.com/abc-defg-hij',

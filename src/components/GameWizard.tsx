@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2, Lock, Radio, Sparkles, AlertCircle, ShieldAlert, CheckCircle2, Layers, FolderOpen, Save, Database } from 'lucide-react';
+import { Search, Eye, Play, X, RotateCw, HelpCircle, Download, Upload, Plus, Trash2, Lock, Radio, Sparkles, AlertCircle, ShieldAlert, CheckCircle2, Layers, FolderOpen, Save, Database, MoreHorizontal } from 'lucide-react';
 import { SAMPLE_TEMPLATES } from '../views/AssignmentsView';
 import { useGameStatuses } from '../lib/gameConfig';
 import { User, QuestionSetItem } from '../types';
@@ -146,6 +146,25 @@ export const GameWizard: React.FC<GameWizardProps> = ({
   // Question Bank Modals
   const [showSetPickerModal, setShowSetPickerModal] = useState(false);
   const [showSaveSetModal, setShowSaveSetModal] = useState(false);
+  const [showGameToolsMenu, setShowGameToolsMenu] = useState(false);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(e.target as Node)) {
+        setShowGameToolsMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const parsedQuestionsCount = useMemo(() => {
+    if (!rawQuestionCode || !rawQuestionCode.trim()) return 0;
+    const match = rawQuestionCode.match(/^(?:Câu\s*\d+|Question\s*\d+|\d+[\.\:])/gim);
+    if (match && match.length > 0) return match.length;
+    return rawQuestionCode.split(/\n\s*\n/).filter(t => t.trim().length > 0).length || 1;
+  }, [rawQuestionCode]);
 
   const handleSelectQuestionSetFromBank = (qSet: QuestionSetItem) => {
     if (qSet.rawCode && qSet.rawCode.trim()) {
@@ -223,17 +242,11 @@ export const GameWizard: React.FC<GameWizardProps> = ({
     do_min: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
     doan_tau_tri_thuc: ['matching'],
     keo_co: ['multiple_choice', 'true_false'],
-    game_map: ['multiple_choice', 'true_false', 'short_answer'],
     tu_ngu_biet_bay: ['word_reorder'],
     keo_tha_noi_y: ['matching'],
     o_chu_khoa: ['short_answer'],
-    san_kho_bau: ['multiple_choice', 'true_false', 'matching'],
     lat_manh_ghep: ['matching'],
-    domino: ['matching'],
     dao_chu: ['word_reorder'],
-    mo_hop: ['multiple_choice', 'true_false', 'short_answer', 'matching'],
-    gan_nhan_so_do: ['matching'],
-    no_bong_bay: ['multiple_choice', 'true_false'],
     dap_chuot_chui: ['multiple_choice', 'true_false']
   };
 
@@ -243,17 +256,11 @@ export const GameWizard: React.FC<GameWizardProps> = ({
     { id: 'do_min', name: 'Dò Mìn', category: 'puzzle', desc: 'Khám phá ô mìn an toàn thông qua giải các phép tính toán học', emoji: '💣', color: 'border-emerald-100 hover:border-emerald-500 bg-emerald-50/20 hover:bg-emerald-50/40' },
     { id: 'doan_tau_tri_thuc', name: 'Đoàn Tàu Tri Thức', category: 'puzzle', desc: 'Đưa đoàn tàu vượt các ga học liệu cập bến ga cuối an toàn', emoji: '🚂', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },
     { id: 'keo_co', name: 'Kéo Co Kiến Thức', category: 'speed', desc: 'Đấu trí kéo co kịch tính đấu với máy hoặc hai người chơi', emoji: '🪢', color: 'border-orange-100 hover:border-orange-500 bg-orange-50/20 hover:bg-orange-50/40' },
-    { id: 'game_map', name: 'Game Map', category: 'adventure', desc: 'Bản đồ truy tìm kho báu toán học cổ xưa đầy thú vị', emoji: '🗺️', color: 'border-yellow-100 hover:border-yellow-500 bg-yellow-50/20 hover:bg-yellow-50/40' },
     { id: 'tu_ngu_biet_bay', name: 'Từ Ngữ Biết Bay', category: 'adventure', desc: 'Chạm từ chuyển động đúng chính tả và logic ngữ văn', emoji: '🛸', color: 'border-violet-100 hover:border-violet-500 bg-violet-50/20 hover:bg-violet-50/40' },
     { id: 'keo_tha_noi_y', name: 'Kéo Thả Nối Ý', category: 'adventure', desc: 'Ghép nối vế trái logic với vế phải tạo câu đúng hoàn chỉnh', emoji: '🔗', color: 'border-teal-100 hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/40' },
     { id: 'o_chu_khoa', name: 'Ô Chữ Khóa Bí Mật', category: 'puzzle', desc: 'Giải ô chữ giải mã từ khóa cốt lõi của bài học hôm nay', emoji: '🔐', color: 'border-green-100 hover:border-green-500 bg-green-50/20 hover:bg-green-50/40' },
-    { id: 'san_kho_bau', name: 'Săn Kho Báu', category: 'adventure', desc: 'Tìm rương vàng cổ vật thông qua thử thách toán thực tế', emoji: '🏴‍☠️', color: 'border-slate-100 hover:border-slate-500 bg-slate-50/30 hover:bg-slate-50/50' },
     { id: 'lat_manh_ghep', name: 'Lật Mảnh Ghép', category: 'puzzle', desc: 'Lật và ghép nối các cặp câu hỏi - đáp án tương ứng', emoji: '🧩', color: 'border-indigo-100 hover:border-indigo-500 bg-indigo-50/20 hover:bg-indigo-50/40' },
-    { id: 'domino', name: 'Đấu Trường Domino', category: 'puzzle', desc: 'Chuỗi logic ghép nối domino liên tiếp đầy kịch tính', emoji: '🀄', color: 'border-cyan-100 hover:border-cyan-500 bg-cyan-50/20 hover:bg-cyan-50/40' },
     { id: 'dao_chu', name: 'Đảo Chữ Anagram', category: 'puzzle', desc: 'Xáo trộn ký tự để xếp lại thuật ngữ có nghĩa chuẩn xác nhất', emoji: '🔠', color: 'border-teal-100 hover:border-teal-500 bg-teal-50/20 hover:bg-teal-50/40' },
-    { id: 'mo_hop', name: 'Mở Hộp Bí Mật', category: 'puzzle', desc: 'Hộp quà chứa các thử thách toán học ngẫu nhiên bất ngờ', emoji: '🎁', color: 'border-sky-100 hover:border-sky-500 bg-sky-50/20 hover:bg-sky-50/40' },
-    { id: 'gan_nhan_so_do', name: 'Gắn Nhãn Sơ Đồ', category: 'adventure', desc: 'Kéo các nhãn vào đúng chấm tròn sơ đồ minh họa hình học', emoji: '📊', color: 'border-purple-100 hover:border-purple-500 bg-purple-50/20 hover:bg-purple-50/40' },
-    { id: 'no_bong_bay', name: 'Nổ Bóng Bay', category: 'speed', desc: 'Chạm nổ những quả bóng bay mang đáp án đúng bay lượn', emoji: '🎈', color: 'border-pink-100 hover:border-pink-500 bg-pink-50/20 hover:bg-pink-50/40' },
     { id: 'dap_chuot_chui', name: 'Đập Chuột Chũi', category: 'speed', desc: 'Đập búa vào chú chuột mang mệnh đề toán học chính xác', emoji: '🔨', color: 'border-amber-100 hover:border-amber-600 bg-amber-50/20 hover:bg-amber-50/40' }
   ];
 
@@ -690,70 +697,155 @@ export const GameWizard: React.FC<GameWizardProps> = ({
               transition={{ duration: 0.22, ease: "easeInOut" }}
               className="flex-1 min-h-0 flex flex-col space-y-4 w-full"
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">Bước 3</span>
-                  <h4 className="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-1.5">
-                    <span>📝</span> Mã nguồn câu hỏi Game
-                  </h4>
-                  <span className="text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                    {rawQuestionCode.split('\n').length} dòng
+              {/* Single Game Question Set Top Banner (Matching Flashcard Image 2) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2 shrink-0 bg-white p-3 rounded-2xl border shadow-sm">
+                <div>
+                  <span className="text-[10px] bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm">
+                    BỘ CÂU HỎI TRÒ CHƠI
                   </span>
+                  <h4 className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 flex items-center gap-2">
+                    <span>🗂️</span> Tạo danh sách câu hỏi trò chơi ({parsedQuestionsCount} câu)
+                  </h4>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
+                
+                <div className="flex items-center gap-2 flex-wrap relative" ref={toolsMenuRef}>
+                  {/* Primary Buttons */}
+                  <button 
                     type="button"
-                    onClick={() => setShowSetPickerModal(true)}
-                    className="p-1.5 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                    onClick={() => setShowGamePreview(true)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs border border-indigo-500 flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-indigo-100 shrink-0"
                   >
-                    <FolderOpen className="w-3.5 h-3.5" />
-                    <span>📂 Lấy từ Ngân hàng bộ đề</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowSaveSetModal(true)}
-                    className="p-1.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>💾 Lưu thành Bộ đề mới</span>
+                    <Play className="w-4 h-4 text-white fill-white/20" /> 
+                    Xem trước
                   </button>
 
                   <button 
-                    type="button"
-                    onClick={() => setRawQuestionCode('')}
-                    title="Xóa trắng mã nguồn câu hỏi"
-                    className="p-1.5 px-3 text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                    type="button" 
+                    onClick={() => {
+                      const targetFmt = activeFormat || newGameFormats[0] || 'multiple_choice';
+                      handleApplyTemplate(targetFmt);
+                    }} 
+                    className="px-4 py-2 bg-blue-50 text-blue-700 font-extrabold rounded-xl text-xs border border-blue-200 hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Xóa trắng</span>
+                    <Plus className="w-4 h-4" /> 
+                    Thêm câu hỏi
                   </button>
-                  <button 
+
+                  {/* Tools Menu Dropdown Trigger */}
+                  <button
                     type="button"
-                    onClick={() => setShowGamePreview(true)} 
-                    title="Xem trước trò chơi học tập"
-                    className="px-4 sm:px-5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs sm:text-sm border border-indigo-500 flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-100 shrink-0"
+                    onClick={() => setShowGameToolsMenu(!showGameToolsMenu)}
+                    className={`p-2.5 rounded-xl border transition-all active:scale-95 shrink-0 ${showGameToolsMenu ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+                    title="Thêm tiện ích"
                   >
-                    <Play className="w-3.5 h-3.5" /> Preview
+                    <MoreHorizontal className="w-4 h-4" />
                   </button>
+
+                  {/* Tools Menu Dropdown */}
+                  <AnimatePresence>
+                    {showGameToolsMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[60] overflow-hidden flex flex-col text-left origin-top-right py-1"
+                      >
+                        <div className="px-3 py-2 border-b border-slate-100">
+                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tiện ích bộ câu hỏi</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowSaveSetModal(true);
+                            setShowGameToolsMenu(false);
+                          }}
+                          className="w-full px-3 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2 transition-colors"
+                        >
+                          <Save className="w-4 h-4 text-emerald-500" /> 
+                          Lưu thành Bộ đề mới
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const targetFmt = activeFormat || newGameFormats[0] || 'multiple_choice';
+                            handleApplyTemplate(targetFmt);
+                            setShowGameToolsMenu(false);
+                          }}
+                          className="w-full px-3 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 transition-colors"
+                        >
+                          <Sparkles className="w-4 h-4 text-blue-500" /> 
+                          Dùng mẫu câu hỏi chuẩn
+                        </button>
+
+                        <div className="h-px bg-slate-100 my-1"></div>
+
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TOÀN BỘ nội dung câu hỏi hiện tại không?")) {
+                              setRawQuestionCode('');
+                              if (activeFormat) {
+                                setQuestionBlocks(prev => ({ ...prev, [activeFormat]: '' }));
+                              }
+                            }
+                            setShowGameToolsMenu(false);
+                          }}
+                          className="w-full px-3 py-2.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" /> 
+                          Xóa toàn bộ câu hỏi
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 
-              {/* Format Tab Selector */}
-              <div className="flex flex-wrap gap-2 shrink-0 pb-2">
-                {newGameFormats.map(fmt => (
-                  <button
-                    key={fmt}
-                    onClick={() => setActiveFormat(fmt)}
-                    className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-sm border ${
-                      activeFormat === fmt 
-                        ? 'bg-indigo-600 text-white border-indigo-600' 
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
-                    }`}
+              {/* Guidance Banner (Matching Flashcard Image 2) */}
+              <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-xs text-indigo-950 flex items-start gap-2 shrink-0">
+                <HelpCircle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <span className="font-extrabold text-indigo-900">Mẹo tạo nhanh:</span> Nhấn nút <b>Xem trước</b> để trải nghiệm ngay trò chơi. Nhấn vào dạng câu hỏi bên dưới để chuyển đổi định dạng và chỉnh sửa câu hỏi.
+                </div>
+              </div>
+
+              {/* Section Header (Matching Flashcard Image 2) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between pb-1">
+                  <h5 className="text-xs font-black uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                    <span>🗂️</span> Danh sách câu hỏi trò chơi ({parsedQuestionsCount} câu)
+                  </h5>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const targetFmt = activeFormat || newGameFormats[0] || 'multiple_choice';
+                      handleApplyTemplate(targetFmt);
+                    }} 
+                    className="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors border border-blue-200 active:scale-95 shadow-xs"
                   >
-                    {FORMAT_NAMES[fmt] || fmt}
+                    <Plus className="w-3.5 h-3.5" /> Thêm câu hỏi
                   </button>
-                ))}
+                </div>
+
+                {/* Format Tab Selector */}
+                <div className="flex flex-wrap gap-2 shrink-0 pb-1">
+                  {newGameFormats.map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setActiveFormat(fmt)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs border ${
+                        activeFormat === fmt 
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-100' 
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      {FORMAT_NAMES[fmt] || fmt}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* State-based rendering of the input form using a switch statement */}

@@ -6,13 +6,7 @@ export type GameStatus = 'coming_soon' | 'on_air';
 
 export const COMING_SOON_GAME_IDS = [
   'cuoc_dua_ngon_tay',
-  'do_min',
-  'game_map',
-  'san_kho_bau',
-  'domino',
-  'mo_hop',
-  'gan_nhan_so_do',
-  'no_bong_bay'
+  'do_min'
 ];
 
 export const DEFAULT_GAME_STATUSES: Record<string, GameStatus> = {
@@ -21,17 +15,11 @@ export const DEFAULT_GAME_STATUSES: Record<string, GameStatus> = {
   do_min: 'coming_soon',
   doan_tau_tri_thuc: 'on_air',
   keo_co: 'on_air',
-  game_map: 'coming_soon',
   tu_ngu_biet_bay: 'on_air',
   keo_tha_noi_y: 'on_air',
   o_chu_khoa: 'on_air',
-  san_kho_bau: 'coming_soon',
   lat_manh_ghep: 'on_air',
-  domino: 'coming_soon',
   dao_chu: 'on_air',
-  mo_hop: 'coming_soon',
-  gan_nhan_so_do: 'coming_soon',
-  no_bong_bay: 'coming_soon',
   dap_chuot_chui: 'on_air'
 };
 
@@ -147,7 +135,7 @@ export function getSampleQuestionsForGame(gameId: string) {
     ];
   }
 
-  if (gameId === 'keo_tha_noi_y' || gameId === 'domino' || gameId === 'lat_manh_ghep') {
+  if (gameId === 'keo_tha_noi_y' || gameId === 'lat_manh_ghep') {
     return [
       {
         id: 'q1',

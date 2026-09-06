@@ -125,11 +125,11 @@ export function RewardStoreView({ user, classesList, onUpdateUser, onAwardPoints
     fullCatalog.forEach(i => {
       if (i.className) classSet.add(i.className.trim());
     });
-    const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
-    defaults.forEach(d => classSet.add(d));
-    return Array.from(classSet).filter(Boolean).sort((a, b) => 
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-    );
+    return Array.from(classSet)
+      .filter(c => c && c.trim() !== '' && !c.match(/^\d+$/) && c !== 'N/A' && c !== 'Chưa có lớp')
+      .sort((a, b) => 
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      );
   }, [user.className, fullCatalog, classesList]);
 
   // Modal celebration state for unlocked item or mystery box

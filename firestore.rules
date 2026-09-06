@@ -70,7 +70,7 @@ service cloud.firestore {
     // System notifications collection
     match /system_notifications/{notificationId} {
       allow read: if isAuthenticated();
-      allow create, update: if isTeacher() || (isAuthenticated() && request.resource.data.targetStudentId == request.auth.uid);
+      allow create, update: if isAuthenticated();
       allow delete: if isTeacher();
     }
 
@@ -104,6 +104,17 @@ service cloud.firestore {
     match /resource_requests/{requestId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
+    }
+
+    // Student attendances and evaluations
+    match /student_attendances/{attendanceId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /student_evaluations/{evalId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /classroom_records/{recordId} {
+      allow read, write: if isAuthenticated();
     }
 
     // System config collection (game statuses, global app settings)

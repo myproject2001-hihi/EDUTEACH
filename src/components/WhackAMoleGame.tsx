@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { 
   Volume2, VolumeX, RotateCw, Trophy, HelpCircle, Flame, Clock, 
   Sparkles, Award, CheckCircle2, XCircle, ArrowRight, Play, 
-  ChevronRight, X, Music
+  ChevronRight, X, Music, Sliders
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { MarkdownMath } from './MarkdownMath';
 import { ParsedQuestionItem, cleanQuestionText } from '../views/AssignmentsView';
 import { gameAudio, getSoundConfig, saveSoundConfig } from '../utils/gameAudio';
+import { GameAudioSettingsModal } from './GameAudioSettingsModal';
 
 export interface WhackAMoleGameProps {
   questions: ParsedQuestionItem[];
@@ -170,6 +171,7 @@ export function WhackAMoleGame({
   const [isHammerSwinging, setIsHammerSwinging] = useState(false);
   const [showHammer, setShowHammer] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
 
   // Refs for high performance DOM mutation & timers
   const hammerRef = useRef<HTMLDivElement>(null);
@@ -989,6 +991,15 @@ export function WhackAMoleGame({
               {/* Quick Sound/BGM controls */}
               <button
                 type="button"
+                onClick={() => setShowAudioSettings(true)}
+                className="p-1.5 rounded-lg sm:rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition active:scale-95 flex items-center justify-center"
+                title="Cài đặt Âm thanh & Nhạc nền trò chơi"
+              >
+                <Sliders className="w-4 h-4 text-indigo-400" />
+              </button>
+
+              <button
+                type="button"
                 onClick={toggleBgm}
                 className={`p-1.5 rounded-lg sm:rounded-xl border transition active:scale-95 flex items-center justify-center ${
                   soundConfig.masterEnabled && soundConfig.bgmEnabled
@@ -1274,6 +1285,14 @@ export function WhackAMoleGame({
           </div>
         </div>
       )}
+
+      {/* Audio Settings Modal */}
+      <GameAudioSettingsModal
+        isOpen={showAudioSettings}
+        onClose={() => setShowAudioSettings(false)}
+        gameName="Đập Chuột Chũi Học Tập"
+        bgmTrack="arcade"
+      />
 
     </div>
   );

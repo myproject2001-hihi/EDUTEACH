@@ -7,7 +7,7 @@ export const currentUserMock: Record<string, User> = {
     role: 'teacher',
     avatar: 'https://images.unsplash.com/photo-1624561172888-ac93c696e10c?auto=format&fit=crop&q=80&w=256&h=256',
     phoneStudent: '0901234567',
-    className: 'Giáo viên Chủ nhiệm 10A1',
+    className: 'Giáo viên Chủ nhiệm K12',
   },
   student: {
     id: 's1',

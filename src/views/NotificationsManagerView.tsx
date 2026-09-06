@@ -348,32 +348,39 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                 🎯 Đối tượng nhận thông báo
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setTargetScope('all')}
-                  className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center ${
-                    targetScope === 'all'
-                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  🌐 Toàn hệ thống
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTargetScope('class')}
-                  className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center ${
-                    targetScope === 'class'
-                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  🏫 Phân vào lớp
-                </button>
-              </div>
+              
+              {isAdmin ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTargetScope('all')}
+                    className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center ${
+                      targetScope === 'all'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🌐 Toàn hệ thống
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTargetScope('class')}
+                    className={`py-2 px-3 rounded-xl text-xs font-black border transition-all text-center ${
+                      targetScope === 'class'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    🏫 Chọn Lớp Cụ Thể
+                  </button>
+                </div>
+              ) : (
+                <div className="text-xs text-indigo-700 font-bold bg-indigo-50 p-2 rounded-xl border border-indigo-100">
+                  <span className="flex items-center gap-1.5"><Shield className="w-4 h-4" /> Giáo viên chỉ có thể gửi thông báo cho lớp của mình</span>
+                </div>
+              )}
 
-              {targetScope === 'class' && (
+              {(targetScope === 'class' || !isAdmin) && (
                 <div className="space-y-1 mt-2">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase">
                     Chọn lớp học nhận tin:

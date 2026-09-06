@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, 
+  Eye, Play, X, HelpCircle, Download, Upload, Plus, Trash2, Image, Link, Settings, MoreHorizontal,
   FolderOpen, Sparkles, AlertCircle, ArrowRight, ArrowLeft, ArrowUp, ArrowDown, ArrowUpDown, Check, Layers, Search, ListOrdered, RotateCcw, FileQuestion
 } from 'lucide-react';
 import { SAMPLE_TEMPLATES, parseRawCodeToQuestions, questionsToRawCode } from '../views/AssignmentsView';
@@ -58,6 +58,22 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
   const [frontFiles, setFrontFiles] = useState<{ name: string; base64: string; key: string }[]>([]);
   const [backFiles, setBackFiles] = useState<{ name: string; base64: string; key: string }[]>([]);
   const [isReadingFiles, setIsReadingFiles] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const toolsMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(event.target as Node)) {
+        setShowToolsMenu(false);
+      }
+    };
+    if (showToolsMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showToolsMenu]);
   const [isDraggingFront, setIsDraggingFront] = useState(false);
   const [isDraggingBack, setIsDraggingBack] = useState(false);
 
@@ -586,93 +602,126 @@ export const FlashcardWizard: React.FC<FlashcardWizardProps> = ({
               </h4>
             </div>
             
-            <div className="flex items-center gap-2 flex-wrap">
-              {setNewSubFlashcardSets && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const initialSub: SubFlashcardSet = {
-                      id: `sub_${Date.now()}_1`,
-                      title: 'Bộ con 1',
-                      description: '',
-                      flashcards: newFlashcards.length > 0 ? newFlashcards : [{ id: Date.now().toString(), front: '', back: '' }],
-                      questions: []
-                    };
-                    setNewSubFlashcardSets([initialSub]);
-                    setActiveSubIndex(0);
-                    setShowSelectSubSetModal(true);
-                  }}
-                  className="p-2.5 sm:px-4 bg-orange-500 hover:bg-orange-600 active:scale-95 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center transition-all shadow-sm shrink-0"
-                  title="Chuyển sang chế độ bài học tổng hợp (gồm nhiều bộ con)"
-                  aria-label="Tạo bài học tổng hợp"
-                >
-                  <Layers className="w-5 h-5 text-white" /> 
-                </button>
-              )}
-
+            <div className="flex items-center gap-2 flex-wrap relative" ref={toolsMenuRef}>
+              {/* Primary Buttons */}
               <button 
                 type="button"
                 onClick={() => setShowFlashcardPreview(true)}
-                className="p-2.5 sm:px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-2xl text-xs border border-indigo-500 flex items-center justify-center transition-all shadow-sm shadow-indigo-100 shrink-0"
-                title="Xem trước trải nghiệm học lật thẻ (Esc để đóng)"
-                aria-label="Xem trước thẻ"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold rounded-xl text-xs border border-indigo-500 flex items-center justify-center gap-1.5 transition-all shadow-sm shadow-indigo-100 shrink-0"
               >
-                <Play className="w-5 h-5 text-white fill-white/20" /> 
+                <Play className="w-4 h-4 text-white fill-white/20" /> 
+                Xem trước
               </button>
-
-              <button 
-                type="button"
-                onClick={() => {
-                  if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ thẻ ghi nhớ hiện tại không? Tất cả ảnh và nội dung đã thiết lập sẽ bị mất.")) {
-                    updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
-                  }
-                }}
-                className="p-2.5 sm:px-4 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-2xl text-xs border border-rose-200 flex items-center justify-center transition-colors shadow-xs active:scale-95 shrink-0"
-                title="Xóa nhanh toàn bộ danh sách thẻ"
-                aria-label="Xóa tất cả thẻ"
-              >
-                <Trash2 className="w-5 h-5 text-rose-600" /> 
-              </button>
-
-              {/* Smart Batch Upload Button */}
-              <button
-                type="button"
-                onClick={() => setShowBatchModal(true)}
-                className="p-2.5 sm:px-4 bg-purple-50 text-purple-700 font-extrabold rounded-2xl text-xs border border-purple-200 hover:bg-purple-100 flex items-center justify-center transition-colors shrink-0 shadow-xs active:scale-95"
-                title="Ghép ảnh hàng loạt (Smart Batch Importer)"
-                aria-label="Ghép ảnh hàng loạt"
-              >
-                <FolderOpen className="w-5 h-5 text-purple-700" /> 
-              </button>
-
-              <button 
-                type="button" 
-                onClick={handleDownloadSampleFlashcards}
-                className="p-2.5 sm:px-4 bg-amber-50 text-amber-700 font-bold rounded-2xl text-xs border border-amber-200 hover:bg-amber-100 flex items-center justify-center transition-colors shrink-0 shadow-xs active:scale-95"
-                title="Tải file mẫu flashcard"
-                aria-label="Tải file mẫu"
-              >
-                <Download className="w-5 h-5 text-amber-700" /> 
-              </button>
-
-              <label 
-                className="p-2.5 sm:px-4 bg-slate-100 text-slate-700 font-bold rounded-2xl text-xs border border-slate-200 hover:bg-slate-200 cursor-pointer flex items-center justify-center transition-colors shrink-0 shadow-xs active:scale-95"
-                title="Nhập file dữ liệu thẻ (.txt, .csv, .json)"
-                aria-label="Nhập file"
-              >
-                <Upload className="w-5 h-5 text-slate-700" /> 
-                <input type="file" accept=".txt,.csv,.json" hidden onChange={handleImportFlashcards} />
-              </label>
 
               <button 
                 type="button" 
                 onClick={addNewCard} 
-                className="p-2.5 sm:px-4 bg-blue-600 text-white font-bold rounded-2xl text-xs hover:bg-blue-700 flex items-center justify-center transition-colors shadow-sm shrink-0 active:scale-95"
-                title="Thêm thẻ mới (Phím tắt: Enter tại ô Mặt sau)"
-                aria-label="Thêm thẻ mới"
+                className="px-4 py-2 bg-blue-50 text-blue-700 font-extrabold rounded-xl text-xs border border-blue-200 hover:bg-blue-100 flex items-center justify-center gap-1.5 transition-colors shadow-sm shrink-0 active:scale-95"
               >
-                <Plus className="w-5 h-5 text-white" /> 
+                <Plus className="w-4 h-4" /> 
+                Thêm thẻ
               </button>
+
+              {/* Tools Menu Dropdown Trigger */}
+              <button
+                type="button"
+                onClick={() => setShowToolsMenu(!showToolsMenu)}
+                className={`p-2.5 rounded-xl border transition-all active:scale-95 shrink-0 ${showToolsMenu ? 'bg-slate-100 border-slate-300 text-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+                title="Thêm tiện ích"
+              >
+                <MoreHorizontal className="w-4 h-4" />
+              </button>
+
+              {/* Tools Menu Dropdown */}
+              <AnimatePresence>
+                {showToolsMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[60] overflow-hidden flex flex-col text-left origin-top-right py-1"
+                  >
+                    <div className="px-3 py-2 border-b border-slate-100">
+                      <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tiện ích thẻ</span>
+                    </div>
+
+                    {setNewSubFlashcardSets && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const initialSub: SubFlashcardSet = {
+                            id: `sub_${Date.now()}_1`,
+                            title: 'Bộ con 1',
+                            description: '',
+                            flashcards: newFlashcards.length > 0 ? newFlashcards : [{ id: Date.now().toString(), front: '', back: '' }],
+                            questions: []
+                          };
+                          setNewSubFlashcardSets([initialSub]);
+                          setActiveSubIndex(0);
+                          setShowSelectSubSetModal(true);
+                          setShowToolsMenu(false);
+                        }}
+                        className="w-full px-3 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-orange-50 hover:text-orange-700 flex items-center gap-2 transition-colors"
+                      >
+                        <Layers className="w-4 h-4 text-orange-500" /> 
+                        Gộp nhóm (Bộ thẻ đa cấp)
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowBatchModal(true);
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 flex items-center gap-2 transition-colors"
+                    >
+                      <FolderOpen className="w-4 h-4 text-purple-500" /> 
+                      Ghép ảnh hàng loạt (Smart Batch)
+                    </button>
+
+                    <label 
+                      className="w-full px-3 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-4 h-4 text-slate-500" /> 
+                      Nhập file dữ liệu (.txt, .csv, .json)
+                      <input type="file" accept=".txt,.csv,.json" hidden onChange={(e) => {
+                        handleImportFlashcards(e);
+                        setShowToolsMenu(false);
+                      }} />
+                    </label>
+
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        handleDownloadSampleFlashcards();
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-slate-500" /> 
+                      Tải file mẫu định dạng
+                    </button>
+
+                    <div className="h-px bg-slate-100 my-1"></div>
+
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm("⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ thẻ ghi nhớ hiện tại không? Tất cả ảnh và nội dung đã thiết lập sẽ bị mất.")) {
+                          updateActiveCards([{ id: Date.now().toString(), front: '', back: '' }]);
+                        }
+                        setShowToolsMenu(false);
+                      }}
+                      className="w-full px-3 py-2.5 text-left text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" /> 
+                      Xóa toàn bộ thẻ
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         )}

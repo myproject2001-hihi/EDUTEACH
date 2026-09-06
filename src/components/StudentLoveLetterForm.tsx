@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Send, Heart, Eye, CheckCircle2, User, Sparkles, Clock, Trash2, BookOpen, Type } from 'lucide-react';
+import { Mail, Send, Heart, Eye, CheckCircle2, User, Sparkles, Clock, Trash2, BookOpen, Type, MessageSquareHeart, Users } from 'lucide-react';
 import { LoveLetter, User as UserType, ClassSession } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, where } from 'firebase/firestore';
 import { LoveLetterModal } from './LoveLetterModal';
+import { LoveLetterReadersRepliesModal } from './LoveLetterReadersRepliesModal';
+import { CustomSelect } from './CustomSelect';
 
 export const HANDWRITING_FONTS = [
   { id: 'itim', name: 'Nắn Nót', font: "'Itim', cursive", desc: 'Chữ viết tay học sinh tròn trịa, chuẩn dấu tiếng Việt' },
@@ -35,6 +37,7 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
   const [sending, setSending] = useState(false);
   const [sentLetters, setSentLetters] = useState<LoveLetter[]>([]);
   const [previewLetter, setPreviewLetter] = useState<LoveLetter | null>(null);
+  const [inspectedLetter, setInspectedLetter] = useState<LoveLetter | null>(null);
   const [localNotify, setLocalNotify] = useState<{type: 'success' | 'error' | 'info', msg: string} | null>(null);
 
   const activeFontObj = HANDWRITING_FONTS.find(f => f.id === fontStyle) || HANDWRITING_FONTS[0];
@@ -238,19 +241,20 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
                   <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1.5">
                     Người Nhận (Thầy/Cô Giáo) <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    required
+                  <CustomSelect
                     value={targetTeacherId}
-                    onChange={(e) => setTargetTeacherId(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-extrabold text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-rose-500 transition-all"
-                  >
-                    <option value="" disabled>-- Chọn Thầy/Cô nhận thư --</option>
-                    {teachers.map(t => (
-                      <option key={t.id} value={t.id} className="font-bold">
-                        Thầy/Cô: {t.name} {t.isMyTeacher ? '⭐️ (Dạy lớp của em)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setTargetTeacherId}
+                    options={teachers.map(t => ({
+                      value: t.id,
+                      label: `Thầy/Cô ${t.name}`,
+                      badge: t.isMyTeacher ? '⭐️ Dạy lớp em' : undefined
+                    }))}
+                    placeholder="-- Chọn Thầy/Cô nhận thư --"
+                    className="w-full"
+                    size="md"
+                    searchable={teachers.length > 5}
+                    searchPlaceholder="Tìm kiếm tên thầy/cô..."
+                  />
                 </div>
 
                 <div>
@@ -427,12 +431,16 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
                         </p>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-[10px] flex items-center gap-1 font-extrabold">
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => setInspectedLetter(letter)}
+                          className="text-[10px] flex items-center gap-1 font-extrabold hover:bg-slate-50 p-1 rounded-md transition-colors"
+                        >
                           {isRead ? (
                             <>
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                              <span className="text-emerald-600">Thầy cô đã đọc ❤️</span>
+                              <span className="text-emerald-600">Đã đọc ({letter.readByUsers?.length || 1}) ❤️</span>
                             </>
                           ) : (
                             <>
@@ -440,9 +448,30 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
                               <span className="text-amber-600">Chờ thầy cô mở đọc</span>
                             </>
                           )}
-                        </span>
+                        </button>
 
                         <div className="flex items-center gap-1">
+                          {(letter.replies?.length || 0) > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setInspectedLetter(letter)}
+                              className="px-2 py-1 text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors text-[10px] font-bold border border-rose-200 flex items-center gap-1"
+                              title="Xem thư phản hồi từ thầy cô"
+                            >
+                              <MessageSquareHeart className="w-3 h-3 text-rose-600" />
+                              <span>{letter.replies?.length} phản hồi</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => setInspectedLetter(letter)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors text-[10px] font-bold border border-slate-200"
+                            title="Xem chi tiết ai đã xem & xóa người xem"
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => setPreviewLetter(letter)}
@@ -478,6 +507,20 @@ export const StudentLoveLetterForm: React.FC<StudentLoveLetterFormProps> = ({
           letter={previewLetter}
           currentUser={currentUser}
           onClose={() => setPreviewLetter(null)}
+        />
+      )}
+
+      {/* Love Letter Readers & Replies Modal */}
+      {inspectedLetter && (
+        <LoveLetterReadersRepliesModal
+          letter={inspectedLetter}
+          currentUser={currentUser}
+          allUsers={usersList}
+          onClose={() => setInspectedLetter(null)}
+          onLetterUpdated={(updated) => {
+            setInspectedLetter(updated);
+          }}
+          showNotify={showNotify || triggerNotify}
         />
       )}
 

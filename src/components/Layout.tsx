@@ -24,6 +24,7 @@ interface LayoutProps {
   onLogout?: () => void;
   onOpenGuide?: () => void;
   onOpenRobot?: () => void;
+  onOpenAssignment?: (id: string) => void;
   assignments?: Assignment[];
   submissions?: Submission[];
   systemNotifications?: SystemNotification[];
@@ -45,15 +46,65 @@ function formatRelativeTime(dateString: string): string {
   }
 }
 
-export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, onOpenRobot, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
+export function Layout({ children, user, currentRole, onRoleChange, activeTab, onTabChange, onUpdateUser, onLogout, onOpenGuide, onOpenRobot, onOpenAssignment, assignments, submissions, systemNotifications = [], classes = [] }: LayoutProps) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
   const [notifFilter, setNotifFilter] = useState<'unread' | 'all'>('unread');
   const [showProactiveOverlay, setShowProactiveOverlay] = useState(false);
   const [remindedIds, setRemindedIds] = useState<string[]>([]);
 
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showNotifications]);
+
+  const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
+    if (!assignClass || assignClass.trim() === '') return true;
+    if (!userClass || userClass.trim() === '') return false;
+    const clean = (s: string) => {
+      return s.trim()
+        .toLowerCase()
+        .replace(/^(lớp|lop|class)\s+/gi, '')
+        .replace(/\s+/g, '');
+    };
+    return clean(assignClass) === clean(userClass);
+  };
+
+  const activeRole = currentRole || user.role;
+  const isAdmin = activeRole === 'admin';
+  const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
+
+  const applicableNotifications = React.useMemo(() => {
+    return systemNotifications.filter(n => {
+      // General announcements targeted to everyone
+      if (!n.targetScope || n.targetScope === 'all') return true;
+      
+      // Targeted to a specific class
+      if (n.targetScope === 'class') {
+        // Teacher who created it or Admin can see it
+        if (isAdmin || n.teacherId === user.id) return true;
+        // Students in the matching class can see it
+        if (!isTeacher) return isClassMatching(n.targetClass, user.className);
+        // Other teachers/students not in class cannot see it
+        return false;
+      }
+      
+      return true;
+    });
+  }, [systemNotifications, user, isAdmin, isTeacher]);
+
   const unreadNotifications = React.useMemo(() => {
-    return systemNotifications.filter(n => !user.readNotifications?.includes(n.id));
-  }, [systemNotifications, user.readNotifications]);
+    return applicableNotifications.filter(n => !user.readNotifications?.includes(n.id));
+  }, [applicableNotifications, user.readNotifications]);
 
   React.useEffect(() => {
     const hasPrompted = sessionStorage.getItem('notified_proactive');
@@ -122,24 +173,8 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
     if (notifFilter === 'unread') {
       return unreadNotifications;
     }
-    return systemNotifications;
-  }, [notifFilter, unreadNotifications, systemNotifications]);
-
-  const activeRole = currentRole || user.role;
-  const isAdmin = activeRole === 'admin';
-  const isTeacher = activeRole === 'teacher' || activeRole === 'admin';
-
-  const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
-    if (!assignClass || assignClass.trim() === '') return true;
-    if (!userClass || userClass.trim() === '') return false;
-    const clean = (s: string) => {
-      return s.trim()
-        .toLowerCase()
-        .replace(/^(lớp|lop|class)\s+/gi, '')
-        .replace(/\s+/g, '');
-    };
-    return clean(assignClass) === clean(userClass);
-  };
+    return applicableNotifications;
+  }, [notifFilter, unreadNotifications, applicableNotifications]);
 
   const upcomingAssignments = React.useMemo(() => {
     if (isTeacher || !assignments) return [];
@@ -247,7 +282,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
       }
 
       // 2. Check assignments due in less than 24 hours that are not yet submitted
-      if (assignments && assignments.length > 0) {
+      if (!isTeacher && assignments && assignments.length > 0) {
         for (const assignment of assignments) {
           try {
             if (assignment.isPublished === false) continue;
@@ -540,7 +575,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 md:gap-5 shrink-0">
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={`p-2 hover:bg-slate-50 rounded-full transition-colors relative min-w-[40px] min-h-[40px] flex items-center justify-center ${
@@ -556,25 +591,27 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
               <AnimatePresence>
                 {showNotifications && (
-                  <>
-                    {/* Backdrop to close dropdown */}
-                    <div 
-                      className="fixed inset-0 z-30" 
-                      onClick={() => setShowNotifications(false)}
-                    />
-                    
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
                       className="fixed md:absolute top-16 md:top-auto left-4 right-4 md:left-auto md:right-0 mt-2 w-auto md:w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[60] overflow-hidden flex flex-col text-left origin-top-right"
                     >
                       <div className="p-4 border-b border-slate-100 bg-slate-50/50 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                            <span>🔔</span> Thông báo hệ thống
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                              <span>🔔</span> Thông báo hệ thống
+                            </span>
+                            <button
+                              onClick={() => setShowNotifications(false)}
+                              className="text-slate-400 hover:text-slate-700 bg-slate-200/50 hover:bg-slate-200 p-1 rounded-full transition-colors"
+                              title="Đóng cửa sổ thông báo"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                           {unreadNotifications.length > 0 && (
                             <button
                               onClick={handleMarkAllAsRead}
@@ -771,17 +808,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                           )}
                         </div>
                       </div>
-
-                      <div className="p-3 border-t border-slate-100 text-center bg-slate-50/30">
-                        <button 
-                          onClick={() => setShowNotifications(false)}
-                          className="text-[11px] text-slate-500 hover:text-indigo-600 font-bold transition-colors"
-                        >
-                          Đóng cửa sổ thông báo
-                        </button>
-                      </div>
                     </motion.div>
-                  </>
                 )}
               </AnimatePresence>
             </div>
@@ -1317,7 +1344,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                 <button
                   onClick={() => {
                     handleDismissAlert(activeAlert.id);
-                    onTabChange('assignments');
+                    if (onOpenAssignment && activeAlert.originalId) {
+                      onOpenAssignment(activeAlert.originalId);
+                    } else {
+                      onTabChange('assignments');
+                    }
                   }}
                   className="flex-1 py-3 px-5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs sm:text-sm rounded-xl transition-all shadow-md shadow-indigo-200 hover:shadow-lg flex items-center justify-center gap-1.5"
                 >

@@ -26,6 +26,7 @@ import { SaveToQuestionBankModal } from '../components/SaveToQuestionBankModal';
 import { logActivity } from '../lib/activityLogger';
 import { GameLauncherModal } from '../components/GameLauncherModal';
 import { BatchEditAssignmentsModal } from '../components/BatchEditAssignmentsModal';
+import { CustomSelect } from '../components/CustomSelect';
 
 interface AssignmentsProps {
   user: User;
@@ -923,23 +924,13 @@ export function AssignmentsView({
       classSet.add(localClass.trim());
     }
 
-    // Default standard classes ONLY if the list is completely empty, to prevent broken UI
-    if (classSet.size === 0) {
-      if (user.className) {
-        classSet.add(user.className.trim());
-      } else {
-        const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
-        defaults.forEach(d => classSet.add(d));
-      }
+    // Add user's class if available
+    if (user.className) {
+      classSet.add(user.className.trim());
     }
 
     return Array.from(classSet)
-      .filter(Boolean)
-      .filter(name => {
-        const trimmed = name.trim();
-        // Allow any valid non-empty class name, including those starting with Vietnamese words like "Lớp" or custom names like "Yêu thương"
-        return trimmed.length > 0;
-      })
+      .filter(c => c && c.trim() !== '' && !c.match(/^\d+$/) && c !== 'N/A' && c !== 'Chưa có lớp')
       .sort((a, b) => 
         a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
       );
@@ -2506,7 +2497,10 @@ export function AssignmentsView({
             isStudentMode={!isTeacher}
             tugOfWarMode={selectedAssignment.tugOfWarMode || 'bot'}
             timeLimitRemaining={examTimeRemaining}
-            onClose={() => setIsExamStarted(false)}
+            onClose={() => {
+              try { confetti.reset(); } catch {}
+              setIsExamStarted(false);
+            }}
             onSubmitWork={(finalScore, correctCount, answers) => {
               if (isTeacher) {
                 alert(`[XEM TRƯỚC] Đã hoàn thành trò chơi! Điểm của bạn: ${finalScore}, Số câu đúng: ${correctCount}`);
@@ -2522,6 +2516,7 @@ export function AssignmentsView({
                 };
                 onSubmitWork(submissionData);
               }
+              try { confetti.reset(); } catch {}
               setIsExamStarted(false);
             }}
           />
@@ -2826,7 +2821,7 @@ export function AssignmentsView({
               </span>
             )}
             <span className="text-slate-400 text-sm hidden sm:inline">|</span>
-            <span className="text-slate-300 text-sm font-bold hidden sm:inline">📺 Chế độ trình chiếu lớp học (TV)</span>
+            <span className="text-slate-300 text-sm font-bold hidden sm:inline">Chế độ trình chiếu lớp học (TV)</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -3141,18 +3136,22 @@ export function AssignmentsView({
               <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             </div>
             
-            <div className="flex flex-wrap sm:flex-nowrap gap-2">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
               {!isTeacher && (
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">📋 Tất cả ({statusCounts.all})</option>
-                  <option value="unsubmitted">⏳ Chưa nộp ({statusCounts.unsubmitted})</option>
-                  <option value="overdue">⏰ Quá hạn ({statusCounts.overdue})</option>
-                  <option value="submitted">✅ Đã nộp ({statusCounts.submitted})</option>
-                </select>
+                <div className="w-full sm:w-44 shrink-0">
+                  <CustomSelect
+                    value={filterStatus}
+                    onChange={(val) => setFilterStatus(val as any)}
+                    options={[
+                      { value: 'all', label: `📋 Tất cả (${statusCounts.all})` },
+                      { value: 'unsubmitted', label: `⏳ Chưa nộp (${statusCounts.unsubmitted})` },
+                      { value: 'overdue', label: `⏰ Quá hạn (${statusCounts.overdue})` },
+                      { value: 'submitted', label: `✅ Đã nộp (${statusCounts.submitted})` },
+                    ]}
+                    size="sm"
+                    searchable={false}
+                  />
+                </div>
               )}
 
               {/* Batch Edit Modal Trigger for Teachers (Bảng Hiệu Chỉnh) */}
@@ -3168,15 +3167,19 @@ export function AssignmentsView({
                 </button>
               )}
 
-              <select
-                value={filterDueDate}
-                onChange={(e) => setFilterDueDate(e.target.value)}
-                className="px-4 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="all">Tất cả hạn</option>
-                <option value="upcoming">Còn hạn</option>
-                <option value="overdue">Quá hạn</option>
-              </select>
+              <div className="w-full sm:w-36 shrink-0">
+                <CustomSelect
+                  value={filterDueDate}
+                  onChange={(val) => setFilterDueDate(val)}
+                  options={[
+                    { value: 'all', label: 'Tất cả hạn' },
+                    { value: 'upcoming', label: 'Còn hạn' },
+                    { value: 'overdue', label: 'Quá hạn' },
+                  ]}
+                  size="sm"
+                  searchable={false}
+                />
+              </div>
 
               {isTeacher && (
                 <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200">
@@ -3449,7 +3452,7 @@ export function AssignmentsView({
                   title="Mở chế độ trình chiếu lên Tivi/Máy chiếu lớp học"
                 >
                   <Tv className="w-4 h-4 shrink-0 text-indigo-600 animate-pulse" />
-                  <span>📺 Chế độ trình chiếu (TV)</span>
+                  <span>Chế độ trình chiếu (TV)</span>
                 </button>
               </div>
 
@@ -3745,7 +3748,7 @@ export function AssignmentsView({
                           : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
                       }`}
                     >
-                      {showEmbeddedSim ? '📴 Đóng chế độ nhúng' : '📺 Thực hành ngay tại đây'}
+                      {showEmbeddedSim ? '📴 Đóng chế độ nhúng' : 'Thực hành ngay tại đây'}
                     </button>
                   </div>
 
@@ -6214,9 +6217,9 @@ export function AssignmentsView({
                           </div>
                           <div className="flex justify-between items-center text-xs mt-2 text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div>
-                              <span>Học sinh: <strong>{previewSub.studentName || 'Lê Thị Bình'}</strong></span>
+                              <span>Học sinh: <strong>{previewSub.studentName || 'Học sinh'}</strong></span>
                               <span className="mx-3">|</span>
-                              <span>Lớp: <strong>10A1</strong></span>
+                              <span>Lớp: <strong>{(previewSub as any).className || 'Chưa có lớp'}</strong></span>
                             </div>
                             <span>Ngày nộp: {format(new Date(previewSub.submittedAt), 'dd/MM/yyyy')}</span>
                           </div>
@@ -6284,7 +6287,7 @@ export function AssignmentsView({
 
                         {/* Page Footer simulated */}
                         <div className="absolute bottom-6 left-10 right-10 flex justify-between text-[10px] text-slate-400 font-semibold uppercase tracking-wider pl-6 border-t border-slate-100 pt-3">
-                          <span>Học sinh {previewSub.studentName || 'Lê Thị Bình'} - Lớp 10A1</span>
+                          <span>Học sinh {previewSub.studentName || 'Học sinh'} - Lớp {(previewSub as any).className || 'Chưa có lớp'}</span>
                           <span>Trang 1 / 1</span>
                         </div>
                       </div>
@@ -6309,8 +6312,8 @@ export function AssignmentsView({
                           <h2 className="text-sm font-extrabold text-slate-800 mt-2 font-mono">BÀI LÀM: KHẢO SÁT HÀM SỐ PARABOL</h2>
                         </div>
                         <div className="text-right text-[11px] text-slate-500 font-mono">
-                          <p>Họ tên: {previewSub.studentName || 'Lê Thị Bình'}</p>
-                          <p>Lớp: 10A1</p>
+                          <p>Họ tên: {previewSub.studentName || 'Học sinh'}</p>
+                          <p>Lớp: {(previewSub as any).className || 'Chưa có lớp'}</p>
                         </div>
                       </div>
 
@@ -6624,7 +6627,10 @@ export function AssignmentsView({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowCelebration(false)}
+              onClick={() => {
+                try { confetti.reset(); } catch {}
+                setShowCelebration(false);
+              }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
             />
 
@@ -6704,7 +6710,10 @@ export function AssignmentsView({
               <motion.button
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => setShowCelebration(false)}
+                onClick={() => {
+                  try { confetti.reset(); } catch {}
+                  setShowCelebration(false);
+                }}
                 className="w-full py-3.5 bg-gradient-to-r from-slate-900 to-indigo-950 text-white font-extrabold text-sm rounded-2xl shadow-xl hover:shadow-indigo-900/10 transition-all flex items-center justify-center gap-2"
               >
                 <span>🚀 Tiếp tục học tập</span>
@@ -7274,17 +7283,19 @@ export function AssignmentsView({
                     </label>
                     <p className="text-[11px] text-slate-500">Học sinh chưa được phân công riêng sẽ làm đề này</p>
                   </div>
-                  <select
-                    value={assignActiveQsId}
-                    onChange={(e) => setAssignActiveQsId(e.target.value)}
-                    className="px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-extrabold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500"
-                  >
-                    {assignQsAssignment.questionSets?.map((qs) => (
-                      <option key={qs.id} value={qs.id}>
-                        📋 {qs.title} ({qs.questions?.length || 0} câu)
-                      </option>
-                    ))}
-                  </select>
+                  <div className="w-full sm:w-64 shrink-0">
+                    <CustomSelect
+                      value={assignActiveQsId}
+                      onChange={(val) => setAssignActiveQsId(val)}
+                      options={assignQsAssignment.questionSets?.map((qs) => ({
+                        value: qs.id,
+                        label: qs.title,
+                        badge: `${qs.questions?.length || 0} câu`
+                      })) || []}
+                      size="sm"
+                      searchable={(assignQsAssignment.questionSets?.length || 0) > 6}
+                    />
+                  </div>
                 </div>
 
                 <div className="pt-3 border-t border-slate-200/80 flex flex-wrap items-center gap-2">

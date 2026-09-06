@@ -3,6 +3,7 @@ import { Search, X, Check, BookOpen, Layers, Sparkles, Filter, Plus, FileText, A
 import { QuestionSetItem } from '../types';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { CustomSelect } from './CustomSelect';
 
 interface QuestionSetPickerModalProps {
   isOpen: boolean;
@@ -114,29 +115,33 @@ export const QuestionSetPickerModal: React.FC<QuestionSetPickerModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedSubject}
-              onChange={e => setSelectedSubject(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 text-xs font-bold rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">Tất cả môn học ({sets.length})</option>
-              {subjects.map(subj => (
-                <option key={subj} value={subj}>{subj}</option>
-              ))}
-            </select>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="w-full sm:w-48">
+              <CustomSelect
+                value={selectedSubject}
+                onChange={setSelectedSubject}
+                options={[
+                  { value: 'all', label: `Tất cả môn (${sets.length})` },
+                  ...subjects.map(subj => ({ value: subj, label: subj }))
+                ]}
+                size="sm"
+                searchable={subjects.length > 5}
+              />
+            </div>
 
             {grades.length > 0 && (
-              <select
-                value={selectedGrade}
-                onChange={e => setSelectedGrade(e.target.value)}
-                className="px-3 py-2 bg-white border border-slate-200 text-xs font-bold rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="all">Tất cả khối lớp</option>
-                {grades.map(grd => (
-                  <option key={grd} value={grd}>{grd}</option>
-                ))}
-              </select>
+              <div className="w-full sm:w-40">
+                <CustomSelect
+                  value={selectedGrade}
+                  onChange={setSelectedGrade}
+                  options={[
+                    { value: 'all', label: 'Tất cả khối lớp' },
+                    ...grades.map(grd => ({ value: grd, label: grd }))
+                  ]}
+                  size="sm"
+                  searchable={grades.length > 5}
+                />
+              </div>
             )}
           </div>
         </div>

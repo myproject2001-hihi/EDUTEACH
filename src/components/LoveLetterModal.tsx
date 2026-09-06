@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Sparkles, Mail, FastForward, Minus, Plus, Send, X, Gift, Flame, PartyPopper, MessageSquareHeart } from 'lucide-react';
-import { LoveLetter, User } from '../types';
+import { LoveLetter, LoveLetterReply, User } from '../types';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { setDoc, doc } from 'firebase/firestore';
+import { setDoc, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { logActivity } from '../lib/activityLogger';
 
 export const HANDWRITING_FONTS = [
   { id: 'itim', name: 'Nắn Nót', font: "'Itim', cursive", desc: 'Chữ viết tay học sinh tròn trịa, chuẩn dấu tiếng Việt' },
@@ -111,10 +112,37 @@ export const LoveLetterModal: React.FC<LoveLetterModalProps> = ({
     setIsSendingReply(true);
 
     try {
+      const replyObj: LoveLetterReply = {
+        id: `reply_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderRole: currentUser.role,
+        senderAvatar: currentUser.avatar,
+        senderClass: currentUser.className,
+        content: thankYouMessage.trim(),
+        createdAt: new Date().toISOString()
+      };
+
+      // Save reply to the letter document in Firestore
+      try {
+        const letterRef = doc(db, 'love_letters', letter.id);
+        await updateDoc(letterRef, {
+          replies: arrayUnion(replyObj)
+        });
+      } catch (saveErr) {
+        console.warn('Could not update replies array on love_letter:', saveErr);
+      }
+
       if (letter.senderId && letter.senderId !== currentUser.id) {
         const notifId = 'notif_reply_' + Date.now();
         await setDoc(doc(db, 'system_notifications', notifId), {
           id: notifId,
+          loveLetterId: letter.id,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar || '',
+          senderRole: currentUser.role || 'student',
+          senderClass: currentUser.className || '',
           title: `💌 ${currentUser.name} đã gửi lời cảm ơn tới bạn!`,
           content: `"${thankYouMessage.trim()}" (Phản hồi cho bức thư: "${letter.title}")`,
           type: 'personal_reminder',
@@ -126,6 +154,26 @@ export const LoveLetterModal: React.FC<LoveLetterModalProps> = ({
           teacherId: letter.senderId,
           targetScope: 'personal'
         });
+      }
+
+      // Log activity
+      try {
+        logActivity({
+          user: currentUser,
+          category: 'system',
+          actionType: 'reply_love_letter',
+          title: `${currentUser.name} đã phản hồi thư yêu thương`,
+          description: `"${thankYouMessage.trim()}" (Phản hồi thư: "${letter.title}")`,
+          targetId: letter.id,
+          targetName: letter.title,
+          meta: {
+            letterId: letter.id,
+            letterTitle: letter.title,
+            recipientId: letter.senderId
+          }
+        });
+      } catch (logErr) {
+        console.warn('Activity logging failed:', logErr);
       }
 
       if (onMarkRead) {
@@ -149,7 +197,78 @@ export const LoveLetterModal: React.FC<LoveLetterModalProps> = ({
   };
 
   // Option 2: Choose celebration effect
-  const handleSelectEffectAndFinish = (effectId: string) => {
+  const handleSelectEffectAndFinish = async (effectId: string) => {
+    const selectedEff = THANK_YOU_EFFECTS.find(e => e.id === effectId);
+    const effName = selectedEff ? `${selectedEff.emoji} Đã gửi hiệu ứng: ${selectedEff.name}` : '✨ Đã gửi hiệu ứng ăn mừng!';
+
+    try {
+      const replyObj: LoveLetterReply = {
+        id: `reply_fx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        senderId: currentUser.id,
+        senderName: currentUser.name,
+        senderRole: currentUser.role,
+        senderAvatar: currentUser.avatar,
+        senderClass: currentUser.className,
+        content: effName,
+        createdAt: new Date().toISOString()
+      };
+
+      // Save reaction reply to the letter document in Firestore
+      try {
+        const letterRef = doc(db, 'love_letters', letter.id);
+        await updateDoc(letterRef, {
+          replies: arrayUnion(replyObj)
+        });
+      } catch (saveErr) {
+        console.warn('Could not update replies array with effect on love_letter:', saveErr);
+      }
+
+      if (letter.senderId && letter.senderId !== currentUser.id) {
+        const notifId = 'notif_reply_' + Date.now();
+        await setDoc(doc(db, 'system_notifications', notifId), {
+          id: notifId,
+          loveLetterId: letter.id,
+          senderId: currentUser.id,
+          senderName: currentUser.name,
+          senderAvatar: currentUser.avatar || '',
+          senderRole: currentUser.role || 'student',
+          senderClass: currentUser.className || '',
+          title: `💌 ${currentUser.name} đã gửi hiệu ứng cảm ơn tới bạn!`,
+          content: `"${effName}" (Phản hồi cho bức thư: "${letter.title}")`,
+          type: 'personal_reminder',
+          badge: '💌 Hiệu Ứng Thư',
+          badgeColor: 'rose',
+          createdAt: new Date().toISOString(),
+          targetUserId: letter.senderId,
+          targetStudentId: letter.senderId,
+          teacherId: letter.senderId,
+          targetScope: 'personal'
+        });
+      }
+
+      // Log activity
+      try {
+        logActivity({
+          user: currentUser,
+          category: 'system',
+          actionType: 'reply_love_letter',
+          title: `${currentUser.name} đã thả hiệu ứng phản hồi thư`,
+          description: `"${effName}" (Phản hồi thư: "${letter.title}")`,
+          targetId: letter.id,
+          targetName: letter.title,
+          meta: {
+            letterId: letter.id,
+            letterTitle: letter.title,
+            recipientId: letter.senderId
+          }
+        });
+      } catch (logErr) {
+        console.warn('Activity logging failed:', logErr);
+      }
+    } catch (err) {
+      console.warn('Could not send effect reaction notification:', err);
+    }
+
     if (onMarkRead) {
       onMarkRead(letter.id);
     }

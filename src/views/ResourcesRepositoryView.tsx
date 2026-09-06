@@ -51,6 +51,7 @@ import confetti from 'canvas-confetti';
 import { GamePreview } from '../components/GamePreview';
 import { FlashcardQuizGame } from '../components/FlashcardQuizGame';
 import { MarkdownMath } from '../components/MarkdownMath';
+import { CustomSelect } from '../components/CustomSelect';
 
 interface ResourcesRepositoryViewProps {
   user: UserType;
@@ -245,23 +246,13 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
       classSet.add(localClass.trim());
     }
 
-    // Default standard classes ONLY if the list is completely empty, to prevent broken UI
-    if (classSet.size === 0) {
-      if (user.className) {
-        classSet.add(user.className.trim());
-      } else {
-        const defaults = ['10A1', '10A2', '11A1', '11A2', '12A1', '12A2'];
-        defaults.forEach(d => classSet.add(d));
-      }
+    // Add user's class if available
+    if (user.className) {
+      classSet.add(user.className.trim());
     }
 
     return Array.from(classSet)
-      .filter(Boolean)
-      .filter(name => {
-        const trimmed = name.trim();
-        // Allow any valid non-empty class name, including those starting with Vietnamese words like "Lớp" or custom names like "Yêu thương"
-        return trimmed.length > 0;
-      })
+      .filter(c => c && c.trim() !== '' && !c.match(/^\d+$/) && c !== 'N/A' && c !== 'Chưa có lớp')
       .sort((a, b) => 
         a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
       );
@@ -500,10 +491,10 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
         {activeTab === 'all' ? (
           <div className="space-y-6">
             {/* Filters Bar */}
-            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-3">
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
               {/* Search */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
                   placeholder="Tìm theo tên, tác giả..."
@@ -522,56 +513,60 @@ export function ResourcesRepositoryView({ user, assignments, onAwardPoints }: Re
                 )}
               </div>
 
-              <div className="flex flex-wrap sm:flex-nowrap gap-2">
+              {/* Filter Dropdowns - Responsive Wrap */}
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Type filter */}
-                <select
+                <CustomSelect
                   value={filterType}
-                  onChange={e => setFilterType(e.target.value)}
-                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
-                >
-                  <option value="all">📂 Tất cả loại hình</option>
-                  <option value="online_test">📝 Trắc nghiệm Online</option>
-                  <option value="file_upload">📄 Tự luận / PDF</option>
-                  <option value="simulation">🔬 Mô phỏng Khoa học</option>
-                  <option value="game">🎮 Trò chơi học tập</option>
-                  <option value="flashcard">🎴 Học liệu Flashcard</option>
-                </select>
+                  onChange={val => setFilterType(val)}
+                  options={[
+                    { value: 'all', label: 'Tất cả loại hình', icon: <BookOpen className="w-4 h-4 text-indigo-500" /> },
+                    { value: 'online_test', label: 'Trắc nghiệm Online', icon: <FileText className="w-4 h-4 text-blue-500" /> },
+                    { value: 'file_upload', label: 'Tự luận / PDF', icon: <FileText className="w-4 h-4 text-emerald-500" /> },
+                    { value: 'simulation', label: 'Mô phỏng Khoa học', icon: <Microscope className="w-4 h-4 text-purple-500" /> },
+                    { value: 'game', label: 'Trò chơi học tập', icon: <Gamepad2 className="w-4 h-4 text-amber-500" /> },
+                    { value: 'flashcard', label: 'Học liệu Flashcard', icon: <Library className="w-4 h-4 text-teal-500" /> },
+                  ]}
+                  className="flex-1 sm:flex-initial min-w-[140px]"
+                />
 
                 {/* Grade filter */}
-                <select
+                <CustomSelect
                   value={filterGrade}
-                  onChange={e => setFilterGrade(e.target.value)}
-                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
-                >
-                  <option value="all">🏫 Tất cả Khối lớp</option>
-                  {Array.from({ length: 12 }, (_, i) => `Khối ${i + 1}`).map(g => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                  <option value="Khác">Khác</option>
-                </select>
+                  onChange={val => setFilterGrade(val)}
+                  options={[
+                    { value: 'all', label: 'Tất cả Khối lớp', icon: <Sparkles className="w-4 h-4 text-indigo-500" /> },
+                    ...Array.from({ length: 12 }, (_, i) => ({
+                      value: `Khối ${i + 1}`,
+                      label: `Khối ${i + 1}`,
+                    })),
+                    { value: 'Khác', label: 'Khác' },
+                  ]}
+                  className="flex-1 sm:flex-initial min-w-[130px]"
+                />
 
                 {/* Author filter */}
-                <select
+                <CustomSelect
                   value={filterAuthor}
-                  onChange={e => setFilterAuthor(e.target.value)}
-                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
-                >
-                  <option value="all">👤 Tất cả giáo viên</option>
-                  {authors.map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+                  onChange={val => setFilterAuthor(val)}
+                  options={[
+                    { value: 'all', label: 'Tất cả giáo viên', icon: <User className="w-4 h-4 text-indigo-500" /> },
+                    ...authors.map(name => ({ value: name, label: name })),
+                  ]}
+                  className="flex-1 sm:flex-initial min-w-[140px]"
+                />
 
                 {/* On Air filter */}
-                <select
+                <CustomSelect
                   value={filterOnAir}
-                  onChange={e => setFilterOnAir(e.target.value)}
-                  className="px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 shadow-xs"
-                >
-                  <option value="all">📻 Tất cả On Air</option>
-                  <option value="on_air">🟢 Đã On Air</option>
-                  <option value="draft">🟡 Bản Nháp</option>
-                </select>
+                  onChange={val => setFilterOnAir(val)}
+                  options={[
+                    { value: 'all', label: 'Tất cả On Air', icon: <Radio className="w-4 h-4 text-indigo-500" /> },
+                    { value: 'on_air', label: 'Đã On Air', badge: 'On' },
+                    { value: 'draft', label: 'Bản Nháp', badge: 'Draft' },
+                  ]}
+                  className="flex-1 sm:flex-initial min-w-[130px]"
+                />
               </div>
             </div>
 

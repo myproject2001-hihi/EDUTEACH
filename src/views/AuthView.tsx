@@ -1381,7 +1381,7 @@ export function AuthView({ onLogin }: AuthViewProps) {
                           </div>
                           <input 
                             type="text"
-                            placeholder="Ví dụ: 10A1, Tổ Toán, Phụ huynh em Nguyễn Văn A..."
+                            placeholder="Ví dụ: Lớp Toán K12, Phụ huynh em Nguyễn Văn A..."
                             value={resetClassName}
                             onChange={(e) => {
                               setResetClassName(e.target.value);

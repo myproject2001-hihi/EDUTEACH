@@ -3,6 +3,8 @@ import { User, ClassSession, Assignment } from '../types';
 import { db } from '../firebase';
 import { doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { ConfirmModal } from './ConfirmModal';
+import { BulkStudentImportModal } from './BulkStudentImportModal';
+import { CustomSelect } from './CustomSelect';
 import { 
   School, 
   Users, 
@@ -22,7 +24,8 @@ import {
   ChevronRight,
   ShieldCheck,
   Sparkles,
-  Calendar
+  Calendar,
+  Upload
 } from 'lucide-react';
 
 interface ClassManagementSubViewProps {
@@ -45,6 +48,7 @@ export function ClassManagementSubView({
 
   // Modals state
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [selectedTeachersForNewClass, setSelectedTeachersForNewClass] = useState<string[]>([]);
   const [selectedStudentsForNewClass, setSelectedStudentsForNewClass] = useState<string[]>([]);
@@ -269,6 +273,34 @@ export function ClassManagementSubView({
     }
   };
 
+  // Bulk remove students from class
+  const [selectedClassStudentIds, setSelectedClassStudentIds] = useState<Record<string, string[]>>({});
+
+  const handleBulkRemoveStudentsFromClass = (clsName: string) => {
+    const ids = selectedClassStudentIds[clsName] || [];
+    if (ids.length === 0) return;
+
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Xóa nhiều học sinh khỏi lớp',
+      message: `Bạn có chắc muốn xóa ${ids.length} học sinh đã chọn khỏi lớp "${clsName}"?`,
+      confirmText: 'Xóa khỏi lớp',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const promises = ids.map(id => updateDoc(doc(db, 'users', id), { className: '' }));
+          await Promise.all(promises);
+          showNotify('success', `Đã xóa ${ids.length} học sinh khỏi lớp "${clsName}".`);
+          setSelectedClassStudentIds(prev => ({ ...prev, [clsName]: [] }));
+        } catch (err) {
+          showNotify('error', 'Lỗi khi cập nhật danh sách học sinh.');
+        } finally {
+          setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
   // 3. Remove Student from Class
   const handleRemoveStudentFromClass = (student: User, className: string) => {
     setConfirmModalConfig({
@@ -472,6 +504,14 @@ export function ClassManagementSubView({
             className="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
           >
             Thu gọn tất cả
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowImportModal(true)}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95 cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Nhập DS (Excel/CSV)</span>
           </button>
           <button
             type="button"
@@ -693,9 +733,21 @@ export function ClassManagementSubView({
                         <Users className="w-4 h-4 text-indigo-600" />
                         <span>Danh sách học sinh trong lớp ({item.students.length})</span>
                       </div>
-                      <span className="text-[11px] text-slate-500 font-medium lowercase">
-                        {item.students.length} học sinh
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {(selectedClassStudentIds[item.className]?.length || 0) > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleBulkRemoveStudentsFromClass(item.className)}
+                            className="px-2.5 py-1 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1 shadow-xs active:scale-95 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Xóa khỏi lớp ({selectedClassStudentIds[item.className]?.length})</span>
+                          </button>
+                        )}
+                        <span className="text-[11px] text-slate-500 font-medium lowercase">
+                          {item.students.length} học sinh
+                        </span>
+                      </div>
                     </div>
 
                     {item.students.length === 0 ? (
@@ -707,33 +759,76 @@ export function ClassManagementSubView({
                         <table className="w-full block sm:table text-left border-collapse text-xs">
                           <thead className="hidden sm:table-header-group">
                             <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold">
-                              <th className="py-2.5 px-3 w-10 text-center block sm:table-cell">#</th>
+                              <th className="py-2.5 px-3 w-10 text-center block sm:table-cell">
+                                <input
+                                  type="checkbox"
+                                  checked={item.students.length > 0 && (selectedClassStudentIds[item.className]?.length || 0) === item.students.length}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedClassStudentIds(prev => ({
+                                        ...prev,
+                                        [item.className]: item.students.map(s => s.id)
+                                      }));
+                                    } else {
+                                      setSelectedClassStudentIds(prev => ({
+                                        ...prev,
+                                        [item.className]: []
+                                      }));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                />
+                              </th>
+                              <th className="py-2.5 px-3 w-12 text-center block sm:table-cell">STT</th>
                               <th className="py-2.5 px-3 block sm:table-cell">Học sinh</th>
-                              <th className="py-2.5 px-3 block sm:table-cell">SĐT HS / Mã kết nối</th>
+                              <th className="py-2.5 px-3 block sm:table-cell">SĐT Học sinh</th>
                               <th className="py-2.5 px-3 block sm:table-cell">SĐT Phụ huynh</th>
                               <th className="py-2.5 px-3 text-right block sm:table-cell">Thao tác</th>
                             </tr>
                           </thead>
                           <tbody className="block sm:table-row-group divide-y divide-slate-100 sm:divide-y">
-                            {item.students.map((student, idx) => (
+                            {item.students.map((student, idx) => {
+                              const isStudentSelected = (selectedClassStudentIds[item.className] || []).includes(student.id);
+                              return (
                               <tr key={student.id} className="block sm:table-row hover:bg-slate-50/80 transition-colors bg-white sm:bg-transparent rounded-xl p-3 sm:p-0 mb-3 sm:mb-0 border border-slate-100 sm:border-none space-y-2 sm:space-y-0">
-                                <td className="hidden sm:table-cell py-2 px-3 text-center text-slate-400 font-bold text-[11px]">{idx + 1}</td>
+                                <td className="py-2 px-3 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isStudentSelected}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedClassStudentIds(prev => ({
+                                          ...prev,
+                                          [item.className]: [...(prev[item.className] || []), student.id]
+                                        }));
+                                      } else {
+                                        setSelectedClassStudentIds(prev => ({
+                                          ...prev,
+                                          [item.className]: (prev[item.className] || []).filter(id => id !== student.id)
+                                        }));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 text-center text-xs font-bold text-slate-400 block sm:table-cell">
+                                  {idx + 1}
+                                </td>
                                 <td className="block sm:table-cell py-2 px-3">
                                   <div className="flex items-center gap-2.5">
                                     <img
                                       src={student.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${student.id}`}
-                                      alt={student.name}
+                                      alt={student.name || 'Học sinh'}
                                       className="w-7 h-7 rounded-full border border-slate-100 object-cover shrink-0"
                                     />
                                     <div>
-                                      <div className="font-bold text-slate-900">{student.name}</div>
-                                      <div className="text-[10px] text-slate-400 font-mono">ID: {student.id.slice(0, 8)}</div>
+                                      <div className="font-bold text-slate-900">{student.name || (student as any).studentName || 'Học sinh'}</div>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="block sm:table-cell py-2 px-3 font-mono text-[11px] text-slate-600">
-                                  <span className="text-[10px] font-bold text-slate-400 block sm:hidden uppercase tracking-wider mb-0.5">SĐT HS / Mã kết nối:</span>
-                                  {student.phoneStudent || student.connectionCode || '—'}
+                                  <span className="text-[10px] font-bold text-slate-400 block sm:hidden uppercase tracking-wider mb-0.5">SĐT HS:</span>
+                                  {student.phoneStudent || '—'}
                                 </td>
                                 <td className="block sm:table-cell py-2 px-3 font-mono text-[11px] text-slate-600">
                                   <span className="text-[10px] font-bold text-slate-400 block sm:hidden uppercase tracking-wider mb-0.5">SĐT Phụ huynh:</span>
@@ -747,7 +842,7 @@ export function ClassManagementSubView({
                                         setMovingStudent(student);
                                         setTargetClassForMove('');
                                       }}
-                                      className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1"
+                                      className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded-xl transition-all flex items-center gap-1 active:scale-95 border border-indigo-200/50 shadow-2xs"
                                       title="Chuyển sang lớp khác"
                                     >
                                       <ArrowRightLeft className="w-3 h-3" />
@@ -756,7 +851,7 @@ export function ClassManagementSubView({
                                     <button
                                       type="button"
                                       onClick={() => handleRemoveStudentFromClass(student, item.className)}
-                                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-transparent hover:border-rose-100"
                                       title="Xóa khỏi lớp này"
                                     >
                                       <UserMinus className="w-3.5 h-3.5" />
@@ -764,7 +859,8 @@ export function ClassManagementSubView({
                                   </div>
                                 </td>
                               </tr>
-                            ))}
+                            );
+                          })}
                           </tbody>
                         </table>
                       </div>
@@ -815,7 +911,7 @@ export function ClassManagementSubView({
                 </label>
                 <input
                   type="text"
-                  placeholder="Ví dụ: Lớp 10A1, Ôn thi THPT Quốc Gia, Toán Thầy Hùng..."
+                  placeholder="Ví dụ: Ôn thi THPT Quốc Gia, Toán Thầy Hùng..."
                   value={newClassName}
                   onChange={(e) => setNewClassName(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 placeholder:font-normal"
@@ -1128,18 +1224,19 @@ export function ClassManagementSubView({
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
                   Chọn lớp học đích:
                 </label>
-                <select
+                <CustomSelect
                   value={targetClassForMove}
-                  onChange={(e) => setTargetClassForMove(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">-- Chọn lớp học --</option>
-                  {classesData.map(c => (
-                    <option key={c.className} value={c.className}>
-                      {c.className} ({c.students.length} HS)
-                    </option>
-                  ))}
-                </select>
+                  onChange={setTargetClassForMove}
+                  options={classesData.map(c => ({
+                    value: c.className,
+                    label: `Lớp ${c.className}`,
+                    badge: `${c.students.length} HS`
+                  }))}
+                  placeholder="-- Chọn lớp học --"
+                  className="w-full"
+                  size="sm"
+                  searchable={classesData.length > 5}
+                />
               </div>
             </div>
 
@@ -1178,6 +1275,16 @@ export function ClassManagementSubView({
           loading={isProcessing}
         />
       )}
+
+      {/* Bulk Student Import Modal */}
+      <BulkStudentImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        currentUser={currentUser}
+        onImportSuccess={() => {
+          showNotify('success', 'Đã nhập thành công danh sách học sinh từ file!');
+        }}
+      />
     </div>
   );
 }
