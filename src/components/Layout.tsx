@@ -472,7 +472,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
             const isActive = activeTab === item.id;
             return (
               <button
-                key={item.id}
+                key={`nav_desktop_${item.id}`}
                 onClick={() => handleTabClick(item.id)}
                 data-tour={item.id}
                 className={`w-full flex items-center gap-4 px-3 py-3 text-sm 2xl:text-base rounded-xl transition-all font-medium whitespace-nowrap overflow-hidden min-h-[44px] ${
@@ -650,13 +650,13 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                         {upcomingClasses.length > 0 && (
                           <div className="space-y-3">
                             <h6 className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-1">Lịch học sắp diễn ra</h6>
-                            {upcomingClasses.map(session => {
+                            {upcomingClasses.map((session, idx) => {
                               const start = new Date(session.startTime).getTime();
                               const now = Date.now();
                               const isOngoing = now >= start;
                               const text = isOngoing ? 'Đang diễn ra' : `Bắt đầu sau ${Math.max(1, Math.ceil((start - now) / 60000))} phút`;
                               return (
-                                <div key={session.id} className="flex gap-3 items-start p-2 rounded-xl bg-indigo-50 border border-indigo-100/50 hover:bg-indigo-50 transition-colors">
+                                <div key={session.id ? `session_${session.id}` : `session_idx_${idx}`} className="flex gap-3 items-start p-2 rounded-xl bg-indigo-50 border border-indigo-100/50 hover:bg-indigo-50 transition-colors">
                                   <div className="w-8 h-8 rounded-lg bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-600 shrink-0 mt-0.5 animate-pulse">
                                     📹
                                   </div>
@@ -687,10 +687,10 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                         {upcomingAssignments.length > 0 && (
                           <div className="space-y-3">
                             <h6 className="text-[10px] font-black text-slate-500 uppercase tracking-wider px-1">Bài Tập Sắp Hết Hạn</h6>
-                            {upcomingAssignments.map(assignment => {
+                            {upcomingAssignments.map((assignment, idx) => {
                               const hoursLeft = Math.max(1, Math.ceil((new Date(assignment.dueDate!).getTime() - Date.now()) / (60 * 60 * 1000)));
                               return (
-                                <div key={assignment.id} className="flex gap-3 items-start p-2 rounded-xl bg-orange-50/50 border border-orange-100/50 hover:bg-orange-50 transition-colors relative group/item w-full">
+                                <div key={assignment.id ? `assign_${assignment.id}` : `assign_idx_${idx}`} className="flex gap-3 items-start p-2 rounded-xl bg-orange-50/50 border border-orange-100/50 hover:bg-orange-50 transition-colors relative group/item w-full">
                                   <div className="w-8 h-8 rounded-lg bg-orange-100 border border-orange-200 flex items-center justify-center text-orange-600 shrink-0 mt-0.5 animate-pulse">
                                     ⏰
                                   </div>
@@ -737,7 +737,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                             </div>
                           ) : (
                             <AnimatePresence initial={false}>
-                              {displayedNotifications.map((notif) => {
+                              {displayedNotifications.map((notif, idx) => {
                                 const badgeEmoji = notif.badge?.split(' ')[0] || '📢';
                                 const isUnread = !user.readNotifications?.includes(notif.id);
                                 
@@ -752,7 +752,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
                                 return (
                                   <motion.div
-                                    key={notif.id}
+                                    key={notif.id ? `notif_${notif.id}` : `notif_idx_${idx}`}
                                     layout
                                     initial={{ opacity: 0, x: 20 }}
                                     animate={{ opacity: 1, x: 0 }}
@@ -843,7 +843,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
           const isActive = activeTab === item.id;
           return (
             <button
-              key={item.id}
+              key={`nav_mobile_${item.id}`}
               onClick={() => handleTabClick(item.id)}
               className={`flex flex-col items-center justify-center py-1.5 px-2.5 rounded-2xl transition-all shrink-0 min-w-[64px] min-h-[46px] touch-manipulation ${
                 isActive ? 'text-indigo-600 font-bold bg-indigo-50/80 shadow-xs' : 'text-slate-500 hover:text-slate-900 active:scale-95'
@@ -1393,7 +1393,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
               {/* Body */}
               <div className="flex-1 p-6 overflow-y-auto space-y-4 custom-scrollbar bg-slate-50/50">
-                {unreadNotifications.map((notif) => {
+                {unreadNotifications.map((notif, idx) => {
                   const colorMap: Record<string, string> = {
                     emerald: 'bg-emerald-50 border-emerald-200/60 text-emerald-800',
                     indigo: 'bg-indigo-50 border-indigo-200/60 text-indigo-800',
@@ -1404,7 +1404,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                   const styleClass = colorMap[color] || colorMap.slate;
 
                   return (
-                    <div key={notif.id} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
+                    <div key={notif.id ? `unread_${notif.id}` : `unread_idx_${idx}`} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-2.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${styleClass}`}>
                           {notif.badge}

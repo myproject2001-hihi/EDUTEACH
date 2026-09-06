@@ -122,6 +122,8 @@ export interface Assignment {
   requiresRetake?: boolean;
   retakeRequestedAt?: string;
   retakeNote?: string;
+  viewedStudentIds?: string[];
+  viewedStudentLogs?: { studentId: string; studentName?: string; className?: string; accessedAt: string }[];
 }
 
 export interface SubmissionQuizQuestion {

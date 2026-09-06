@@ -5,7 +5,7 @@ import {
   Search, Download, Award, TrendingUp, Phone, User, CheckCircle, Mail, MessageCircle, 
   Key, ShieldCheck, Trash2, Check, X, ShieldAlert, AlertCircle, Copy, ArrowUpDown, 
   ArrowUp, ArrowDown, RotateCcw, Upload, FileSpreadsheet, Sparkles, Star, Shuffle, 
-  Users, Timer, CheckCircle2, PlusCircle, Plus, FolderPlus, BookOpen
+  Users, Timer, CheckCircle2, PlusCircle, Plus, FolderPlus, BookOpen, Pencil
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
@@ -43,10 +43,22 @@ interface StudentsReportProps {
   user?: any;
   submissions?: Submission[];
   assignments?: Assignment[];
+  classesList?: string[];
+  allClasses?: any[];
+  allUsers?: any[];
 }
 
-export function StudentsReportView({ progressData, user, submissions = [], assignments = [] }: StudentsReportProps) {
+export function StudentsReportView({ 
+  progressData, 
+  user, 
+  submissions = [], 
+  assignments = [],
+  classesList = [],
+  allClasses = [],
+  allUsers: propUsers = []
+}: StudentsReportProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('Tất cả');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'grade-desc' | 'grade-asc' | 'completion-desc' | 'completion-asc' | 'attendance-desc' | 'attendance-asc'>('name-asc');
   const [selectedStudent, setSelectedStudent] = useState<StudentProgress | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -154,6 +166,55 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<'roster' | 'requests'>('roster');
+
+  // Modal Chỉnh Sửa Thông Tin Học Sinh
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
+  const [editStudentName, setEditStudentName] = useState('');
+  const [editStudentClass, setEditStudentClass] = useState('');
+  const [editStudentPhoneParent, setEditStudentPhoneParent] = useState('');
+  const [editStudentPhoneStudent, setEditStudentPhoneStudent] = useState('');
+  const [editStudentCode, setEditStudentCode] = useState('');
+  const [isSavingEditStudent, setIsSavingEditStudent] = useState(false);
+
+  useEffect(() => {
+    if (editingStudent) {
+      setEditStudentName(editingStudent.studentName || editingStudent.name || '');
+      setEditStudentClass(editingStudent.className || editingStudent.connectionCode || '');
+      setEditStudentPhoneParent(editingStudent.phoneParent || '');
+      setEditStudentPhoneStudent(editingStudent.phoneStudent || '');
+      setEditStudentCode(editingStudent.connectionCode || '');
+    }
+  }, [editingStudent]);
+
+  const handleSaveEditStudent = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingStudent) return;
+    setIsSavingEditStudent(true);
+    try {
+      const studentDocRef = doc(db, 'users', editingStudent.studentId);
+      await updateDoc(studentDocRef, {
+        name: editStudentName.trim(),
+        className: editStudentClass.trim(),
+        phoneParent: editStudentPhoneParent.trim(),
+        phoneStudent: editStudentPhoneStudent.trim(),
+        connectionCode: editStudentCode.trim() || editStudentClass.trim()
+      });
+
+      setNotification({
+        message: `Đã cập nhật thông tin học sinh "${editStudentName}" thành công!`,
+        type: 'success'
+      });
+      setEditingStudent(null);
+    } catch (err: any) {
+      console.error('Lỗi khi cập nhật học sinh:', err);
+      setNotification({
+        message: 'Có lỗi xảy ra khi lưu thông tin học sinh.',
+        type: 'error'
+      });
+    } finally {
+      setIsSavingEditStudent(false);
+    }
+  };
 
   // Modal tạo lớp mới cho giáo viên
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
@@ -368,7 +429,38 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
     }
   };
 
-  // Danh sách các lớp khả dụng cho bộ chọn
+  // Danh sách môn học khả dụng được tổng hợp từ danh sách lớp và bài tập
+  const subjectOptions = React.useMemo(() => {
+    const set = new Set<string>();
+
+    const classListToUse = (allClasses && allClasses.length > 0) ? allClasses : teacherClasses;
+    classListToUse.forEach((c: any) => {
+      if (c.subject && c.subject.trim()) {
+        set.add(c.subject.trim());
+      }
+    });
+
+    (assignments || []).forEach((a: any) => {
+      if (a.category && a.category.trim()) {
+        set.add(a.category.trim());
+      }
+    });
+
+    const commonSubjects = ['Toán Học', 'Ngữ Văn', 'Tiếng Anh', 'Vật Lý', 'Hóa Học', 'Sinh Học', 'Lịch Sử', 'Địa Lý', 'Tin Học'];
+    commonSubjects.forEach(s => set.add(s));
+
+    const sortedSubjects = Array.from(set).sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
+
+    return [
+      { value: 'Tất cả', label: 'Tất cả môn học' },
+      ...sortedSubjects.map(subj => ({
+        value: subj,
+        label: `Môn: ${subj}`
+      }))
+    ];
+  }, [allClasses, teacherClasses, assignments]);
+
+  // Danh sách các lớp khả dụng cho bộ chọn lớp
   const classOptions = React.useMemo(() => {
     const set = new Set<string>();
 
@@ -376,9 +468,11 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
       set.add(className.trim());
     }
 
-    teacherClasses.forEach(c => {
-      const name = (c.className || c.title || '').trim();
-      if (name) set.add(name);
+    const sourceClasses = (classesList && classesList.length > 0) ? classesList : teacherClasses.map(c => c.className || c.title || '');
+
+    sourceClasses.forEach((name: string) => {
+      const trimmed = (name || '').trim();
+      if (trimmed) set.add(trimmed);
     });
 
     studentUsers.forEach(u => {
@@ -403,25 +497,76 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
         };
       })
     ];
-  }, [className, teacherClasses, studentUsers]);
+  }, [className, teacherClasses, classesList, studentUsers]);
 
-  // Tổng hợp danh sách học sinh theo mã lớp học đang chọn
+  // Tổng hợp danh sách học sinh theo mã lớp, môn học, và từ khóa tìm kiếm nâng cao
   const combinedRoster = React.useMemo(() => {
     const filterClass = className.trim().toLowerCase();
+    const filterSubj = selectedSubject.trim().toLowerCase();
+    const searchLower = searchTerm.trim().toLowerCase();
 
-    // Lọc học sinh có mã lớp khớp với bộ lọc (hoặc nếu để trống/Tất cả thì hiện hết)
+    // Lọc học sinh theo tiêu chí nhiều tầng
     const matchedUsers = studentUsers.filter(u => {
       const uClass = (u.className || u.connectionCode || '').trim().toLowerCase();
 
-      // Nếu người dùng là Giáo viên, chỉ hiện học sinh thuộc các lớp do giáo viên này quản lý
+      // 1. Nếu người dùng là Giáo viên, chỉ hiện học sinh thuộc các lớp do giáo viên này quản lý
       if (user?.role === 'teacher') {
-        if (!teacherClassNames.includes(uClass)) {
+        if (teacherClassNames.length > 0 && !teacherClassNames.includes(uClass)) {
           return false;
         }
       }
 
-      if (!filterClass || filterClass === 'tất cả') return true;
-      return uClass === filterClass;
+      // 2. Lọc theo lớp học
+      if (filterClass && filterClass !== 'tất cả') {
+        if (uClass !== filterClass) return false;
+      }
+
+      // 3. Lọc theo môn học
+      if (filterSubj && filterSubj !== 'tất cả') {
+        const classListToUse = (allClasses && allClasses.length > 0) ? allClasses : teacherClasses;
+        const matchingClassDocs = classListToUse.filter((c: any) =>
+          (c.className || c.title || '').trim().toLowerCase() === uClass
+        );
+        const hasMatchingSubjectInClass = matchingClassDocs.some((c: any) =>
+          (c.subject || '').trim().toLowerCase() === filterSubj
+        );
+        const hasMatchingAssignment = (assignments || []).some((a: any) => {
+          const aClass = (a.className || '').trim().toLowerCase();
+          const aCategory = (a.category || '').trim().toLowerCase();
+          return (aClass === uClass || !aClass) && aCategory === filterSubj;
+        });
+
+        if (!hasMatchingSubjectInClass && !hasMatchingAssignment) {
+          return false;
+        }
+      }
+
+      // 4. Lọc theo từ khóa tìm kiếm nâng cao (Tên HS, Tên lớp, Môn học, SĐT, Mã kết nối)
+      if (searchLower) {
+        const studentName = (u.name || '').toLowerCase();
+        const studentClass = uClass;
+        const studentPhone = (u.phoneStudent || u.phoneParent || '').toLowerCase();
+        const studentCode = (u.connectionCode || u.id || '').toLowerCase();
+
+        // Tìm môn học tương ứng của lớp học sinh đang học
+        const classListToUse = (allClasses && allClasses.length > 0) ? allClasses : teacherClasses;
+        const matchingClassDocs = classListToUse.filter((c: any) =>
+          (c.className || c.title || '').trim().toLowerCase() === uClass
+        );
+        const subjectsStr = matchingClassDocs.map((c: any) => c.subject || '').join(' ').toLowerCase();
+
+        const isNameMatch = studentName.includes(searchLower);
+        const isClassMatch = studentClass.includes(searchLower);
+        const isSubjectMatch = subjectsStr.includes(searchLower);
+        const isPhoneMatch = studentPhone.includes(searchLower);
+        const isCodeMatch = studentCode.includes(searchLower);
+
+        if (!isNameMatch && !isClassMatch && !isSubjectMatch && !isPhoneMatch && !isCodeMatch) {
+          return false;
+        }
+      }
+
+      return true;
     });
 
     return matchedUsers.map(u => {
@@ -1123,7 +1268,7 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
             {activeSubTab === 'roster' && (
               <div className="flex flex-wrap items-center gap-2.5 pt-1 border-t border-slate-200/60">
                 {/* Lọc Lớp học */}
-                <div className="w-full sm:w-48 shrink-0">
+                <div className="w-full sm:w-44 shrink-0">
                   <CustomSelect
                     value={className || 'Tất cả'}
                     onChange={handleClassChange}
@@ -1134,8 +1279,20 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                   />
                 </div>
 
+                {/* Lọc Môn học */}
+                <div className="w-full sm:w-44 shrink-0">
+                  <CustomSelect
+                    value={selectedSubject}
+                    onChange={(val) => setSelectedSubject(val)}
+                    options={subjectOptions}
+                    size="sm"
+                    searchable={subjectOptions.length > 5}
+                    searchPlaceholder="Tìm môn học..."
+                  />
+                </div>
+
                 {/* Sắp xếp */}
-                <div className="w-full sm:w-52 shrink-0">
+                <div className="w-full sm:w-48 shrink-0">
                   <CustomSelect
                     value={sortBy}
                     onChange={(val) => setSortBy(val as any)}
@@ -1154,17 +1311,44 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                   />
                 </div>
 
-                {/* Tìm kiếm */}
+                {/* Tìm kiếm nâng cao */}
                 <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                   <input 
                     type="text" 
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    placeholder="Tìm học sinh..." 
-                    className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200/90 rounded-xl text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none placeholder:text-slate-400 font-medium transition-all shadow-2xs"
+                    placeholder="Tìm theo tên học sinh, lớp, môn học, SĐT..." 
+                    className="w-full pl-9 pr-7 py-2 bg-white border border-slate-200/90 rounded-xl text-xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none placeholder:text-slate-400 font-medium transition-all shadow-2xs"
                   />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full transition-colors"
+                      title="Xóa từ khóa"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
+
+                {/* Nút Đặt lại bộ lọc nếu đang áp dụng bất kỳ bộ lọc nào */}
+                {(className !== 'Tất cả' || selectedSubject !== 'Tất cả' || searchTerm !== '') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleClassChange('Tất cả');
+                      setSelectedSubject('Tất cả');
+                      setSearchTerm('');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200/80 active:scale-95 text-slate-600 hover:text-slate-900 font-bold rounded-xl text-xs transition-all border border-slate-200/80 shrink-0"
+                    title="Xóa tất cả bộ lọc"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="hidden xl:inline">Đặt lại</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1355,6 +1539,18 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                             <div className="flex items-center justify-end gap-2">
                               <button 
                                 type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingStudent(student);
+                                }}
+                                className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-extrabold text-xs flex items-center gap-1 transition-all active:scale-95"
+                                title="Chỉnh sửa thông tin học sinh"
+                              >
+                                <Pencil className="w-3 h-3 text-amber-600" />
+                                <span>Chỉnh sửa</span>
+                              </button>
+                              <button 
+                                type="button"
                                 onClick={() => setSelectedStudent(student)}
                                 className="text-indigo-600 hover:text-indigo-800 font-bold hover:underline text-xs"
                               >
@@ -1432,6 +1628,18 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingStudent(student);
+                            }}
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-extrabold text-[11px] flex items-center gap-1 transition-all active:scale-95"
+                            title="Chỉnh sửa thông tin học sinh"
+                          >
+                            <Pencil className="w-3 h-3 text-amber-600" />
+                            <span>Sửa</span>
+                          </button>
                           <button 
                             type="button"
                             onClick={() => setSelectedStudent(student)}
@@ -1839,6 +2047,130 @@ export function StudentsReportView({ progressData, user, submissions = [], assig
                     <>
                       <PlusCircle className="w-4 h-4" />
                       <span>Tạo & Lưu lớp</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chỉnh sửa Thông tin Học sinh */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200 shrink-0">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Chỉnh sửa thông tin học sinh</h3>
+                  <p className="text-xs text-slate-500">Cập nhật họ tên, lớp học và SĐT liên lạc</p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setEditingStudent(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditStudent} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Họ và tên học sinh <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editStudentName}
+                  onChange={(e) => setEditStudentName(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Văn An"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold outline-none transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Lớp học <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editStudentClass}
+                    onChange={(e) => setEditStudentClass(e.target.value)}
+                    placeholder="Ví dụ: 10A1"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Mã lớp / Mã kết nối
+                  </label>
+                  <input
+                    type="text"
+                    value={editStudentCode}
+                    onChange={(e) => setEditStudentCode(e.target.value)}
+                    placeholder="Mã kết nối"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    SĐT Học sinh
+                  </label>
+                  <input
+                    type="text"
+                    value={editStudentPhoneStudent}
+                    onChange={(e) => setEditStudentPhoneStudent(e.target.value)}
+                    placeholder="0912345678"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    SĐT Phụ huynh
+                  </label>
+                  <input
+                    type="text"
+                    value={editStudentPhoneParent}
+                    onChange={(e) => setEditStudentPhoneParent(e.target.value)}
+                    placeholder="0987654321"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-xl text-xs font-semibold outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingStudent(null)}
+                  className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-all active:scale-95"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editStudentName.trim() || isSavingEditStudent}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                >
+                  {isSavingEditStudent ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Lưu thay đổi</span>
                     </>
                   )}
                 </button>

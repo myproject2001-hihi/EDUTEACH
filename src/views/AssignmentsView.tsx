@@ -11,7 +11,7 @@ import { FlashcardPreviewModal } from '../components/FlashcardPreviewModal';
 import { FlashcardQuizGame } from '../components/FlashcardQuizGame';
 import { SimulationFrame } from '../components/SimulationFrame';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, addDoc, arrayUnion } from 'firebase/firestore';
 import { UserAvatar } from '../components/UserAvatar';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -826,12 +826,46 @@ export function AssignmentsView({
 
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
-  // Auto scroll to top when selecting or navigating assignments
+  // Auto scroll to top when selecting or navigating assignments & record student access
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-  }, [selectedAssignment]);
+
+    // Ghi nhận thao tác khi học sinh nhấn vào bài tập (dù chưa nộp)
+    if (selectedAssignment && user?.id && (user.role === 'student' || (!isTeacher && !isAdmin))) {
+      const hasAlreadyViewed = selectedAssignment.viewedStudentIds?.includes(user.id);
+      if (!hasAlreadyViewed) {
+        const newViewedIds = Array.from(new Set([...(selectedAssignment.viewedStudentIds || []), user.id]));
+        const newLog = {
+          studentId: user.id,
+          studentName: user.name || 'Học sinh',
+          className: user.className || '',
+          accessedAt: new Date().toISOString()
+        };
+        const newLogs = [...(selectedAssignment.viewedStudentLogs || []), newLog];
+
+        setSelectedAssignment(prev => prev ? {
+          ...prev,
+          viewedStudentIds: newViewedIds,
+          viewedStudentLogs: newLogs
+        } : null);
+
+        setDoc(doc(db, 'assignments', selectedAssignment.id), {
+          viewedStudentIds: arrayUnion(user.id),
+          viewedStudentLogs: arrayUnion(newLog)
+        }, { merge: true }).catch(err => console.error("Error recording student assignment access:", err));
+
+        logActivity({
+          user: { id: user.id, name: user.name, role: user.role, className: user.className },
+          category: 'assignment',
+          actionType: 'assignment_accessed',
+          title: `Học sinh ${user.name} đã mở bài tập: ${selectedAssignment.title}`,
+          description: `Ghi nhận truy cập làm bài tập lúc ${new Date().toLocaleTimeString('vi-VN')} (Chưa nộp bài)`
+        });
+      }
+    }
+  }, [selectedAssignment?.id, user?.id, user?.role, isTeacher, isAdmin]);
 
   const [layoutDensity, setLayoutDensity] = useState<'comfortable' | 'compact'>(() => {
     return (localStorage.getItem('layout_density') as 'comfortable' | 'compact') || 'comfortable';
@@ -3353,13 +3387,24 @@ export function AssignmentsView({
                         </span>
                         <div className="ml-auto">
                           {isTeacher ? (
-                            <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-indigo-100">
-                              {totalSubs}/3 đã nộp
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-indigo-100">
+                                {totalSubs} đã nộp
+                              </span>
+                              {assignment.viewedStudentIds && assignment.viewedStudentIds.length > 0 && (
+                                <span className="bg-amber-50 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-200" title="Học sinh đã nhấn vào bài tập nhưng chưa nộp">
+                                  👁️ {assignment.viewedStudentIds.length} đã mở
+                                </span>
+                              )}
+                            </div>
                           ) : (
                             mySubmission ? (
                               <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-emerald-100">
                                 Đã nộp
+                              </span>
+                            ) : assignment.viewedStudentIds?.includes(user.id) ? (
+                              <span className="bg-amber-50 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-amber-200" title="Em đã nhấn vào xem/làm bài tập này">
+                                👁️ Đã xem (Chưa nộp)
                               </span>
                             ) : isPastDue ? (
                               <span className="bg-rose-50 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-lg border border-rose-100">
@@ -4899,11 +4944,21 @@ export function AssignmentsView({
                     {/* Header with Title & Stats */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">Danh sách học sinh nộp bài</h3>
                           <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-black rounded-full border border-indigo-200">
                             {currentAssignmentSubs.length} đã nộp
                           </span>
+                          {selectedAssignment.viewedStudentIds && selectedAssignment.viewedStudentIds.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setUnsubmittedModalAssignment(selectedAssignment)}
+                              className="px-2.5 py-0.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-full border border-amber-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                              title="Bấm để xem danh sách học sinh đã mở bài tập nhưng chưa hoàn thành nộp bài"
+                            >
+                              👁️ {selectedAssignment.viewedStudentIds.length} HS đã mở bài (chưa nộp)
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
                           Nhấn vào từng bài nộp để xem chi tiết câu trả lời, hình ảnh, tài liệu và nhận xét.
@@ -6572,36 +6627,54 @@ export function AssignmentsView({
                   );
                 }
 
-                return unsubmitted.map(student => (
-                  <div key={student.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <UserAvatar name={student.name} firstName={student.firstName} avatar={student.avatar} size="md" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-900 truncate">{student.name}</p>
-                        <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                          <Phone className="w-3 h-3 text-slate-400" />
-                          {student.phoneStudent || student.phoneParent || 'Chưa có SĐT'}
-                        </p>
+                return unsubmitted.map(student => {
+                  const isViewed = unsubmittedModalAssignment.viewedStudentIds?.includes(student.id);
+                  const viewLog = unsubmittedModalAssignment.viewedStudentLogs?.find(l => l.studentId === student.id);
+
+                  return (
+                    <div key={student.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <UserAvatar name={student.name} firstName={student.firstName} avatar={student.avatar} size="md" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-bold text-slate-900 truncate">{student.name}</p>
+                            {isViewed ? (
+                              <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-extrabold flex items-center gap-1 shrink-0">
+                                👁️ Đã vào làm bài {viewLog?.accessedAt ? `(${format(new Date(viewLog.accessedAt), 'HH:mm dd/MM', { locale: vi })})` : ''} - Chưa nộp
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-slate-100 text-slate-500 border border-slate-200 rounded-lg text-[10px] font-medium shrink-0">
+                                ⚪ Chưa mở bài tập
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                            <Phone className="w-3 h-3 text-slate-400" />
+                            {student.phoneStudent || student.phoneParent || 'Chưa có SĐT'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = isViewed 
+                              ? `🔔 [NHẮC NHỞ BÀI TẬP]: Thầy/cô thấy em ${student.name} đã vào làm bài tập "${unsubmittedModalAssignment.title}" nhưng chưa hoàn tất nộp bài. Em kiểm tra lại để gửi bài nhé!`
+                              : `🔔 [NHẮC NHỞ BÀI TẬP]: Thầy/cô nhắc em ${student.name} hoàn thành bài tập "${unsubmittedModalAssignment.title}" trên hệ thống học tập nhé!`;
+                            navigator.clipboard.writeText(text);
+                            setCopiedStudentId(student.id);
+                            alert(`Đã sao chép tin nhắn nhắc nhở riêng của ${student.name} vào bộ nhớ tạm!\n\nNội dung:\n"${text}"`);
+                            setTimeout(() => setCopiedStudentId(null), 2000);
+                          }}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm active:scale-95"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Sao chép nhắc nhở</span>
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const text = `🔔 [NHẮC NHỞ BÀI TẬP]: Thầy/cô nhắc em ${student.name} hoàn thành bài tập "${unsubmittedModalAssignment.title}" trên hệ thống học tập nhé!`;
-                          navigator.clipboard.writeText(text);
-                          setCopiedStudentId(student.id);
-                          alert(`Đã sao chép tin nhắn nhắc nhở riêng của ${student.name} vào bộ nhớ tạm!\n\nNội dung:\n"${text}"`);
-                          setTimeout(() => setCopiedStudentId(null), 2000);
-                        }}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                        <span>Sao chép nhắc nhở</span>
-                      </button>
-                    </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
 

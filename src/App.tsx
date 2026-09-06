@@ -501,11 +501,13 @@ export default function App() {
   }, [assignments]);
 
   const handleUpdateUser = async (updated: User) => {
-    if (auth.currentUser) {
+    const targetUid = updated?.id || auth.currentUser?.uid;
+    if (targetUid) {
       try {
-        await setDoc(doc(db, 'users', auth.currentUser.uid), updated, { merge: true });
+        const cleaned = JSON.parse(JSON.stringify(updated));
+        await setDoc(doc(db, 'users', targetUid), cleaned, { merge: true });
       } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `users/${auth.currentUser.uid}`);
+        handleFirestoreError(error, OperationType.UPDATE, `users/${targetUid}`);
       }
     }
   };
@@ -920,39 +922,43 @@ export default function App() {
     const isTeacherOrAdmin = role === 'teacher' || role === 'admin';
     const activeUser = { ...currentUser, role };
 
-    // Calculate unique class names for dropdown selection
+    // Calculate unique class names for dropdown selection and advanced filtering
     const uniqueClassNames = (() => {
       const names = new Set<string>();
-      if (currentUser.className) names.add(currentUser.className);
+      if (currentUser.className) names.add(currentUser.className.trim());
       allUsers.forEach((u) => {
-        if (u.className) names.add(u.className);
+        if (u.className) names.add(u.className.trim());
       });
       classes.forEach((c) => {
-        if (c.className) names.add(c.className);
-        if (c.title) names.add(c.title);
+        if (c.className) names.add(c.className.trim());
+        if (c.title) names.add(c.title.trim());
       });
-      return Array.from(names).filter(n => n && n.trim() !== '' && !n.match(/^\d+$/) && n !== 'N/A' && n !== 'Chưa có lớp').sort();
+      return Array.from(names)
+        .filter(n => n && n.trim() !== '' && !n.match(/^\d+$/) && n !== 'N/A' && n !== 'Chưa có lớp')
+        .sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
     })();
 
-    // Calculate classes specific to the current teacher (or all for admin)
+    // Calculate classes specific to the current teacher (or all for admin) supporting advanced search
     const teacherClasses = (() => {
       if (role === 'admin' || currentUser.isSuperAdmin) {
         return uniqueClassNames;
       }
       const names = new Set<string>();
-      if (currentUser.className) names.add(currentUser.className);
+      if (currentUser.className) names.add(currentUser.className.trim());
       classes.forEach(c => {
         if (c.teacherId === currentUser.id || c.teacherName === currentUser.name) {
-          if (c.className) names.add(c.className);
-          if (c.title) names.add(c.title);
+          if (c.className) names.add(c.className.trim());
+          if (c.title) names.add(c.title.trim());
         }
       });
       assignments.forEach(a => {
         if (a.teacherId === currentUser.id || a.teacherName === currentUser.name) {
-          if (a.className) names.add(a.className);
+          if (a.className) names.add(a.className.trim());
         }
       });
-      return Array.from(names).filter(n => n && n.trim() !== '' && !n.match(/^\d+$/) && n !== 'N/A' && n !== 'Chưa có lớp').sort();
+      return Array.from(names)
+        .filter(n => n && n.trim() !== '' && !n.match(/^\d+$/) && n !== 'N/A' && n !== 'Chưa có lớp')
+        .sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
     })();
 
     switch (activeTab) {
@@ -1067,7 +1073,17 @@ export default function App() {
           />
         ) : null;
       case 'students':
-        return isTeacherOrAdmin ? <StudentsReportView progressData={progressData} user={activeUser} submissions={submissions} assignments={assignments} /> : null;
+        return isTeacherOrAdmin ? (
+          <StudentsReportView 
+            progressData={progressData} 
+            user={activeUser} 
+            submissions={submissions} 
+            assignments={assignments} 
+            classesList={teacherClasses}
+            allClasses={classes}
+            allUsers={allUsers}
+          />
+        ) : null;
       case 'simulations':
         return <SimulationsView user={activeUser} simulations={simulations} onAddSimulation={handleAddSimulation} />;
       case 'rewards-store':
