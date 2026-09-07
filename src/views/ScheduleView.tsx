@@ -14,22 +14,36 @@ import {
   isSameMonth
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { Video, Calendar as CalendarIcon, Clock, Bell, Plus, Edit2, X, Check, Copy, Share2, CheckCircle, FileText, Users, Undo } from 'lucide-react';
+import { Video, Calendar as CalendarIcon, Clock, Bell, Plus, Edit2, X, Check, Copy, Share2, CheckCircle, FileText, Users, Undo, Trash2 } from 'lucide-react';
 import { DateTimePicker24h } from '../components/DateTimePicker24h';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 interface ScheduleProps {
   user: User;
   classes: ClassSession[];
   onAddClass?: (session: ClassSession) => void;
   onUpdateClass?: (session: ClassSession) => void;
+  onDeleteClass?: (classId: string) => void;
 }
 
-export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpdateClass }: ScheduleProps) {
+export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpdateClass, onDeleteClass }: ScheduleProps) {
   const isTeacher = user.role === 'teacher' || user.role === 'admin';
   const isAdmin = user.role === 'admin';
 
   const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
-    if (!assignClass || assignClass.trim() === '') return true;
+        if (!assignClass || assignClass.trim() === '') return true;
+    const cleanAssign = assignClass.trim().toLowerCase();
+    if (
+      cleanAssign === 'all' || 
+      cleanAssign === 'tất cả' || 
+      cleanAssign === 'tat ca' || 
+      cleanAssign === 'toàn hệ thống' || 
+      cleanAssign === 'toan he thong' ||
+      cleanAssign === 'tất cả các lớp (toàn trường)' ||
+      cleanAssign === 'tat ca cac lop (toan truong)'
+    ) {
+      return true;
+    }
     if (!userClass || userClass.trim() === '') return false;
     const clean = (s: string) => {
       return s.trim()
@@ -78,6 +92,30 @@ export function ScheduleView({ user, classes: initialClasses, onAddClass, onUpda
   // Modal State for Teacher (Create or Edit session)
   const [showModal, setShowModal] = useState(false);
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
+
+  // Deletion confirmation state
+  const [sessionToDelete, setSessionToDelete] = useState<ClassSession | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
+
+  const handleDeleteClick = (session: ClassSession) => {
+    setSessionToDelete(session);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!sessionToDelete || !onDeleteClass) return;
+    setIsDeletingSession(true);
+    try {
+      await onDeleteClass(sessionToDelete.id);
+      setShowDeleteConfirm(false);
+      setSessionToDelete(null);
+    } catch (error) {
+      console.error('Error deleting session:', error);
+    } finally {
+      setIsDeletingSession(false);
+    }
+  };
 
   // Form state
   const [title, setTitle] = useState('');
@@ -678,13 +716,22 @@ ${completedSessionsInMonth.map((s, idx) => {
                           </div>
 
                           {isTeacher && !session.isCompleted && (
-                            <button 
-                              onClick={() => handleOpenEdit(session)}
-                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200"
-                              title="Chỉnh sửa buổi học & Link phòng"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => handleOpenEdit(session)}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200"
+                                title="Chỉnh sửa buổi học & Link phòng"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteClick(session)}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-slate-200"
+                                title="Xóa buổi học"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
                         </div>
 
@@ -1332,6 +1379,18 @@ ${completedSessionsInMonth.map((s, idx) => {
           </div>
         </div>
       )}
+      {/* Session Deletion Confirm Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        title="Xóa buổi học trực tuyến"
+        message={`Bạn có chắc chắn muốn xóa buổi học "${sessionToDelete?.title}"? Hành động này không thể hoàn tác.`}
+        confirmText="Xóa buổi học"
+        cancelText="Hủy bỏ"
+        variant="danger"
+        loading={isDeletingSession}
+      />
 
     </div>
   );

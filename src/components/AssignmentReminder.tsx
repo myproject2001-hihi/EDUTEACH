@@ -77,8 +77,20 @@ export function AssignmentReminder({ user, assignments, submissions }: Assignmen
     const checkAssignments = () => {
       const now = Date.now();
       const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
-        if (!assignClass || assignClass.trim() === '') return true;
-        if (!userClass || userClass.trim() === '') return false;
+            if (!assignClass || assignClass.trim() === '') return true;
+    const cleanAssign = assignClass.trim().toLowerCase();
+    if (
+      cleanAssign === 'all' || 
+      cleanAssign === 'tất cả' || 
+      cleanAssign === 'tat ca' || 
+      cleanAssign === 'toàn hệ thống' || 
+      cleanAssign === 'toan he thong' ||
+      cleanAssign === 'tất cả các lớp (toàn trường)' ||
+      cleanAssign === 'tat ca cac lop (toan truong)'
+    ) {
+      return true;
+    }
+    if (!userClass || userClass.trim() === '') return false;
         const clean = (s: string) => {
           return s.trim()
             .toLowerCase()

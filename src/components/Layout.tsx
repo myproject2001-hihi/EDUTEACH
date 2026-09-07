@@ -69,6 +69,18 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
 
   const isClassMatching = (assignClass: string | undefined | null, userClass: string | undefined | null): boolean => {
     if (!assignClass || assignClass.trim() === '') return true;
+    const cleanAssign = assignClass.trim().toLowerCase();
+    if (
+      cleanAssign === 'all' || 
+      cleanAssign === 'tất cả' || 
+      cleanAssign === 'tat ca' || 
+      cleanAssign === 'toàn hệ thống' || 
+      cleanAssign === 'toan he thong' ||
+      cleanAssign === 'tất cả các lớp (toàn trường)' ||
+      cleanAssign === 'tat ca cac lop (toan truong)'
+    ) {
+      return true;
+    }
     if (!userClass || userClass.trim() === '') return false;
     const clean = (s: string) => {
       return s.trim()
@@ -614,7 +626,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                           </div>
                           {unreadNotifications.length > 0 && (
                             <button
-                              onClick={handleMarkAllAsRead}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleMarkAllAsRead();
+                              }}
                               className="text-[10px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 transition-all"
                             >
                               Đọc tất cả ({unreadNotifications.length})
@@ -775,7 +791,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                                         </p>
                                         {isUnread && (
                                           <button
-                                            onClick={() => handleMarkAsRead(notif.id)}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleMarkAsRead(notif.id);
+                                            }}
                                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/50 rounded-lg text-[9px] font-extrabold flex items-center gap-0.5 whitespace-nowrap shrink-0"
                                             title="Đánh dấu đã đọc"
                                           >
@@ -793,7 +813,11 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                                         </span>
                                         {isUnread && (
                                           <button
-                                            onClick={() => handleMarkAsRead(notif.id)}
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              handleMarkAsRead(notif.id);
+                                            }}
                                             className="md:hidden text-indigo-600 font-extrabold text-[9px] hover:underline"
                                           >
                                             Đã đọc

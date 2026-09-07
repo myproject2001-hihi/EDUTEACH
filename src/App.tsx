@@ -11,7 +11,7 @@ import { Assignment, Role, Submission, User, HTMLSimulation, ClassSession, Stude
 import { AnimatePresence, motion } from 'motion/react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, doc, onSnapshot, setDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, updateDoc, increment, arrayUnion, deleteDoc } from 'firebase/firestore';
 
 import { SettingsView } from './views/SettingsView';
 import { AdminConsoleView } from './views/AdminConsoleView';
@@ -822,6 +822,28 @@ export default function App() {
     }
   };
 
+  const handleDeleteClass = async (classId: string) => {
+    try {
+      await deleteDoc(doc(db, 'class_sessions', classId));
+
+      // Log activity
+      if (currentUser) {
+        const found = classes.find(c => c.id === classId);
+        logActivity({
+          user: currentUser,
+          category: 'class',
+          actionType: 'class_delete',
+          title: `Xóa buổi học trực tuyến: "${found?.title || 'Không rõ'}"`,
+          description: `Đã xóa buổi học trực tuyến thành công`,
+          targetId: classId,
+          targetName: found?.title || ''
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `class_sessions/${classId}`);
+    }
+  };
+
   const handleLogout = async () => {
     if (currentUser) {
       logActivity({
@@ -854,7 +876,9 @@ export default function App() {
         cleanAssign === 'tất cả' || 
         cleanAssign === 'tat ca' || 
         cleanAssign === 'toàn hệ thống' || 
-        cleanAssign === 'toan he thong'
+        cleanAssign === 'toan he thong' ||
+        cleanAssign === 'tất cả các lớp (toàn trường)' ||
+        cleanAssign === 'tat ca cac lop (toan truong)'
       ) {
         return true;
       }
@@ -882,14 +906,14 @@ export default function App() {
       
       // If user is Teacher, they see notifications they created OR system-wide announcements
       if (role === 'teacher') {
-        if (notif.targetScope === 'class') {
+        if (notif.targetScope === 'class' || (notif.targetClass && notif.targetClass !== 'all' && notif.targetClass !== 'Tất cả các lớp (Toàn trường)')) {
           return isClassMatching(notif.targetClass, currentUser.className);
         }
         return !notif.teacherId || notif.teacherId === currentUser.id || notif.teacherId === 'admin';
       }
       
       // If user is Student, they see notifications targeted to their class or system-wide
-      if (notif.targetScope === 'class') {
+      if (notif.targetScope === 'class' || (notif.targetClass && notif.targetClass !== 'all' && notif.targetClass !== 'Tất cả các lớp (Toàn trường)')) {
         return isClassMatching(notif.targetClass, currentUser.className);
       }
       
@@ -1046,7 +1070,7 @@ export default function App() {
           />
         );
       case 'schedule':
-        return <ScheduleView user={activeUser} classes={classes} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} />;
+        return <ScheduleView user={activeUser} classes={classes} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} />;
       case 'notifications-manager':
         return isTeacherOrAdmin ? (
           <NotificationsManagerView

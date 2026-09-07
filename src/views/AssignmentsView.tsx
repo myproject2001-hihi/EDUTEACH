@@ -478,7 +478,9 @@ const isClassMatching = (assignClass: string | undefined | null, userClass: stri
     cleanAssign === 'tất cả' || 
     cleanAssign === 'tat ca' || 
     cleanAssign === 'toàn hệ thống' || 
-    cleanAssign === 'toan he thong'
+    cleanAssign === 'toan he thong' ||
+    cleanAssign === 'tất cả các lớp (toàn trường)' ||
+    cleanAssign === 'tat ca cac lop (toan truong)'
   ) {
     return true;
   }
@@ -2278,9 +2280,13 @@ export function AssignmentsView({
       setDeleteConfirmAssignment(null);
       // Clean up from deletion selected list if there
       setSelectedIdsForDeletion(prev => prev.filter(id => id !== assignmentId));
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error deleting assignment:", err);
-      alert("Có lỗi xảy ra khi xóa bài tập!");
+      if (err?.code === 'permission-denied' || (err?.message && err.message.includes('permission'))) {
+        alert("Bạn không có quyền xóa bài tập này (Chỉ người tạo hoặc Quản trị viên mới được phép xóa).");
+      } else {
+        alert("Có lỗi xảy ra khi xóa bài tập!");
+      }
     }
   };
 
@@ -2440,9 +2446,13 @@ export function AssignmentsView({
       }
       setSelectedIdsForDeletion([]);
       setShowBulkDeleteConfirm(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error bulk deleting assignments:", err);
-      alert("Có lỗi xảy ra khi xóa hàng loạt bài tập!");
+      if (err?.code === 'permission-denied' || (err?.message && err.message.includes('permission'))) {
+        alert("Bạn không có quyền xóa một hoặc nhiều bài tập đã chọn (Chỉ người tạo hoặc Quản trị viên mới được phép xóa). Quá trình xóa đã bị dừng lại.");
+      } else {
+        alert("Có lỗi xảy ra khi xóa hàng loạt bài tập!");
+      }
     }
   };
 
@@ -3370,7 +3380,7 @@ export function AssignmentsView({
                       </div>
                       
                       <div className="absolute top-3 right-3 z-30">
-                        {isTeacher && (
+                        {isTeacher ? (
                           <label 
                             className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-white/90 hover:bg-white text-indigo-600 backdrop-blur-md shadow-md cursor-pointer transition-all border border-slate-200/80 hover:scale-105 active:scale-95"
                             onClick={(e) => e.stopPropagation()}
@@ -3390,6 +3400,24 @@ export function AssignmentsView({
                               className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer accent-indigo-600"
                             />
                           </label>
+                        ) : (
+                          mySubmission ? (
+                            <span className="bg-emerald-600/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-emerald-500 uppercase tracking-wider flex items-center gap-1 backdrop-blur-sm">
+                              <Check className="w-3 h-3 stroke-[3]" /> ĐÃ NỘP
+                            </span>
+                          ) : isPastDue ? (
+                            <span className="bg-rose-600/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-rose-500 uppercase tracking-wider backdrop-blur-sm">
+                              TRỄ HẠN
+                            </span>
+                          ) : assignment.viewedStudentIds?.includes(user.id) ? (
+                            <span className="bg-amber-500/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-amber-400 uppercase tracking-wider flex items-center gap-1 animate-pulse backdrop-blur-sm" title="Em đã xem bài này">
+                              👁️ ĐÃ XEM
+                            </span>
+                          ) : (
+                            <span className="bg-indigo-600/90 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-md border border-indigo-500 uppercase tracking-wider backdrop-blur-sm">
+                              CHƯA NỘP
+                            </span>
+                          )
                         )}
                       </div>
 
@@ -3485,7 +3513,11 @@ export function AssignmentsView({
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button 
-                              onClick={() => setDeleteConfirmAssignment(assignment)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDeleteConfirmAssignment(assignment);
+                              }}
                               className="p-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-colors border border-rose-200"
                               title="Xóa"
                             >
@@ -3684,7 +3716,11 @@ export function AssignmentsView({
 
                         <button 
                           type="button"
-                          onClick={() => setDeleteConfirmAssignment(selectedAssignment)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setDeleteConfirmAssignment(selectedAssignment);
+                          }}
                           className="flex items-center gap-1.5 text-xs font-bold bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl transition-all shadow-xs active:scale-95"
                           title="Xóa bài tập này"
                         >
@@ -7800,6 +7836,7 @@ export function AssignmentsView({
                         badge: '🔴 Yêu cầu làm lại',
                         badgeColor: 'rose',
                         targetClass: retakeAssignment.className || 'all',
+                        targetScope: 'class',
                         createdAt: new Date().toISOString(),
                         senderName: user.name
                       });

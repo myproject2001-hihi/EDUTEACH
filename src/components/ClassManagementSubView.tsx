@@ -405,17 +405,32 @@ export function ClassManagementSubView({
     setConfirmModalConfig({
       isOpen: true,
       title: 'Giải tán lớp học',
-      message: `CẢNH BÁO: Bạn có chắc chắn muốn giải tán lớp "${className}"? Tất cả học sinh và giáo viên trong lớp này sẽ được chuyển về trạng thái Chưa phân lớp.`,
+      message: `CẢNH BÁO: Bạn có chắc chắn muốn giải tán lớp "${className}"? Tất cả học sinh, giáo viên, bài tập và lịch học trong lớp này sẽ bị xóa nhãn lớp.`,
       confirmText: 'Giải tán lớp',
       variant: 'danger',
       onConfirm: async () => {
         setIsProcessing(true);
         try {
           const batch = writeBatch(db);
+          
+          // Clear class from users
           const members = usersList.filter(u => u.className === className);
           for (const u of members) {
             batch.update(doc(db, 'users', u.id), { className: '' });
           }
+          
+          // Clear class from assignments
+          const assignedAssignments = assignments.filter(a => a.className === className);
+          for (const a of assignedAssignments) {
+            batch.update(doc(db, 'assignments', a.id), { className: '' });
+          }
+          
+          // Clear class from class_sessions
+          const assignedSessions = classes.filter(c => c.className === className || c.title === className);
+          for (const c of assignedSessions) {
+            batch.update(doc(db, 'class_sessions', c.id), { className: '' });
+          }
+
           await batch.commit();
           showNotify('success', `Đã giải tán lớp "${className}" thành công!`);
         } catch (err) {
@@ -639,7 +654,9 @@ export function ClassManagementSubView({
                 <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setAddingStudentsToClass(item.className);
                       setSelectedStudentIdsToAdd([]);
                     }}
@@ -651,7 +668,9 @@ export function ClassManagementSubView({
 
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setAddingTeacherToClass(item.className);
                       setSelectedTeacherIdToAdd('');
                     }}
@@ -663,7 +682,11 @@ export function ClassManagementSubView({
 
                   <button
                     type="button"
-                    onClick={() => handleDissolveClass(item.className)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDissolveClass(item.className);
+                    }}
                     className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                     title="Giải tán lớp"
                   >
@@ -672,7 +695,11 @@ export function ClassManagementSubView({
 
                   <button
                     type="button"
-                    onClick={() => toggleExpand(item.className)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      toggleExpand(item.className);
+                    }}
                     className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors ml-1"
                   >
                     {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}

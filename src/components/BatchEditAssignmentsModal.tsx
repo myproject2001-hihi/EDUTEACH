@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { CustomSelect } from './CustomSelect';
 
 interface BatchEditAssignmentsModalProps {
   isOpen: boolean;
@@ -236,11 +237,10 @@ export function BatchEditAssignmentsModal({
           {/* BULK FIELD ASSIGNMENT ROW */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2 border-t border-slate-200">
             {/* 1. Bulk Class Change */}
-            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
-              <select
+            <div>
+              <CustomSelect
                 value={bulkClass}
-                onChange={(e) => {
-                  const val = e.target.value;
+                onChange={(val) => {
                   setBulkClass(val);
                   if (!val) return;
                   if (selectedIds.length === 0) {
@@ -256,18 +256,22 @@ export function BatchEditAssignmentsModal({
                   setBulkClass('');
                 }}
                 disabled={isUpdating}
-                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
-              >
-                <option value="">🏫 Đổi lớp cho mục đã chọn...</option>
-                <option value="__ALL__">🌐 Tất cả các lớp (Toàn trường)</option>
-                {availableClasses.map(c => (
-                  <option key={c} value={c}>Lớp {c}</option>
-                ))}
-              </select>
+                placeholder="🏫 Đổi lớp cho mục đã chọn..."
+                options={[
+                  { value: '__ALL__', label: 'Tất cả các lớp (Toàn trường)', icon: <span className="text-blue-500">🌐</span> },
+                  ...availableClasses.map(c => ({
+                    value: c,
+                    label: `Lớp ${c}`,
+                    icon: <GraduationCap className="w-4 h-4 text-emerald-500" />
+                  }))
+                ]}
+                className="w-full"
+                size="sm"
+              />
             </div>
 
             {/* 2. Bulk Subject/Category Change */}
-            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
+            <div>
               <select
                 value={bulkSubject}
                 onChange={(e) => {
@@ -287,7 +291,7 @@ export function BatchEditAssignmentsModal({
                   setBulkSubject('');
                 }}
                 disabled={isUpdating}
-                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 text-xs shadow-sm cursor-pointer disabled:opacity-50"
               >
                 <option value="">📚 Đổi môn học cho mục đã chọn...</option>
                 {COMMON_SUBJECTS.map(s => (
@@ -297,8 +301,8 @@ export function BatchEditAssignmentsModal({
             </div>
 
             {/* 3. Bulk Due Date Change */}
-            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
-              <span className="text-[11px] font-bold text-slate-400 shrink-0">⏰ Hạn nộp:</span>
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-300 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500">
+              <span className="text-[11px] font-bold text-slate-400 shrink-0">⏰</span>
               <input
                 type="datetime-local"
                 value={bulkDueDate}
@@ -318,12 +322,12 @@ export function BatchEditAssignmentsModal({
                   );
                 }}
                 disabled={isUpdating}
-                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
+                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer disabled:opacity-50"
               />
             </div>
 
             {/* 4. Bulk Time Limit Change */}
-            <div className="flex items-center gap-1.5 bg-white p-2 rounded-xl border border-slate-200 shadow-xs hover:border-indigo-300 transition-colors">
+            <div>
               <select
                 value={bulkTimeLimit}
                 onChange={(e) => {
@@ -343,7 +347,7 @@ export function BatchEditAssignmentsModal({
                   setBulkTimeLimit('');
                 }}
                 disabled={isUpdating}
-                className="w-full text-xs bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 text-xs shadow-sm cursor-pointer disabled:opacity-50"
               >
                 <option value="">⏱️ Thời gian làm bài...</option>
                 <option value="0">Không giới hạn</option>

@@ -124,7 +124,11 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
       setMessage({ type: 'success', text: 'Đã xóa thông báo thành công.' });
     } catch (err: any) {
       console.error(err);
-      setMessage({ type: 'error', text: `Lỗi khi xóa: ${err.message}` });
+      if (err?.code === 'permission-denied' || (err?.message && err.message.includes('permission'))) {
+        setMessage({ type: 'error', text: 'Bạn không có quyền xóa thông báo này (Chỉ người tạo hoặc Quản trị viên mới được phép xóa).' });
+      } else {
+        setMessage({ type: 'error', text: `Lỗi khi xóa: ${err.message}` });
+      }
     }
   };
 
@@ -490,7 +494,11 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
                           </div>
                           <button
                             type="button"
-                            onClick={() => handleDelete(notif.id)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleDelete(notif.id);
+                            }}
                             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                             title="Xóa thông báo"
                           >

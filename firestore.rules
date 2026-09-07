@@ -34,13 +34,19 @@ service cloud.firestore {
     // Assignments collection
     match /assignments/{assignmentId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated(); // Teachers can create, or general during setup
+      allow create, update: if isAuthenticated(); // Teachers create, students update viewed status
+      allow delete: if isTeacher() || (isAuthenticated() && resource.data.teacherId == request.auth.uid);
     }
 
     // Submissions collection
     match /submissions/{submissionId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated(); // Students can write their own, teachers can grade
+    }
+
+    // Student interactions collection
+    match /student_interactions/{interactionId} {
+      allow read, write: if isAuthenticated();
     }
 
     // Student attempts collection
@@ -71,7 +77,7 @@ service cloud.firestore {
     match /system_notifications/{notificationId} {
       allow read: if isAuthenticated();
       allow create, update: if isAuthenticated();
-      allow delete: if isTeacher();
+      allow delete: if isTeacher() || (isAuthenticated() && resource.data.teacherId == request.auth.uid) || (isAuthenticated() && resource.data.senderId == request.auth.uid);
     }
 
     // Love letters collection

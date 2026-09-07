@@ -195,7 +195,9 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
       cleanAssign === 'tất cả' || 
       cleanAssign === 'tat ca' || 
       cleanAssign === 'toàn hệ thống' || 
-      cleanAssign === 'toan he thong'
+      cleanAssign === 'toan he thong' ||
+        cleanAssign === 'tất cả các lớp (toàn trường)' ||
+        cleanAssign === 'tat ca cac lop (toan truong)'
     ) {
       return true;
     }

@@ -8,7 +8,7 @@ import {
   Users, Timer, CheckCircle2, PlusCircle, Plus, FolderPlus, BookOpen, Pencil
 } from 'lucide-react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, setDoc, writeBatch, query, where, getDocs, getDoc } from 'firebase/firestore';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CustomSelect } from '../components/CustomSelect';
 import { BatchActionBar } from '../components/BatchActionBar';
@@ -222,6 +222,102 @@ export function StudentsReportView({
   const [newClassSubjectInput, setNewClassSubjectInput] = useState('');
   const [selectedStudentsForNewClass, setSelectedStudentsForNewClass] = useState<string[]>([]);
   const [isCreatingClass, setIsCreatingClass] = useState(false);
+
+  // Modal chỉnh sửa lớp cho giáo viên
+  const [showEditClassModal, setShowEditClassModal] = useState(false);
+  const [editingClassName, setEditingClassName] = useState('');
+  const [editClassNameInput, setEditClassNameInput] = useState('');
+  const [editClassSubjectInput, setEditClassSubjectInput] = useState('');
+  const [selectedStudentsForEditClass, setSelectedStudentsForEditClass] = useState<string[]>([]);
+  const [isEditingClass, setIsEditingClass] = useState(false);
+
+  const handleOpenEditClassModal = () => {
+    if (!className || className === 'Tất cả') return;
+    
+    setEditingClassName(className);
+    setEditClassNameInput(className);
+    
+    // Find the session for this class name to get the subject
+    const matchingSession = allClasses.find(c => (c.className || c.title || '').trim().toLowerCase() === className.toLowerCase());
+    setEditClassSubjectInput(matchingSession?.subject || '');
+    
+    // Find students currently in this class
+    const currentClassStudents = studentUsers.filter(u => (u.className || '').trim().toLowerCase() === className.toLowerCase()).map(u => u.id);
+    setSelectedStudentsForEditClass(currentClassStudents);
+    
+    setShowEditClassModal(true);
+  };
+
+  const handleEditClassSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const oldName = editingClassName.trim();
+    const newName = editClassNameInput.trim();
+    
+    if (!newName) {
+      setNotification({ message: 'Vui lòng nhập tên lớp học!', type: 'error' });
+      return;
+    }
+    
+    setIsEditingClass(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // 1. Update matching class_sessions
+      const sessionsSnap = await getDocs(query(collection(db, 'class_sessions'), where('className', '==', oldName)));
+      sessionsSnap.forEach(docSnap => {
+        batch.update(doc(db, 'class_sessions', docSnap.id), {
+          className: newName,
+          title: newName,
+          subject: editClassSubjectInput.trim() || 'Chung',
+          updatedAt: new Date().toISOString()
+        });
+      });
+      
+      // 2. Update students currently selected for this class
+      // First, get all students who were in the old class and are NOT selected anymore (clear their class)
+      const oldClassStudents = studentUsers.filter(u => (u.className || '').trim().toLowerCase() === oldName.toLowerCase());
+      oldClassStudents.forEach(st => {
+        if (!selectedStudentsForEditClass.includes(st.id)) {
+          batch.update(doc(db, 'users', st.id), { className: '' });
+        }
+      });
+      
+      // Now set the new class name for all currently selected students
+      selectedStudentsForEditClass.forEach(sId => {
+        batch.update(doc(db, 'users', sId), { className: newName });
+      });
+      
+      // 3. Update teacher class name if they are selecting it
+      if (user?.id && (user.role === 'teacher' || user.role === 'admin' || user.isTeacher)) {
+        const teacherDoc = await getDoc(doc(db, 'users', user.id));
+        if (teacherDoc.exists() && teacherDoc.data().className === oldName) {
+          batch.update(doc(db, 'users', user.id), { className: newName });
+        }
+      }
+      
+      // 4. Update any assignments associated with oldName to newName
+      const assignmentsSnap = await getDocs(query(collection(db, 'assignments'), where('className', '==', oldName)));
+      assignmentsSnap.forEach(docSnap => {
+        batch.update(doc(db, 'assignments', docSnap.id), { className: newName });
+      });
+      
+      // Commit batch
+      await batch.commit();
+      
+      // Update UI state
+      setClassName(newName);
+      localStorage.setItem('class_name', newName);
+      window.dispatchEvent(new Event('storage'));
+      
+      setNotification({ message: `Đã cập nhật lớp học "${oldName}" thành "${newName}" thành công!`, type: 'success' });
+      setShowEditClassModal(false);
+    } catch (err) {
+      console.error('Error editing class:', err);
+      setNotification({ message: 'Lỗi xảy ra khi cập nhật lớp học!', type: 'error' });
+    } finally {
+      setIsEditingClass(false);
+    }
+  };
 
   // Xử lý Tạo & Lưu lớp mới cho Giáo viên
   const handleCreateNewClassSubmit = async (e?: React.FormEvent) => {
@@ -1001,6 +1097,8 @@ export function StudentsReportView({
                 size="sm"
                 searchable={classOptions.length > 5}
                 searchPlaceholder="Tìm lớp..."
+                onBadgeClick={(className && className !== 'Tất cả' && (user?.role === 'teacher' || user?.role === 'admin' || user?.isTeacher)) ? handleOpenEditClassModal : undefined}
+                badgeTooltip="Nhấn để chỉnh sửa lớp học này"
               />
             </div>
           </div>
@@ -2163,6 +2261,153 @@ export function StudentsReportView({
                   className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-2"
                 >
                   {isSavingEditStudent ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Lưu thay đổi</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Teacher Edit Class Modal */}
+      {showEditClassModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 border border-indigo-200/80 flex items-center justify-center text-indigo-600 shadow-2xs">
+                  <Pencil className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">Chỉnh sửa lớp học</h3>
+                  <p className="text-xs font-medium text-slate-500">Cập nhật thông tin và danh sách học sinh của lớp</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditClassModal(false)}
+                className="w-8 h-8 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-all active:scale-95"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleEditClassSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
+              {/* Tên lớp */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                  Tên lớp học <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editClassNameInput}
+                  onChange={(e) => setEditClassNameInput(e.target.value)}
+                  placeholder="Ví dụ: Lớp 12A1, Lớp Ôn Thi Cấp Tốc..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* Môn học */}
+              <div>
+                <label className="block text-xs font-extrabold text-slate-700 mb-1.5">
+                  Môn học / Mô tả (Không bắt buộc)
+                </label>
+                <input
+                  type="text"
+                  value={editClassSubjectInput}
+                  onChange={(e) => setEditClassSubjectInput(e.target.value)}
+                  placeholder="Ví dụ: Toán Học, Ngữ Văn, Tiếng Anh..."
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-2xs"
+                />
+              </div>
+
+              {/* Chọn học sinh gán vào lớp */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-extrabold text-slate-700">
+                    Gán học sinh vào lớp ({selectedStudentsForEditClass.length} đã chọn)
+                  </label>
+                  {studentUsers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedStudentsForEditClass.length === studentUsers.length) {
+                          setSelectedStudentsForEditClass([]);
+                        } else {
+                          setSelectedStudentsForEditClass(studentUsers.map(u => u.id));
+                        }
+                      }}
+                      className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800"
+                    >
+                      {selectedStudentsForEditClass.length === studentUsers.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-2xl p-2 bg-slate-50/50 space-y-1">
+                  {studentUsers.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic text-center py-4">Chưa có học sinh nào trong hệ thống</p>
+                  ) : (
+                    studentUsers.map(st => {
+                      const isChecked = selectedStudentsForEditClass.includes(st.id);
+                      return (
+                        <label
+                          key={st.id}
+                          className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all ${
+                            isChecked ? 'bg-indigo-50/80 border border-indigo-200 text-indigo-900 font-bold' : 'hover:bg-white text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedStudentsForEditClass(prev => [...prev, st.id]);
+                                } else {
+                                  setSelectedStudentsForEditClass(prev => prev.filter(id => id !== st.id));
+                                }
+                              }}
+                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                            />
+                            <span className="truncate">{st.name}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                            {st.className ? `Lớp ${st.className}` : 'Chưa có lớp'}
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowEditClassModal(false)}
+                  className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition-all active:scale-95"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editClassNameInput.trim() || isEditingClass}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all active:scale-95 flex items-center gap-2"
+                >
+                  {isEditingClass ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       <span>Đang lưu...</span>

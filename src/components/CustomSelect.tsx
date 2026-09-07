@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, Check, Search, X } from 'lucide-react';
+import { ChevronDown, Check, Search, X, Pencil } from 'lucide-react';
 
 export interface CustomSelectOption {
   value: string;
@@ -23,6 +23,8 @@ interface CustomSelectProps {
   disabled?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
+  onBadgeClick?: (option: CustomSelectOption, e: React.MouseEvent) => void;
+  badgeTooltip?: string;
 }
 
 export const CustomSelect: React.FC<CustomSelectProps> = ({
@@ -37,6 +39,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   disabled = false,
   searchable,
   searchPlaceholder = 'Tìm kiếm lựa chọn...',
+  onBadgeClick,
+  badgeTooltip,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -166,9 +170,24 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           {selectedOption?.badge && (
-            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
-              {selectedOption.badge}
-            </span>
+            onBadgeClick ? (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onBadgeClick(selectedOption, e);
+                }}
+                title={badgeTooltip || "Nhấp để chỉnh sửa"}
+                className="text-[10px] font-black px-2 py-0.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-xs flex items-center gap-1 transition-all shrink-0 cursor-pointer"
+              >
+                <Pencil className="w-2.5 h-2.5 stroke-[2.5]" />
+                Chỉnh sửa
+              </span>
+            ) : (
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0">
+                {selectedOption.badge}
+              </span>
+            )
           )}
         </div>
         <ChevronDown
