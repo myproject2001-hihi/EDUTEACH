@@ -501,8 +501,10 @@ export default function App() {
   }, [assignments]);
 
   const handleUpdateUser = async (updated: User) => {
-    const targetUid = updated?.id || auth.currentUser?.uid;
+    const targetUid = updated?.id || auth.currentUser?.uid || sessionStorage.getItem('offline_user_id');
     if (targetUid) {
+      // Cập nhật state local ngay lập tức để giao diện phản hồi tức thì (optimistic update)
+      setCurrentUser(updated);
       try {
         const cleaned = JSON.parse(JSON.stringify(updated));
         await setDoc(doc(db, 'users', targetUid), cleaned, { merge: true });
