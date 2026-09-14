@@ -125,8 +125,8 @@ export function ClassManagementSubView({
 
     // 2. From ClassSessions (Teachers creating sessions for classes)
     classes.forEach(c => {
-      const name = (c.className || c.title || '').trim();
-      if (name) {
+      const name = (c.className || '').trim();
+      if (name && name.toLowerCase() !== 'all' && name.toLowerCase() !== 'tất cả') {
         const entry = getOrCreate(name);
         if (entry) {
           entry.sessionsCount += 1;
@@ -426,7 +426,7 @@ export function ClassManagementSubView({
           }
           
           // Clear class from class_sessions
-          const assignedSessions = classes.filter(c => c.className === className || c.title === className);
+          const assignedSessions = classes.filter(c => c.className === className);
           for (const c of assignedSessions) {
             batch.update(doc(db, 'class_sessions', c.id), { className: '' });
           }

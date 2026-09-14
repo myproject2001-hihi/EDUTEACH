@@ -7837,6 +7837,7 @@ export function AssignmentsView({
                         badgeColor: 'rose',
                         targetClass: retakeAssignment.className || 'all',
                         targetScope: 'class',
+                        targetRole: 'student',
                         createdAt: new Date().toISOString(),
                         senderName: user.name
                       });

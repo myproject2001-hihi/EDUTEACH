@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { DashboardView } from './views/DashboardView';
 import { AssignmentsView } from './views/AssignmentsView';
@@ -23,6 +23,7 @@ import { saveSimulationToFirestore } from './lib/simulationStorage';
 import { LoveLetterModal } from './components/LoveLetterModal';
 import { RobotGuide } from './components/RobotGuide';
 import { checkAndIncrementNewResourceVisits } from './utils/resourceVisits';
+import { filterValidSessions } from './utils/classFilter';
 import { ActivityLogsView } from './views/ActivityLogsView';
 import { logActivity } from './lib/activityLogger';
 import { ResourcesRepositoryView } from './views/ResourcesRepositoryView';
@@ -55,6 +56,10 @@ export default function App() {
   const [loveLetters, setLoveLetters] = useState<LoveLetter[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [activeUnreadLetter, setActiveUnreadLetter] = useState<LoveLetter | null>(null);
+
+  const validClasses = useMemo(() => {
+    return filterValidSessions(classes, allUsers);
+  }, [classes, allUsers]);
 
   const [robotOpen, setRobotOpen] = useState(false);
   const [initializingAuth, setInitializingAuth] = useState(true);
@@ -770,8 +775,12 @@ export default function App() {
       teacherId: newClass.teacherId || currentUser?.id,
       teacherName: newClass.teacherName || currentUser?.name,
     }));
+
+    // Optimistically update local state immediately
+    setClasses(prev => [classData, ...prev.filter(c => c.id !== classData.id)]);
+
     try {
-      await setDoc(doc(db, 'class_sessions', classData.id), classData);
+      await setDoc(doc(db, 'class_sessions', classData.id), classData, { merge: true });
 
       // Log activity
       if (currentUser) {
@@ -797,15 +806,19 @@ export default function App() {
         badgeColor: 'amber',
         createdAt: new Date().toISOString()
       };
-      await setDoc(doc(db, 'system_notifications', notifId), newNotif);
+      await setDoc(doc(db, 'system_notifications', notifId), newNotif, { merge: true });
     } catch (error) {
+      console.error('Error adding class session:', error);
       handleFirestoreError(error, OperationType.CREATE, `class_sessions/${classData.id}`);
     }
   };
 
   const handleUpdateClass = async (updatedClass: ClassSession) => {
+    // Optimistically update local state immediately
+    setClasses(prev => prev.map(c => c.id === updatedClass.id ? { ...c, ...updatedClass } : c));
+
     try {
-      await setDoc(doc(db, 'class_sessions', updatedClass.id), updatedClass);
+      await setDoc(doc(db, 'class_sessions', updatedClass.id), updatedClass, { merge: true });
 
       // Log activity
       if (currentUser) {
@@ -820,11 +833,15 @@ export default function App() {
         });
       }
     } catch (error) {
+      console.error('Error updating class session:', error);
       handleFirestoreError(error, OperationType.UPDATE, `class_sessions/${updatedClass.id}`);
     }
   };
 
   const handleDeleteClass = async (classId: string) => {
+    // Optimistically update local state immediately
+    setClasses(prev => prev.filter(c => c.id !== classId));
+
     try {
       await deleteDoc(doc(db, 'class_sessions', classId));
 
@@ -842,6 +859,7 @@ export default function App() {
         });
       }
     } catch (error) {
+      console.error('Error deleting class session:', error);
       handleFirestoreError(error, OperationType.DELETE, `class_sessions/${classId}`);
     }
   };
@@ -895,6 +913,11 @@ export default function App() {
     };
 
     return systemNotifications.filter(notif => {
+      // 0. If notification targets a specific role and the user does not have that role, hide it
+      if (notif.targetRole && notif.targetRole !== role) {
+        return false;
+      }
+
       // 1. If notification has a specific personal recipient (e.g. thank you letter replies)
       if (notif.targetUserId || notif.targetStudentId || notif.targetScope === 'personal' || notif.badge?.includes('Lời Cảm Ơn')) {
         const targetId = notif.targetUserId || notif.targetStudentId;
@@ -971,7 +994,7 @@ export default function App() {
       }
       const names = new Set<string>();
       if (currentUser.className) names.add(currentUser.className.trim());
-      classes.forEach(c => {
+      validClasses.forEach(c => {
         if (c.teacherId === currentUser.id || c.teacherName === currentUser.name) {
           if (c.className) names.add(c.className.trim());
           if (c.title) names.add(c.title.trim());
@@ -994,7 +1017,7 @@ export default function App() {
             user={activeUser} 
             assignments={assignments} 
             submissions={submissions}
-            classes={classes}
+            classes={validClasses}
             isLoadingAssignments={isLoadingAssignments}
             isLoadingSubmissions={isLoadingSubmissions}
             onNavigate={setActiveTab}
@@ -1006,7 +1029,7 @@ export default function App() {
           <AdminConsoleView 
             user={activeUser} 
             assignments={assignments} 
-            classes={classes} 
+            classes={validClasses} 
             simulations={simulations} 
             submissions={submissions}
             loveLetters={loveLetters}
@@ -1072,7 +1095,7 @@ export default function App() {
           />
         );
       case 'schedule':
-        return <ScheduleView user={activeUser} classes={classes} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} />;
+        return <ScheduleView user={activeUser} classes={validClasses} allUsers={allUsers} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} />;
       case 'notifications-manager':
         return isTeacherOrAdmin ? (
           <NotificationsManagerView

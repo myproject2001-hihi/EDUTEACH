@@ -1,132 +1,98 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    // Helper to check if user is a teacher or admin
-    function isTeacher() {
-      return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher' ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')) ||
-        (request.auth.token != null && 
-         'email' in request.auth.token && 
-         (request.auth.token.email.endsWith('@eduteach.com') || 
-          request.auth.token.email.endsWith('@educonnect.com') ||
-          request.auth.token.email == 'qtvminhngoc0204@educonnect.com'))
-      );
-    }
-
-    // Users collection
-    match /users/{userId} {
-      allow read: if true;
-      allow create, update, delete: if isAuthenticated();
-    }
-
-    // Reset requests collection
-    match /reset_requests/{requestId} {
+    match /{document=**} {
       allow read, write: if true;
     }
 
-    // Assignments collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    match /tuition_settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    match /tuition_receipts/{receiptId} {
+      allow read, write: if true;
+    }
+
     match /assignments/{assignmentId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated(); // Teachers create, students update viewed status
-      allow delete: if isTeacher() || (isAuthenticated() && resource.data.teacherId == request.auth.uid);
+      allow read, write: if true;
     }
 
-    // Submissions collection
     match /submissions/{submissionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated(); // Students can write their own, teachers can grade
+      allow read, write: if true;
     }
 
-    // Student interactions collection
     match /student_interactions/{interactionId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Student attempts collection
     match /student_attempts/{attemptId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Class sessions collection
     match /class_sessions/{sessionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Simulations collection
     match /simulations/{simulationId=**} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Student progress collection
+    match /question_sets/{setId} {
+      allow read, write: if true;
+    }
+
     match /student_progress/{progressId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // System notifications collection
     match /system_notifications/{notificationId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
-      allow delete: if isTeacher() || (isAuthenticated() && resource.data.teacherId == request.auth.uid) || (isAuthenticated() && resource.data.senderId == request.auth.uid);
+      allow read, write: if true;
     }
 
-    // Love letters collection
     match /love_letters/{letterId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Activity logs collection (Lịch sử thao tác hệ thống)
     match /activity_logs/{logId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isTeacher();
+      allow read, write: if true;
     }
 
-    // Perks collection
     match /privilege_cards/{cardId} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacher();
+      allow read, write: if true;
     }
 
     match /settings/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isTeacher();
+      allow read, write: if true;
     }
-    
-    // Resource requests collection
+
     match /resource_requests/{requestId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Student attendances and evaluations
     match /student_attendances/{attendanceId} {
-      allow read, write: if isAuthenticated();
-    }
-    match /student_evaluations/{evalId} {
-      allow read, write: if isAuthenticated();
-    }
-    match /classroom_records/{recordId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // System config collection (game statuses, global app settings)
+    match /student_evaluations/{evalId} {
+      allow read, write: if true;
+    }
+
+    match /classroom_records/{recordId} {
+      allow read, write: if true;
+    }
+
     match /system_config/{configId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
+    }
+
+    match /reset_requests/{requestId} {
+      allow read, write: if true;
     }
   }
 }
+
+

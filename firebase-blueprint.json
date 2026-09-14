@@ -138,6 +138,32 @@
         "timestamp": "string",
         "createdAtMs": "number (optional)"
       }
+    },
+    "tuition_settings": {
+      "description": "Tuition configurations for different classes",
+      "fields": {
+        "id": "string",
+        "className": "string",
+        "limitHours": "number",
+        "tuitionFee": "number",
+        "qrBankId": "string",
+        "qrAccountNumber": "string",
+        "qrAccountName": "string"
+      }
+    },
+    "tuition_receipts": {
+      "description": "Receipts uploaded by students for tuition payment",
+      "fields": {
+        "id": "string",
+        "studentId": "string",
+        "studentName": "string",
+        "className": "string",
+        "amount": "number",
+        "hoursAtPayment": "number",
+        "screenshotUrl": "string",
+        "paidAt": "string",
+        "status": "string ('approved')"
+      }
     }
   }
 }

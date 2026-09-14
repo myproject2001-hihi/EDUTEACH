@@ -22,6 +22,7 @@ export interface User {
   phoneStudent?: string;
   phoneParent?: string;
   className?: string;
+  assignedClasses?: string[];
   connectionCode?: string;
   points?: number; // Điểm tích lũy cá nhân
   unlockedBadges?: string[];
@@ -31,6 +32,33 @@ export interface User {
   readNotifications?: string[]; // IDs of notifications marked as read
   hasSeenRobotWelcome?: boolean;
   createdAt?: string;
+  tuitionResetAt?: string;
+}
+
+export interface TuitionSetting {
+  id: string; // usually class name
+  className: string;
+  limitHours: number;
+  tuitionFee: number;
+  qrBankId: string;
+  qrAccountNumber: string;
+  qrAccountName: string;
+  qrImageUrl?: string;
+  transferContentTemplate?: string; // Optional custom VietQR transfer content template e.g. "HOCPHI_{studentName}_{className}"
+  updatedAt?: string;
+}
+
+export interface TuitionReceipt {
+  id: string;
+  studentId: string;
+  studentName: string;
+  className: string;
+  amount: number;
+  hoursAtPayment: number;
+  screenshotUrl: string;
+  paidAt: string;
+  status: 'approved';
+  note?: string;
 }
 
 export interface QuizQuestion {
@@ -202,6 +230,7 @@ export interface ClassSession {
   startTime: string;
   endTime: string;
   link: string;
+  isOnline?: boolean;
   note?: string;
   description?: string;
   createdAt?: string;
@@ -259,6 +288,7 @@ export interface SystemNotification {
   targetUserId?: string;
   targetScope?: 'all' | 'class' | 'personal';
   targetClass?: string;
+  targetRole?: 'admin' | 'teacher' | 'student';
   teacherId?: string;
 }
 

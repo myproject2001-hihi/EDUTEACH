@@ -500,7 +500,9 @@ export function StudentsReportView({
   }, [user?.id]);
 
   const teacherClassNames = React.useMemo(() => {
-    return teacherClasses.map(c => (c.className || c.title || '').trim().toLowerCase());
+    return teacherClasses
+      .map(c => (c.className || '').trim().toLowerCase())
+      .filter(Boolean);
   }, [teacherClasses]);
 
   // Lọc danh sách học sinh từ bộ sưu tập users
@@ -556,25 +558,48 @@ export function StudentsReportView({
     ];
   }, [allClasses, teacherClasses, assignments]);
 
-  // Danh sách các lớp khả dụng cho bộ chọn lớp
+  // Danh sách các lớp khả dụng cho bộ chọn lớp (Chỉ lấy các lớp thực tế, không lấy tiêu đề buổi học lịch)
   const classOptions = React.useMemo(() => {
     const set = new Set<string>();
+
+    // 1. Lấy từ danh sách học sinh thực tế (users)
+    studentUsers.forEach(u => {
+      const name = (u.className || '').trim();
+      if (name && name.toLowerCase() !== 'tất cả' && name.toLowerCase() !== 'all') {
+        set.add(name);
+      }
+    });
+
+    // 2. Lấy từ các lớp được gán cho giáo viên
+    if (user?.assignedClasses && Array.isArray(user.assignedClasses)) {
+      user.assignedClasses.forEach(c => {
+        if (c && c.trim() && c.trim().toLowerCase() !== 'tất cả') {
+          set.add(c.trim());
+        }
+      });
+    }
+
+    // 3. Lấy từ danh sách lớp nếu được truyền vào trực tiếp
+    if (classesList && classesList.length > 0) {
+      classesList.forEach((name: string) => {
+        const trimmed = (name || '').trim();
+        if (trimmed && trimmed.toLowerCase() !== 'tất cả' && trimmed.toLowerCase() !== 'all') {
+          set.add(trimmed);
+        }
+      });
+    }
+
+    // 4. Lấy từ className thực tế của các buổi học (KHÔNG lấy c.title là tên bài học)
+    teacherClasses.forEach(c => {
+      const cName = (c.className || '').trim();
+      if (cName && cName.toLowerCase() !== 'tất cả' && cName.toLowerCase() !== 'all') {
+        set.add(cName);
+      }
+    });
 
     if (className && className.trim() && className.trim().toLowerCase() !== 'tất cả') {
       set.add(className.trim());
     }
-
-    const sourceClasses = (classesList && classesList.length > 0) ? classesList : teacherClasses.map(c => c.className || c.title || '');
-
-    sourceClasses.forEach((name: string) => {
-      const trimmed = (name || '').trim();
-      if (trimmed) set.add(trimmed);
-    });
-
-    studentUsers.forEach(u => {
-      const name = (u.className || u.connectionCode || '').trim();
-      if (name) set.add(name);
-    });
 
     const sorted = Array.from(set).sort((a, b) => a.localeCompare(b, 'vi', { sensitivity: 'base' }));
 
@@ -586,14 +611,19 @@ export function StudentsReportView({
           return uClass === cls.toLowerCase();
         }).length;
 
+        // Tránh bị lặp chữ "Lớp" nếu tên lớp đã có chữ "Lớp" hoặc "Lop"
+        const displayLabel = cls.toLowerCase().startsWith('lớp') || cls.toLowerCase().startsWith('lop') 
+          ? cls 
+          : `Lớp ${cls}`;
+
         return {
           value: cls,
-          label: `Lớp ${cls}`,
+          label: displayLabel,
           badge: count > 0 ? `${count} HS` : undefined,
         };
       })
     ];
-  }, [className, teacherClasses, classesList, studentUsers]);
+  }, [className, teacherClasses, classesList, studentUsers, user]);
 
   // Tổng hợp danh sách học sinh theo mã lớp, môn học, và từ khóa tìm kiếm nâng cao
   const combinedRoster = React.useMemo(() => {

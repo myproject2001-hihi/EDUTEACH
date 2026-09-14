@@ -64,6 +64,7 @@ import { UserAvatar } from '../components/UserAvatar';
 import { AssignmentListSkeleton } from '../components/Skeletons';
 import { StudentLoveLetterForm } from '../components/StudentLoveLetterForm';
 import { shouldShowNewBadge } from '../utils/resourceVisits';
+import { filterValidSessions, normalizeClassName } from '../utils/classFilter';
 
 interface DashboardProps {
   user: User;
@@ -222,9 +223,10 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   }, [rawAssignments, user, isAdmin]);
 
   const classes = React.useMemo(() => {
-    if (isAdmin) return rawClasses;
-    if (user.role === 'teacher') return rawClasses.filter(c => !c.teacherId || c.teacherId === user.id);
-    return rawClasses;
+    const valid = filterValidSessions(rawClasses);
+    if (isAdmin) return valid;
+    if (user.role === 'teacher') return valid.filter(c => !c.teacherId || c.teacherId === user.id);
+    return valid;
   }, [rawClasses, user, isAdmin]);
 
   React.useEffect(() => {
@@ -503,8 +505,19 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
     }
 
     // --- SUGGESTION 2: CLASS SCHEDULE / CLASSROOM FOCUS ---
-    const todayClasses = classes.filter(c => c.startTime && isToday(new Date(c.startTime)));
-    const upcomingClasses = classes
+    const isMatchingClass = (classItem: ClassSession) => {
+      if (user.role === 'teacher') return classItem.teacherId === user.id || classItem.teacherName === user.name;
+      if (user.role === 'admin') return true;
+      if (!user.className) return true;
+      const target = normalizeClassName(classItem.className || classItem.title);
+      const userNorm = normalizeClassName(user.className);
+      if (!target || target === 'all' || target === 'tatca' || target === 'toanhethong') return true;
+      return target === userNorm;
+    };
+
+    const relevantClasses = classes.filter(isMatchingClass);
+    const todayClasses = relevantClasses.filter(c => c.startTime && isToday(new Date(c.startTime)));
+    const upcomingClasses = relevantClasses
       .filter(c => c.startTime && new Date(c.startTime).getTime() >= now.getTime())
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 

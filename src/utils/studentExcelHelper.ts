@@ -12,13 +12,13 @@ export interface ParsedStudentRow {
   isOffline?: boolean;
 }
 
-export function generateStudentTemplateExcel(targetClassName = 'Lớp 10A1') {
+export function generateStudentTemplateExcel(targetClassName = '') {
   const sampleData = [
     {
       'STT': 1,
       'Họ và Tên (*)': 'Nguyễn Văn An',
-      'Mã Học Sinh': 'HS-10A1-01',
-      'Lớp Học': targetClassName,
+      'Mã Học Sinh': targetClassName ? `HS-${targetClassName}-01` : 'HS-01',
+      'Lớp Học': targetClassName || '',
       'Giới Tính': 'Nam',
       'Ngày Sinh (DD/MM/YYYY)': '15/04/2009',
       'Số Điện Thoại': '0912345678',
@@ -28,24 +28,13 @@ export function generateStudentTemplateExcel(targetClassName = 'Lớp 10A1') {
     {
       'STT': 2,
       'Họ và Tên (*)': 'Trần Thị Bích',
-      'Mã Học Sinh': 'HS-10A1-02',
-      'Lớp Học': targetClassName,
+      'Mã Học Sinh': targetClassName ? `HS-${targetClassName}-02` : 'HS-02',
+      'Lớp Học': targetClassName || '',
       'Giới Tính': 'Nữ',
       'Ngày Sinh (DD/MM/YYYY)': '22/08/2009',
       'Số Điện Thoại': '0923456789',
       'Số ĐT Phụ Huynh': '0976543210',
-      'Ghi Chú': 'Thành viên đội tuyển học sinh giỏi'
-    },
-    {
-      'STT': 3,
-      'Họ và Tên (*)': 'Lê Hoàng Cường',
-      'Mã Học Sinh': 'HS-10A1-03',
-      'Lớp Học': targetClassName,
-      'Giới Tính': 'Nam',
-      'Ngày Sinh (DD/MM/YYYY)': '10/11/2009',
-      'Số Điện Thoại': '0934567890',
-      'Số ĐT Phụ Huynh': '0965432109',
-      'Ghi Chú': 'Học sinh mới chuyển trường'
+      'Ghi Chú': 'Thành viên đội tuyển'
     }
   ];
 
