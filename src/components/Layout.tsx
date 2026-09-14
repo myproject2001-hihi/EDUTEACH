@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot, History, FolderArchive, Gift, Database } from 'lucide-react';
+import { BookOpen, Calendar, LayoutDashboard, Microscope, Users, BellRing, Menu, X, Phone, User as UserIcon, LogOut, Check, Sparkles, ShieldCheck, Edit2, Settings, Upload, RotateCcw, Camera, Library, Gamepad2, Moon, Sun, Video, Bot, History, FolderArchive, Gift, Database, HelpCircle } from 'lucide-react';
 import { Role, User, Assignment, Submission, SystemNotification, ClassSession } from '../types';
 import { UserAvatar, combineName, getFirstName, getLastName } from './UserAvatar';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { GuideButton } from './GuideButton';
 
 export function getAvatarInitial(name?: string): string {
   if (!name || !name.trim()) return 'U';
@@ -587,6 +588,7 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
           </div>
           
           <div className="flex items-center gap-2 sm:gap-4 md:gap-5 shrink-0">
+            <GuideButton activeTab={activeTab} user={user} />
             <div className="relative" ref={dropdownRef}>
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}

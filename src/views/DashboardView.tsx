@@ -582,10 +582,20 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
   }, [unfinishedAssignments, classes, flashcardAssignments, gameAssignments, onNavigate]);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12 px-2 sm:px-4">
+    <motion.div 
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="space-y-8 max-w-7xl mx-auto pb-12 px-2 sm:px-4"
+    >
       
       {/* 1. KHUNG XIN CHÀO (Greeting Banner) */}
-      <div className="bg-gradient-to-br from-blue-50/80 via-sky-50 to-indigo-50/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-indigo-100 relative overflow-hidden shadow-sm text-slate-800">
+      <motion.div 
+        initial={{ opacity: 0, x: -16 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.35, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+        className="bg-gradient-to-br from-blue-50/80 via-sky-50 to-indigo-50/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-indigo-100 relative overflow-hidden shadow-sm text-slate-800"
+      >
         <div className="absolute top-0 right-0 w-[350px] h-[350px] bg-indigo-200/20 blur-[60px] rounded-full pointer-events-none transform translate-x-1/4 -translate-y-1/4"></div>
         <div className="absolute -bottom-10 -left-10 w-[250px] h-[250px] bg-sky-200/20 blur-[50px] rounded-full pointer-events-none"></div>
         <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -624,7 +634,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
             </button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {/* 2. MAIN BENTO GRID VIEW */}
       {isTeacher ? (
@@ -1695,6 +1705,6 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
         </div>
       )}
 
-    </div>
+    </motion.div>
   );
 }

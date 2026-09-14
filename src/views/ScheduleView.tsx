@@ -660,17 +660,41 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
     return Array.from(set).sort();
   }, [sessions]);
 
-  // Filter sessions that are completed and matching statsMonth, statsYear, statsClass, statsSubject
+  // Filter sessions that are completed and matching statsMonth, statsYear, statsClass, statsSubject, and timeMode
   const completedSessionsInMonth = React.useMemo(() => {
     return sessions.filter(s => {
       if (!s.isCompleted) return false;
-      const date = new Date(s.startTime);
-      if ((date.getMonth() + 1) !== statsMonth || date.getFullYear() !== statsYear) return false;
-      if (statsClass !== 'all' && (s.className || '').trim() !== statsClass) return false;
-      if (statsSubject !== 'all' && (s.subject || 'Toán Học').trim() !== statsSubject) return false;
+      
+      // Class match
+      if (statsClass !== 'all') {
+        if (!isClassMatching(s.className || s.title, statsClass)) return false;
+      }
+
+      // Subject match
+      if (statsSubject !== 'all') {
+        if (s.subject !== statsSubject) return false;
+      }
+
+      // Time matching
+      const sessionDate = new Date(s.startTime);
+      if (timeMode === 'month') {
+        if ((sessionDate.getMonth() + 1) !== statsMonth || sessionDate.getFullYear() !== statsYear) return false;
+      } else {
+        if (startDateStr) {
+          const start = new Date(startDateStr);
+          start.setHours(0, 0, 0, 0);
+          if (sessionDate < start) return false;
+        }
+        if (endDateStr) {
+          const end = new Date(endDateStr);
+          end.setHours(23, 59, 59, 999);
+          if (sessionDate > end) return false;
+        }
+      }
+
       return true;
     });
-  }, [sessions, statsMonth, statsYear, statsClass, statsSubject]);
+  }, [sessions, statsMonth, statsYear, statsClass, statsSubject, timeMode, startDateStr, endDateStr]);
 
   // Calculate unique teaching days (unique calendar dates)
   const uniqueTeachingDays = React.useMemo(() => {
@@ -1933,7 +1957,9 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">Thống kê dạy & học theo tháng</h4>
+                    <h4 className="font-extrabold text-slate-900 text-sm">
+                      {timeMode === 'month' ? 'Thống kê dạy & học theo tháng' : 'Thống kê dạy & học (Khoảng ngày)'}
+                    </h4>
                     <p className="text-slate-500 text-[11px] font-medium">Báo cáo chấm công, số ngày dạy thực tế và dọn dẹp ghi chú</p>
                   </div>
                 </div>
