@@ -151,12 +151,12 @@ export function generateTransferContent(
   }
 
   let result = template
-    .replace(/\{studentName\}/gi, studentName)
-    .replace(/\{className\}/gi, cls)
-    .replace(/\{studentPhone\}/gi, phone)
-    .replace(/\{studentCode\}/gi, code)
-    .replace(/\{month\}/gi, month)
-    .replace(/\{year\}/gi, year);
+    .replace(/\{(studentName|student_name|tenHocSinh|ten_hoc_sinh|hocsinh|hoc_sinh)\}/gi, studentName)
+    .replace(/\{(className|class_name|tenLop|ten_lop|lop|class)\}/gi, cls)
+    .replace(/\{(studentPhone|student_phone|phone|sdt|so_dien_thoai)\}/gi, phone)
+    .replace(/\{(studentCode|student_code|code|maHs|ma_hs|mahocsinh)\}/gi, code)
+    .replace(/\{(month|thang)\}/gi, month)
+    .replace(/\{(year|nam)\}/gi, year);
 
   return cleanVietnameseToAscii(result);
 }

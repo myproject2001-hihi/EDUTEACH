@@ -5,6 +5,7 @@ import { doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { ConfirmModal } from './ConfirmModal';
 import { BulkStudentImportModal } from './BulkStudentImportModal';
 import { CustomSelect } from './CustomSelect';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   School, 
   Users, 
@@ -25,7 +26,13 @@ import {
   ShieldCheck,
   Sparkles,
   Calendar,
-  Upload
+  Upload,
+  CheckSquare,
+  Square,
+  Filter,
+  Sliders,
+  Layers,
+  AlertCircle
 } from 'lucide-react';
 
 interface ClassManagementSubViewProps {
@@ -44,7 +51,17 @@ export function ClassManagementSubView({
   showNotify
 }: ClassManagementSubViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'has_students' | 'empty' | 'has_teacher' | 'no_teacher' | 'has_sessions'>('all');
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [expandedClasses, setExpandedClasses] = useState<Record<string, boolean>>({});
+
+  // Bulk Edit Modal state
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkTeacherId, setBulkTeacherId] = useState<string>('');
+  const [bulkPrefix, setBulkPrefix] = useState<string>('');
+  const [bulkSuffix, setBulkSuffix] = useState<string>('');
+  const [bulkSelectedStudentIds, setBulkSelectedStudentIds] = useState<string[]>([]);
+  const [bulkEditTab, setBulkEditTab] = useState<'teacher' | 'rename' | 'students'>('teacher');
 
   // Modals state
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
@@ -159,16 +176,200 @@ export function ClassManagementSubView({
     return Array.from(classMap.values()).sort((a, b) => a.className.localeCompare(b.className, 'vi'));
   }, [usersList, classes, assignments]);
 
-  // Filtered classes by search term
+  // Status filter counts
+  const statusCounts = useMemo(() => {
+    return {
+      all: classesData.length,
+      has_students: classesData.filter(c => c.students.length > 0).length,
+      empty: classesData.filter(c => c.students.length === 0).length,
+      has_teacher: classesData.filter(c => c.teachers.length > 0).length,
+      no_teacher: classesData.filter(c => c.teachers.length === 0).length,
+      has_sessions: classesData.filter(c => c.sessionsCount > 0).length,
+    };
+  }, [classesData]);
+
+  // Filtered classes by status filter and search term
   const filteredClasses = useMemo(() => {
-    if (!searchTerm.trim()) return classesData;
-    const q = searchTerm.toLowerCase().trim();
-    return classesData.filter(c => 
-      c.className.toLowerCase().includes(q) ||
-      c.teachers.some(t => t.name.toLowerCase().includes(q) || (t.phoneStudent && t.phoneStudent.includes(q)) || (t.className && t.className.toLowerCase().includes(q))) ||
-      c.students.some(s => s.name.toLowerCase().includes(q) || (s.phoneStudent && s.phoneStudent.includes(q)) || (s.phoneParent && s.phoneParent.includes(q)))
+    return classesData.filter(c => {
+      // 1. Status Filter
+      if (statusFilter === 'has_students' && c.students.length === 0) return false;
+      if (statusFilter === 'empty' && c.students.length > 0) return false;
+      if (statusFilter === 'has_teacher' && c.teachers.length === 0) return false;
+      if (statusFilter === 'no_teacher' && c.teachers.length > 0) return false;
+      if (statusFilter === 'has_sessions' && c.sessionsCount === 0) return false;
+
+      // 2. Search Query
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase().trim();
+        const matchName = c.className.toLowerCase().includes(q);
+        const matchTeacher = c.teachers.some(t => t.name.toLowerCase().includes(q) || (t.phoneStudent && t.phoneStudent.includes(q)) || (t.className && t.className.toLowerCase().includes(q)));
+        const matchStudent = c.students.some(s => s.name.toLowerCase().includes(q) || (s.phoneStudent && s.phoneStudent.includes(q)) || (s.phoneParent && s.phoneParent.includes(q)));
+        if (!matchName && !matchTeacher && !matchStudent) return false;
+      }
+
+      return true;
+    });
+  }, [classesData, searchTerm, statusFilter]);
+
+  // Selection handlers
+  const handleToggleSelectClass = (className: string) => {
+    setSelectedClasses(prev => 
+      prev.includes(className) ? prev.filter(c => c !== className) : [...prev, className]
     );
-  }, [classesData, searchTerm]);
+  };
+
+  const handleSelectAllFiltered = () => {
+    const allFilteredNames = filteredClasses.map(c => c.className);
+    const areAllSelected = allFilteredNames.length > 0 && allFilteredNames.every(name => selectedClasses.includes(name));
+    if (areAllSelected) {
+      setSelectedClasses(prev => prev.filter(name => !allFilteredNames.includes(name)));
+    } else {
+      const merged = Array.from(new Set([...selectedClasses, ...allFilteredNames]));
+      setSelectedClasses(merged);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedClasses([]);
+  };
+
+  // Bulk Dissolve Selected Classes
+  const handleBulkDissolveClasses = () => {
+    if (selectedClasses.length === 0) return;
+    const count = selectedClasses.length;
+    const names = selectedClasses.join(', ');
+
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Xác nhận giải tán nhiều lớp học',
+      message: `CẢNH BÁO: Bạn có chắc chắn muốn giải tán ${count} lớp học đã chọn (${names})? Toàn bộ học sinh, giáo viên, bài tập và lịch học trong các lớp này sẽ được gỡ nhãn lớp.`,
+      confirmText: `Giải tán ${count} lớp`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsProcessing(true);
+        try {
+          const batch = writeBatch(db);
+          const selectedSet = new Set(selectedClasses);
+
+          // Clear class in users
+          usersList.forEach(u => {
+            if (u.className && selectedSet.has(u.className)) {
+              batch.update(doc(db, 'users', u.id), { className: '' });
+            }
+          });
+
+          // Clear class in assignments
+          assignments.forEach(a => {
+            if (a.className && selectedSet.has(a.className)) {
+              batch.update(doc(db, 'assignments', a.id), { className: '' });
+            }
+          });
+
+          // Clear class in class_sessions
+          classes.forEach(c => {
+            if (c.className && selectedSet.has(c.className)) {
+              batch.update(doc(db, 'class_sessions', c.id), { className: '' });
+            }
+          });
+
+          await batch.commit();
+          showNotify('success', `Đã giải tán thành công ${count} lớp học đã chọn!`);
+          setSelectedClasses([]);
+        } catch (err: any) {
+          console.error(err);
+          showNotify('error', 'Có lỗi xảy ra khi giải tán hàng loạt.');
+        } finally {
+          setIsProcessing(false);
+          setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
+
+  // Bulk Edit Execute
+  const handleBulkEditSubmit = async () => {
+    if (selectedClasses.length === 0) return;
+    setIsProcessing(true);
+    try {
+      const batch = writeBatch(db);
+
+      if (bulkEditTab === 'teacher') {
+        if (!bulkTeacherId) {
+          showNotify('error', 'Vui lòng chọn giáo viên để phân công!');
+          setIsProcessing(false);
+          return;
+        }
+        // Gán giáo viên phụ trách cho lớp đầu tiên hoặc update teacher's class
+        batch.update(doc(db, 'users', bulkTeacherId), { className: selectedClasses[0] });
+        showNotify('success', `Đã phân công giáo viên vào các lớp đã chọn!`);
+      } else if (bulkEditTab === 'rename') {
+        if (!bulkPrefix.trim() && !bulkSuffix.trim()) {
+          showNotify('error', 'Vui lòng nhập tiền tố hoặc hậu tố cần thêm vào tên lớp!');
+          setIsProcessing(false);
+          return;
+        }
+
+        // Tạo map đổi tên cho từng lớp
+        const renameMap = new Map<string, string>();
+        selectedClasses.forEach(oldName => {
+          const newName = `${bulkPrefix.trim()}${oldName}${bulkSuffix.trim()}`.trim();
+          if (newName && newName !== oldName) {
+            renameMap.set(oldName, newName);
+          }
+        });
+
+        // Cập nhật users
+        usersList.forEach(u => {
+          if (u.className && renameMap.has(u.className)) {
+            batch.update(doc(db, 'users', u.id), { className: renameMap.get(u.className)! });
+          }
+        });
+
+        // Cập nhật assignments
+        assignments.forEach(a => {
+          if (a.className && renameMap.has(a.className)) {
+            batch.update(doc(db, 'assignments', a.id), { className: renameMap.get(a.className)! });
+          }
+        });
+
+        // Cập nhật class_sessions
+        classes.forEach(c => {
+          if (c.className && renameMap.has(c.className)) {
+            batch.update(doc(db, 'class_sessions', c.id), { className: renameMap.get(c.className)! });
+          }
+        });
+
+        showNotify('success', `Đã đổi tên hàng loạt ${renameMap.size} lớp học thành công!`);
+      } else if (bulkEditTab === 'students') {
+        if (bulkSelectedStudentIds.length === 0) {
+          showNotify('error', 'Vui lòng chọn ít nhất 1 học sinh!');
+          setIsProcessing(false);
+          return;
+        }
+
+        // Gán lần lượt hoặc chia đều học sinh vào các lớp đã chọn
+        bulkSelectedStudentIds.forEach((sId, index) => {
+          const targetClass = selectedClasses[index % selectedClasses.length];
+          batch.update(doc(db, 'users', sId), { className: targetClass });
+        });
+
+        showNotify('success', `Đã phân bổ ${bulkSelectedStudentIds.length} học sinh vào ${selectedClasses.length} lớp đã chọn!`);
+      }
+
+      await batch.commit();
+      setShowBulkEditModal(false);
+      setBulkTeacherId('');
+      setBulkPrefix('');
+      setBulkSuffix('');
+      setBulkSelectedStudentIds([]);
+      setSelectedClasses([]);
+    } catch (err: any) {
+      console.error(err);
+      showNotify('error', 'Có lỗi khi cập nhật hàng loạt.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // Unassigned students list
   const unassignedStudents = useMemo(() => {
@@ -508,6 +709,26 @@ export function ClassManagementSubView({
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
+            onClick={handleSelectAllFiltered}
+            className={`px-3 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ${
+              filteredClasses.length > 0 && filteredClasses.every(c => selectedClasses.includes(c.className))
+                ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            {filteredClasses.length > 0 && filteredClasses.every(c => selectedClasses.includes(c.className)) ? (
+              <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+            ) : (
+              <Square className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span>
+              {filteredClasses.length > 0 && filteredClasses.every(c => selectedClasses.includes(c.className))
+                ? 'Bỏ chọn tất cả'
+                : 'Chọn tất cả'}
+            </span>
+          </button>
+          <button
+            type="button"
             onClick={() => handleExpandAll(true)}
             className="px-3 py-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
           >
@@ -544,6 +765,168 @@ export function ClassManagementSubView({
         </div>
       </div>
 
+      {/* STATUS FILTER PILLS (Style consistent with system filter bar) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('all')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ${
+            statusFilter === 'all'
+              ? 'bg-slate-900 text-white shadow-sm ring-2 ring-slate-900/10'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200/60'
+          }`}
+        >
+          <span>Tất cả</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+            statusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {statusCounts.all}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('has_students')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ${
+            statusFilter === 'has_students'
+              ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-200 ring-2 ring-emerald-500/20'
+              : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/60'
+          }`}
+        >
+          <span>👥 Có học sinh</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+            statusFilter === 'has_students' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+          }`}>
+            {statusCounts.has_students}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('empty')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ${
+            statusFilter === 'empty'
+              ? 'bg-amber-500 text-white shadow-sm shadow-amber-200 ring-2 ring-amber-500/20'
+              : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/60'
+          }`}
+        >
+          <span>⚠️ Lớp trống</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+            statusFilter === 'empty' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'
+          }`}>
+            {statusCounts.empty}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('has_teacher')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ${
+            statusFilter === 'has_teacher'
+              ? 'bg-purple-600 text-white shadow-sm shadow-purple-200 ring-2 ring-purple-500/20'
+              : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200/60'
+          }`}
+        >
+          <span>👨‍🏫 Đã có GV</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+            statusFilter === 'has_teacher' ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+          }`}>
+            {statusCounts.has_teacher}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('no_teacher')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ${
+            statusFilter === 'no_teacher'
+              ? 'bg-rose-600 text-white shadow-sm shadow-rose-200 ring-2 ring-rose-500/20'
+              : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60'
+          }`}
+        >
+          <span>⚡ Chưa có GV</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+            statusFilter === 'no_teacher' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-700'
+          }`}>
+            {statusCounts.no_teacher}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStatusFilter('has_sessions')}
+          className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer ${
+            statusFilter === 'has_sessions'
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-200 ring-2 ring-blue-500/20'
+              : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/60'
+          }`}
+        >
+          <span>📅 Có lịch học</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full font-black ${
+            statusFilter === 'has_sessions' ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+          }`}>
+            {statusCounts.has_sessions}
+          </span>
+        </button>
+      </div>
+
+      {/* BULK ACTIONS FLOATING TOOLBAR */}
+      <AnimatePresence>
+        {selectedClasses.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="sticky top-4 z-40 bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3">
+              <span className="w-7 h-7 rounded-xl bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center">
+                {selectedClasses.length}
+              </span>
+              <span className="text-xs font-bold text-slate-200">
+                Đã chọn <strong className="text-white">{selectedClasses.length}</strong> lớp học
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkEditTab('teacher');
+                  setBulkTeacherId('');
+                  setBulkPrefix('');
+                  setBulkSuffix('');
+                  setBulkSelectedStudentIds([]);
+                  setShowBulkEditModal(true);
+                }}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Chỉnh sửa hàng loạt ({selectedClasses.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBulkDissolveClasses}
+                className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Giải tán / Xóa ({selectedClasses.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleClearSelection}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                title="Bỏ chọn tất cả"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* UNASSIGNED STUDENTS QUICK ALERT BANNER */}
       {unassignedStudents.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -577,22 +960,45 @@ export function ClassManagementSubView({
       <div className="space-y-4">
         {filteredClasses.map((item) => {
           const isExpanded = expandedClasses[item.className] ?? false;
+          const isSelected = selectedClasses.includes(item.className);
 
           return (
             <div
               key={item.className}
-              className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden transition-all hover:border-indigo-200"
+              className={`bg-white rounded-3xl border shadow-xs overflow-hidden transition-all ${
+                isSelected ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-indigo-50' : 'border-slate-200 hover:border-indigo-200'
+              }`}
             >
               {/* CLASS HEADER ROW */}
-              <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border-b border-slate-100">
-                <div 
-                  onClick={() => toggleExpand(item.className)}
-                  className="flex items-center gap-3 cursor-pointer select-none flex-1"
-                >
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                    <School className="w-5 h-5" />
-                  </div>
-                  <div>
+              <div className={`p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b ${
+                isSelected ? 'bg-indigo-50/40 border-indigo-100' : 'bg-white border-slate-100'
+              }`}>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* SELECT CHECKBOX */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleSelectClass(item.className);
+                    }}
+                    className="p-1 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer shrink-0"
+                    title={isSelected ? 'Bỏ chọn lớp này' : 'Chọn lớp này'}
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="w-5 h-5 text-indigo-600" />
+                    ) : (
+                      <Square className="w-5 h-5 text-slate-300 hover:text-slate-500" />
+                    )}
+                  </button>
+
+                  <div 
+                    onClick={() => toggleExpand(item.className)}
+                    className="flex items-center gap-3 cursor-pointer select-none flex-1 min-w-0"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                      <School className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       {renamingClass === item.className ? (
                         <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -649,6 +1055,7 @@ export function ClassManagementSubView({
                     </div>
                   </div>
                 </div>
+              </div>
 
                 {/* HEADER ACTIONS */}
                 <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto justify-end">
@@ -1282,6 +1689,244 @@ export function ClassManagementSubView({
                 className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all active:scale-95"
               >
                 {isProcessing ? 'Đang chuyển...' : 'Xác nhận chuyển'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: BULK EDIT CLASSES */}
+      {showBulkEditModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Chỉnh sửa hàng loạt ({selectedClasses.length} lớp học)
+                  </h3>
+                  <p className="text-xs text-slate-500">Áp dụng thay đổi cho các lớp học đã chọn</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBulkEditModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-700 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Selected classes chips */}
+            <div className="px-6 py-3 bg-indigo-50/30 border-b border-indigo-50 flex flex-wrap items-center gap-1.5 max-h-24 overflow-y-auto">
+              <span className="text-xs font-bold text-slate-500 mr-1">Các lớp đang chọn:</span>
+              {selectedClasses.map(cls => (
+                <span
+                  key={cls}
+                  className="px-2.5 py-0.5 bg-indigo-100/70 border border-indigo-200 text-indigo-800 rounded-lg text-xs font-bold flex items-center gap-1"
+                >
+                  <School className="w-3 h-3 text-indigo-500" />
+                  <span>{cls}</span>
+                </span>
+              ))}
+            </div>
+
+            {/* Action Tabs */}
+            <div className="px-6 pt-3 flex border-b border-slate-200 gap-4">
+              <button
+                type="button"
+                onClick={() => setBulkEditTab('teacher')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                  bulkEditTab === 'teacher'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Gán Giáo Viên</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkEditTab('rename')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                  bulkEditTab === 'rename'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Edit2 className="w-4 h-4" />
+                <span>Đổi tên / Tiền tố</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkEditTab('students')}
+                className={`pb-3 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                  bulkEditTab === 'students'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>Phân bổ Học Sinh</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {bulkEditTab === 'teacher' && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
+                      Chọn giáo viên phụ trách:
+                    </label>
+                    <CustomSelect
+                      value={bulkTeacherId}
+                      onChange={setBulkTeacherId}
+                      options={allTeachers.map(t => ({
+                        value: t.id,
+                        label: `${t.name} (${t.phoneStudent || (t as any).email || 'GV'})`,
+                        badge: t.className ? `Lớp ${t.className}` : undefined
+                      }))}
+                      placeholder="-- Chọn giáo viên --"
+                      className="w-full"
+                      size="sm"
+                      searchable={allTeachers.length > 5}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Giáo viên được chọn sẽ được phân công phụ trách quản lý các lớp học đã chọn.
+                  </p>
+                </div>
+              )}
+
+              {bulkEditTab === 'rename' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Thêm tiền tố (Đầu tên):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="VD: 2024-"
+                        value={bulkPrefix}
+                        onChange={(e) => setBulkPrefix(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Thêm hậu tố (Cuối tên):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="VD: -K12"
+                        value={bulkSuffix}
+                        onChange={(e) => setBulkSuffix(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Preview of new names */}
+                  {(bulkPrefix || bulkSuffix) && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1">
+                      <div className="text-[11px] font-bold text-slate-500">Xem trước kết quả:</div>
+                      <div className="text-xs space-y-1 max-h-28 overflow-y-auto font-mono">
+                        {selectedClasses.slice(0, 5).map(c => (
+                          <div key={c} className="flex items-center gap-2 text-slate-700">
+                            <span className="line-through text-slate-400">{c}</span>
+                            <span>➔</span>
+                            <span className="font-bold text-indigo-600">{`${bulkPrefix}${c}${bulkSuffix}`}</span>
+                          </div>
+                        ))}
+                        {selectedClasses.length > 5 && (
+                          <div className="text-[10px] text-slate-400 italic">và {selectedClasses.length - 5} lớp khác...</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {bulkEditTab === 'students' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-600 pb-1 border-b border-slate-100">
+                    <span>Chọn học sinh cần phân bổ ({allStudents.length})</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (bulkSelectedStudentIds.length === allStudents.length) {
+                          setBulkSelectedStudentIds([]);
+                        } else {
+                          setBulkSelectedStudentIds(allStudents.map(s => s.id));
+                        }
+                      }}
+                      className="text-indigo-600 hover:underline cursor-pointer"
+                    >
+                      {bulkSelectedStudentIds.length === allStudents.length ? 'Bỏ chọn' : 'Chọn tất cả'}
+                    </button>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-1">
+                    {allStudents.map(s => (
+                      <label
+                        key={s.id}
+                        className={`flex items-center gap-2.5 p-2 rounded-xl border transition-colors cursor-pointer text-xs ${
+                          bulkSelectedStudentIds.includes(s.id) ? 'bg-indigo-50/70 border-indigo-200 font-bold' : 'bg-white hover:bg-slate-50 border-slate-200'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkSelectedStudentIds.includes(s.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setBulkSelectedStudentIds(prev => [...prev, s.id]);
+                            } else {
+                              setBulkSelectedStudentIds(prev => prev.filter(id => id !== s.id));
+                            }
+                          }}
+                          className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                        />
+                        <img
+                          src={s.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${s.id}`}
+                          alt={s.name}
+                          className="w-6 h-6 rounded-full object-cover shrink-0"
+                        />
+                        <span className="text-slate-800">{s.name}</span>
+                        <span className="text-[10px] text-slate-400 ml-auto">
+                          {s.className ? `Đang ở: ${s.className}` : '🔴 Chưa có lớp'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Hệ thống sẽ phân bổ đều các học sinh được chọn vào {selectedClasses.length} lớp học đang chọn.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowBulkEditModal(false)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={isProcessing}
+                onClick={handleBulkEditSubmit}
+                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-extrabold rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+              >
+                {isProcessing ? 'Đang cập nhật...' : `Lưu thay đổi (${selectedClasses.length} lớp)`}
               </button>
             </div>
           </div>

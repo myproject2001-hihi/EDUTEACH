@@ -19,13 +19,18 @@ import {
   HelpCircle,
   QrCode,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Eye,
+  School,
+  Copy
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { User, ClassSession, TuitionSetting, TuitionReceipt, SystemNotification } from '../types';
 import { calculateStudentTuitionStatus, StudentTuitionStatus, getTuitionSettingForClass, generateTransferContent } from '../utils/tuitionUtils';
 import { isClassMatching } from '../utils/classFilter';
 import { ConfirmModal } from './ConfirmModal';
+import { CustomSelect } from './CustomSelect';
+import { ClassTuitionPreviewModal } from './ClassTuitionPreviewModal';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -59,6 +64,21 @@ export function TeacherTuitionManager({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'unpaid' | 'accumulating'>('all');
+  const [previewingDemoSetting, setPreviewingDemoSetting] = useState<TuitionSetting | null>(null);
+  const [isCustomClassName, setIsCustomClassName] = useState<boolean>(false);
+
+  // Formatting helpers for currency inputs (automatic dot grouping e.g. 1.500.000)
+  const formatCurrencyWithDots = (val: number | string | undefined | null) => {
+    if (val === undefined || val === null || val === '') return '';
+    const num = typeof val === 'number' ? val : parseInt(String(val).replace(/\D/g, ''), 10);
+    if (isNaN(num)) return '';
+    return num.toLocaleString('vi-VN');
+  };
+
+  const parseCurrencyDigits = (str: string) => {
+    const raw = str.replace(/\D/g, '');
+    return raw ? parseInt(raw, 10) : 0;
+  };
 
   // Confirmation modal states
   const [confirmModalConfig, setConfirmModalConfig] = useState<{
@@ -119,6 +139,54 @@ export function TeacherTuitionManager({
     students.forEach(s => s.className && set.add(s.className));
     return Array.from(set).filter(Boolean);
   }, [tuitionSettings, students]);
+
+  // Classes explicitly managed/taught by this teacher (or all classes for Admin)
+  const teacherManagedClasses = useMemo(() => {
+    const classSet = new Set<string>();
+
+    if (currentUser.role === 'admin') {
+      allUsers.forEach(u => {
+        if (u.className) {
+          u.className.split(/[,;\n]+/).map(c => c.trim()).filter(Boolean).forEach(c => classSet.add(c));
+        }
+      });
+      sessions.forEach(s => {
+        if (s.className) classSet.add(s.className.trim());
+      });
+    } else {
+      // 1. Direct class name assigned to teacher profile
+      if (currentUser.className) {
+        currentUser.className.split(/[,;\n]+/).map(c => c.trim()).filter(Boolean).forEach(c => classSet.add(c));
+      }
+      // 2. Array of assigned classes if any
+      if (Array.isArray((currentUser as any).assignedClasses)) {
+        (currentUser as any).assignedClasses.forEach((c: string) => c && classSet.add(c.trim()));
+      }
+      // 3. Sessions taught by this teacher
+      sessions.forEach(s => {
+        const isTaughtByMe = s.teacherId === currentUser.id || s.teacherName === currentUser.name;
+        if (isTaughtByMe && s.className) {
+          classSet.add(s.className.trim());
+        }
+      });
+      // 4. Students who have this teacher assigned
+      allUsers.forEach(u => {
+        if (u.role === 'student') {
+          const isMyStudent = (u as any).teacherId === currentUser.id || (u as any).teacherName === currentUser.name;
+          if (isMyStudent && u.className) {
+            u.className.split(/[,;\n]+/).map(c => c.trim()).filter(Boolean).forEach(c => classSet.add(c));
+          }
+        }
+      });
+    }
+
+    // Include existing classes from saved tuition settings so they remain selectable
+    tuitionSettings.forEach(s => {
+      if (s.className) classSet.add(s.className.trim());
+    });
+
+    return Array.from(classSet).filter(Boolean);
+  }, [currentUser, allUsers, sessions, tuitionSettings]);
 
   // Compute tuition status for all students
   const studentStatuses = useMemo<StudentTuitionStatus[]>(() => {
@@ -661,31 +729,55 @@ export function TeacherTuitionManager({
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-3xs space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h3 className="font-extrabold text-slate-900 text-sm">Cấu hình Hạn định giờ & Học phí theo Lớp</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-slate-900 text-sm">Cấu hình Hạn định giờ & Học phí theo Lớp</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {tuitionSettings.length} cấu hình
+                  </span>
+                </div>
                 <p className="text-slate-400 text-xs font-medium mt-0.5">
                   Thiết lập số giờ học yêu cầu cho 1 đợt thanh toán (VD: 20 tiếng) và thông tin tài khoản chuyển khoản VietQR
                 </p>
               </div>
 
-              {!editingSetting && (
-                <button
-                  type="button"
-                  onClick={() => setEditingSetting({
-                    id: `setting_${Date.now()}`,
-                    className: '',
-                    limitHours: 20,
-                    tuitionFee: 1500000,
-                    qrBankId: 'MBBank',
-                    qrAccountNumber: '',
-                    qrAccountName: '',
-                    qrImageUrl: ''
-                  })}
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Thêm cấu hình lớp mới</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {onOpenDemo && (
+                  <button
+                    type="button"
+                    onClick={onOpenDemo}
+                    className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-3xs hover:scale-102 active:scale-98"
+                    title="Mô phỏng quy trình thu học phí 4 bước từ GV đến HS"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span>Mô phỏng quy trình (Demo)</span>
+                  </button>
+                )}
+
+                {!editingSetting && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const defaultClass = teacherManagedClasses[0] || '';
+                      setEditingSetting({
+                        id: `setting_${Date.now()}`,
+                        className: defaultClass,
+                        limitHours: 20,
+                        tuitionFee: 1500000,
+                        qrBankId: 'MBBank',
+                        qrAccountNumber: '',
+                        qrAccountName: '',
+                        qrImageUrl: '',
+                        transferContentTemplate: 'Hoc phi {studentName} lop {className}'
+                      });
+                      setIsCustomClassName(!defaultClass);
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs hover:scale-102 active:scale-98"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Thêm cấu hình lớp mới</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Inline Setting Editor Form */}
@@ -694,31 +786,107 @@ export function TeacherTuitionManager({
                 <div className="flex justify-between items-center border-b border-slate-200/70 pb-3">
                   <h4 className="font-black text-slate-900 text-xs flex items-center gap-1.5 uppercase">
                     <Sparkles className="w-4 h-4 text-amber-500" />
-                    {editingSetting.id?.startsWith('setting_') ? 'Thêm cấu hình lớp mới' : 'Chỉnh sửa cấu hình lớp'}
+                    {editingSetting.id?.startsWith('setting_') ? 'Thêm cấu hình lớp mới' : `Chỉnh sửa cấu hình: Lớp ${editingSetting.className || '...'}`}
                   </h4>
                   <button
                     type="button"
                     onClick={() => setEditingSetting(null)}
-                    className="text-xs text-slate-400 hover:text-slate-600 font-bold"
+                    className="text-xs text-slate-400 hover:text-slate-600 font-bold px-2 py-1 rounded-lg hover:bg-slate-200/60"
                   >
                     Hủy bỏ
                   </button>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Class Name Selector */}
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Tên lớp học:</label>
-                    <input
-                      type="text"
-                      value={editingSetting.className || ''}
-                      onChange={e => setEditingSetting({ ...editingSetting, className: e.target.value })}
-                      placeholder="VD: 10A1, 12 Tin..."
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
-                    />
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[11px] font-bold text-slate-700 block flex items-center gap-1">
+                        <School className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Tên lớp học:</span>
+                      </label>
+                      {teacherManagedClasses.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomClassName(!isCustomClassName)}
+                          className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline"
+                        >
+                          {isCustomClassName ? '← Chọn từ lớp của GV' : '+ Nhập tên lớp tùy chỉnh'}
+                        </button>
+                      )}
+                    </div>
+
+                    {!isCustomClassName && teacherManagedClasses.length > 0 ? (
+                      <div className="space-y-1.5">
+                        <CustomSelect
+                          value={editingSetting.className || ''}
+                          onChange={val => {
+                            if (val === '__custom__') {
+                              setIsCustomClassName(true);
+                            } else {
+                              setEditingSetting({ ...editingSetting, className: val });
+                            }
+                          }}
+                          options={[
+                            ...teacherManagedClasses.map(cls => ({
+                              value: cls,
+                              label: `Lớp ${cls}`,
+                              badge: 'Lớp GV đảm nhận'
+                            })),
+                            {
+                              value: '__custom__',
+                              label: '+ Nhập tên lớp tùy chỉnh khác...',
+                              badge: 'Tùy chỉnh'
+                            }
+                          ]}
+                          placeholder="-- Chọn lớp học giáo viên đảm nhận --"
+                          className="w-full"
+                          size="sm"
+                          searchable={teacherManagedClasses.length > 4}
+                        />
+
+                        {/* Quick Selection Chips */}
+                        <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                          <span className="text-[10px] text-slate-400 font-medium mr-1">Lớp của bạn:</span>
+                          {teacherManagedClasses.map(cls => (
+                            <button
+                              key={cls}
+                              type="button"
+                              onClick={() => setEditingSetting({ ...editingSetting, className: cls })}
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
+                                editingSetting.className === cls
+                                  ? 'bg-indigo-600 text-white shadow-3xs'
+                                  : 'bg-white text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200'
+                              }`}
+                            >
+                              {cls}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <input
+                          type="text"
+                          value={editingSetting.className || ''}
+                          onChange={e => setEditingSetting({ ...editingSetting, className: e.target.value })}
+                          placeholder="VD: 10A1, 12 Tin..."
+                          className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        />
+                        {teacherManagedClasses.length > 0 && (
+                          <p className="text-[10px] text-slate-400">
+                            Hoặc nhấn "Chọn từ lớp của GV" ở trên để chọn nhanh các lớp được phân công.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
+                  {/* Limit Hours */}
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Hạn định giờ học (Số tiếng / đợt):</label>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      Hạn định giờ học (Số tiếng / đợt):
+                    </label>
                     <input
                       type="number"
                       value={editingSetting.limitHours || 20}
@@ -727,40 +895,77 @@ export function TeacherTuitionManager({
                     />
                   </div>
 
+                  {/* Tuition Fee with 3-digit dot grouping */}
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Mức học phí (VNĐ):</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-[11px] font-bold text-slate-700 block">
+                        Mức học phí (VNĐ) <span className="text-slate-400 font-normal">(tự động ngắt 3 số)</span>:
+                      </label>
+                      {editingSetting.tuitionFee ? (
+                        <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {editingSetting.tuitionFee.toLocaleString('vi-VN')} đ
+                        </span>
+                      ) : null}
+                    </div>
                     <input
-                      type="number"
-                      value={editingSetting.tuitionFee || 1500000}
-                      onChange={e => setEditingSetting({ ...editingSetting, tuitionFee: Number(e.target.value) })}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      type="text"
+                      inputMode="numeric"
+                      value={formatCurrencyWithDots(editingSetting.tuitionFee)}
+                      onChange={e => {
+                        const parsed = parseCurrencyDigits(e.target.value);
+                        setEditingSetting({ ...editingSetting, tuitionFee: parsed });
+                      }}
+                      placeholder="VD: 1.500.000"
+                      className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
+
+                    {/* Quick Amount Suggestion Chips */}
+                    <div className="flex flex-wrap gap-1 mt-1.5 items-center">
+                      <span className="text-[10px] text-slate-400 font-medium mr-0.5">Gợi ý:</span>
+                      {[1000000, 1200000, 1500000, 1800000, 2000000, 2500000, 3000000].map(amount => (
+                        <button
+                          key={amount}
+                          type="button"
+                          onClick={() => setEditingSetting({ ...editingSetting, tuitionFee: amount })}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${
+                            editingSetting.tuitionFee === amount
+                              ? 'bg-indigo-600 text-white shadow-3xs'
+                              : 'bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200'
+                          }`}
+                        >
+                          {amount.toLocaleString('vi-VN')}đ
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
+                  {/* Bank Name */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">Ngân hàng (Mã VietQR):</label>
                     <input
                       type="text"
                       value={editingSetting.qrBankId || 'MBBank'}
                       onChange={e => setEditingSetting({ ...editingSetting, qrBankId: e.target.value })}
-                      placeholder="VD: MBBank, VCB, VPBank, Techcombank..."
+                      placeholder="VD: MBBank, VCB, VPBank, Techcombank, TPBank..."
                       className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
 
+                  {/* Account Number */}
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Số tài khoản:</label>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Số tài khoản thụ hưởng:</label>
                     <input
                       type="text"
                       value={editingSetting.qrAccountNumber || ''}
-                      onChange={e => setEditingSetting({ ...editingSetting, qrAccountNumber: e.target.value })}
+                      onChange={e => setEditingSetting({ ...editingSetting, qrAccountNumber: e.target.value.replace(/\s+/g, '') })}
                       placeholder="0901234567"
                       className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
                     />
                   </div>
 
+                  {/* Account Holder */}
                   <div>
-                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Chủ tài khoản (Viết hoa):</label>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Chủ tài khoản (Viết hoa không dấu):</label>
                     <input
                       type="text"
                       value={editingSetting.qrAccountName || ''}
@@ -940,8 +1145,8 @@ export function TeacherTuitionManager({
                 </div>
               ) : (
                 tuitionSettings.map(setting => (
-                  <div key={setting.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col justify-between gap-3 shadow-3xs">
-                    <div className="flex justify-between items-start">
+                  <div key={setting.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex flex-col justify-between gap-3 shadow-3xs hover:border-slate-300 transition-all">
+                    <div className="flex justify-between items-start gap-2">
                       <div>
                         <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-extrabold rounded-full border border-indigo-200">
                           Lớp {setting.className}
@@ -951,10 +1156,24 @@ export function TeacherTuitionManager({
                         </div>
                       </div>
 
-                      <div className="flex gap-1">
+                      <div className="flex items-center gap-1.5">
+                        {/* Demo Button for Teachers (Image 3) */}
                         <button
                           type="button"
-                          onClick={() => setEditingSetting(setting)}
+                          onClick={() => setPreviewingDemoSetting(setting)}
+                          className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-3xs active:scale-95"
+                          title="Xem thử giao diện học sinh & mã VietQR trước khi gửi đến học sinh"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Xem thử Demo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSetting(setting);
+                            setIsCustomClassName(!teacherManagedClasses.includes(setting.className));
+                          }}
                           className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
                           title="Chỉnh sửa"
                         >
@@ -975,6 +1194,11 @@ export function TeacherTuitionManager({
                       <div>Ngân hàng: <span className="text-slate-800 font-bold">{setting.qrBankId}</span></div>
                       <div>STK: <span className="text-slate-800 font-bold font-mono">{setting.qrAccountNumber}</span></div>
                       <div>Chủ thẻ: <span className="text-slate-800 font-bold">{setting.qrAccountName}</span></div>
+                      {setting.transferContentTemplate && (
+                        <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100 mt-1">
+                          Cú pháp: <code className="text-indigo-700 font-mono font-bold">{setting.transferContentTemplate}</code>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))
@@ -1060,6 +1284,17 @@ export function TeacherTuitionManager({
         message={confirmModalConfig.message}
         variant={confirmModalConfig.variant}
       />
+
+      {/* Class Live Tuition & VietQR Preview Modal for Teacher */}
+      {previewingDemoSetting && (
+        <ClassTuitionPreviewModal
+          isOpen={!!previewingDemoSetting}
+          onClose={() => setPreviewingDemoSetting(null)}
+          setting={previewingDemoSetting}
+          studentsInClass={students.filter(s => isClassMatching(s.className, previewingDemoSetting.className))}
+          allStudents={students}
+        />
+      )}
     </div>
   );
 }
