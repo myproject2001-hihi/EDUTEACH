@@ -786,9 +786,17 @@ export function Layout({ children, user, currentRole, onRoleChange, activeTab, o
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-start justify-between gap-2">
-                                        <p className={`text-xs text-slate-800 break-words ${isUnread ? 'font-black' : 'font-bold'}`}>
-                                          {notif.title}
-                                        </p>
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <p className={`text-xs text-slate-800 break-words ${isUnread ? 'font-black' : 'font-bold'}`}>
+                                            {notif.title}
+                                          </p>
+                                          {notif.isOnAir && (
+                                            <span className="inline-flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded-md">
+                                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping inline-block"></span>
+                                              ON AIR
+                                            </span>
+                                          )}
+                                        </div>
                                         {isUnread && (
                                           <button
                                             onClick={(e) => {

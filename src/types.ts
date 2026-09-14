@@ -290,6 +290,7 @@ export interface SystemNotification {
   targetClass?: string;
   targetRole?: 'admin' | 'teacher' | 'student';
   teacherId?: string;
+  isOnAir?: boolean;
 }
 
 export interface LoveLetterReply {
