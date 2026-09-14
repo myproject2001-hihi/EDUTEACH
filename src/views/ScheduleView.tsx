@@ -1264,6 +1264,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
               <span>Nhập Excel</span>
             </button>
             <button 
+              type="button"
               onClick={handleOpenCreate}
               className="flex items-center px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl transition-all shadow-sm shrink-0"
             >
@@ -2032,7 +2033,9 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                   <p className="font-extrabold text-xs">
                     {scheduleTab === 'upcoming' 
                       ? 'Không có lịch học nào.' 
-                      : `Không có buổi học hoàn thành nào được ghi nhận trong Tháng ${statsMonth}/${statsYear}.`}
+                      : timeMode === 'month'
+                        ? `Không có buổi học hoàn thành nào được ghi nhận trong Tháng ${statsMonth}/${statsYear}.`
+                        : 'Không có buổi học hoàn thành nào được ghi nhận trong khoảng thời gian đã chọn.'}
                   </p>
                 </div>
               );
