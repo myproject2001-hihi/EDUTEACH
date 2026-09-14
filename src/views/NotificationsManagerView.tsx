@@ -388,23 +388,23 @@ export function NotificationsManagerView({ user, loveLetters = [], usersList = [
   // Notification Type Options for CustomSelect
   const notificationTypeOptions = useMemo(() => {
     const opts = [
-      { value: 'announcement', label: '📢 Thông báo chung', icon: <Volume2 className="w-4 h-4 text-slate-600" /> },
-      { value: 'class_reminder', label: '📝 Báo bài tập đã chấm', icon: <BookOpen className="w-4 h-4 text-amber-600" /> },
-      { value: 'badge_info', label: '🏆 Điểm số & Huy hiệu', icon: <Award className="w-4 h-4 text-indigo-600" /> },
+      { value: 'announcement', label: 'Thông báo chung', icon: <Volume2 className="w-4 h-4 text-slate-600" /> },
+      { value: 'class_reminder', label: 'Báo bài tập đã chấm', icon: <BookOpen className="w-4 h-4 text-amber-600" /> },
+      { value: 'badge_info', label: 'Điểm số & Huy hiệu', icon: <Award className="w-4 h-4 text-indigo-600" /> },
     ];
     if (isAdmin) {
-      opts.unshift({ value: 'system_update', label: '⚙️ Cập nhật hệ thống', icon: <Shield className="w-4 h-4 text-emerald-600" /> });
+      opts.unshift({ value: 'system_update', label: 'Cập nhật hệ thống', icon: <Shield className="w-4 h-4 text-emerald-600" /> });
     }
     return opts;
   }, [isAdmin]);
 
   // Badge Color Options for CustomSelect
   const badgeColorOptions = [
-    { value: 'emerald', label: '🟢 Emerald (Xanh lục)' },
-    { value: 'indigo', label: '🔵 Indigo (Xanh dương)' },
-    { value: 'amber', label: '🟡 Amber (Vàng cam)' },
-    { value: 'rose', label: '🔴 Rose (Đỏ rực)' },
-    { value: 'slate', label: '⚪ Gray (Màu xám)' },
+    { value: 'emerald', label: 'Emerald (Xanh lục)', icon: <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 inline-block shrink-0 shadow-2xs" /> },
+    { value: 'indigo', label: 'Indigo (Xanh dương)', icon: <span className="w-3.5 h-3.5 rounded-full bg-indigo-500 inline-block shrink-0 shadow-2xs" /> },
+    { value: 'amber', label: 'Amber (Vàng cam)', icon: <span className="w-3.5 h-3.5 rounded-full bg-amber-500 inline-block shrink-0 shadow-2xs" /> },
+    { value: 'rose', label: 'Rose (Đỏ rực)', icon: <span className="w-3.5 h-3.5 rounded-full bg-rose-500 inline-block shrink-0 shadow-2xs" /> },
+    { value: 'slate', label: 'Gray (Màu xám)', icon: <span className="w-3.5 h-3.5 rounded-full bg-slate-400 inline-block shrink-0 shadow-2xs" /> },
   ];
 
   // Class Options for CustomSelect

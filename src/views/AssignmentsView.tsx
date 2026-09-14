@@ -3214,10 +3214,10 @@ export function AssignmentsView({
                     value={filterStatus}
                     onChange={(val) => setFilterStatus(val as any)}
                     options={[
-                      { value: 'all', label: `📋 Tất cả (${statusCounts.all})` },
-                      { value: 'unsubmitted', label: `⏳ Chưa nộp (${statusCounts.unsubmitted})` },
-                      { value: 'overdue', label: `⏰ Quá hạn (${statusCounts.overdue})` },
-                      { value: 'submitted', label: `✅ Đã nộp (${statusCounts.submitted})` },
+                      { value: 'all', label: `Tất cả (${statusCounts.all})`, icon: <Layers className="w-4 h-4 text-indigo-500" /> },
+                      { value: 'unsubmitted', label: `Chưa nộp (${statusCounts.unsubmitted})`, icon: <Clock className="w-4 h-4 text-amber-500" /> },
+                      { value: 'overdue', label: `Quá hạn (${statusCounts.overdue})`, icon: <AlertCircle className="w-4 h-4 text-rose-500" /> },
+                      { value: 'submitted', label: `Đã nộp (${statusCounts.submitted})`, icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" /> },
                     ]}
                     size="sm"
                     searchable={false}

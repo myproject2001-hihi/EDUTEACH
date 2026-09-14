@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Assignment, User } from '../types';
-import { X, Search, Check, Filter, SlidersHorizontal, CheckSquare, Square, Radio, Calendar, Clock, BookOpen, Layers, Sparkles, CheckCircle2, AlertCircle, GraduationCap } from 'lucide-react';
+import { X, Search, Check, Filter, SlidersHorizontal, CheckSquare, Square, Radio, Calendar, Clock, BookOpen, Layers, Sparkles, CheckCircle2, AlertCircle, GraduationCap, Globe } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
@@ -256,9 +256,9 @@ export function BatchEditAssignmentsModal({
                   setBulkClass('');
                 }}
                 disabled={isUpdating}
-                placeholder="🏫 Đổi lớp cho mục đã chọn..."
+                placeholder="Đổi lớp cho mục đã chọn..."
                 options={[
-                  { value: '__ALL__', label: 'Tất cả các lớp (Toàn trường)', icon: <span className="text-blue-500">🌐</span> },
+                  { value: '__ALL__', label: 'Tất cả các lớp (Toàn trường)', icon: <Globe className="w-4 h-4 text-blue-500" /> },
                   ...availableClasses.map(c => ({
                     value: c,
                     label: `Lớp ${c}`,

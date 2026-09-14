@@ -1603,7 +1603,6 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
             tuitionUploadSuccess={tuitionUploadSuccess}
             onResetUploadSuccess={() => setTuitionUploadSuccess(false)}
             onViewImageLightbox={url => setReceiptLightboxUrl(url)}
-            onOpenDemo={() => setShowTuitionDemoModal(true)}
           />
         )
       ) : (
@@ -1901,8 +1900,8 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
               </div>
             )}
             
-            {/* Quick Banner linking to Custom Range Analytics Dashboard on Completed Tab */}
-            {scheduleTab === 'completed' && (
+            {/* Quick Banner linking to Custom Range Analytics Dashboard on Completed Tab (Teachers/Admins only) */}
+            {scheduleTab === 'completed' && isTeacher && (
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs shrink-0">
@@ -2999,7 +2998,6 @@ interface StudentTuitionTabContentProps {
   tuitionUploadSuccess: boolean;
   onResetUploadSuccess: () => void;
   onViewImageLightbox?: (url: string) => void;
-  onOpenDemo?: () => void;
 }
 
 const StudentTuitionTabContent: React.FC<StudentTuitionTabContentProps> = ({
@@ -3012,8 +3010,7 @@ const StudentTuitionTabContent: React.FC<StudentTuitionTabContentProps> = ({
   isUploadingTuition,
   tuitionUploadSuccess,
   onResetUploadSuccess,
-  onViewImageLightbox,
-  onOpenDemo
+  onViewImageLightbox
 }) => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -3120,18 +3117,6 @@ const StudentTuitionTabContent: React.FC<StudentTuitionTabContentProps> = ({
                 </div>
               )}
             </div>
-
-            {/* Interactive Demo Action Button for Students/Parents */}
-            {onOpenDemo && (
-              <button
-                type="button"
-                onClick={onOpenDemo}
-                className="w-full py-2.5 px-3 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-200 text-amber-900 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-3xs active:scale-98"
-              >
-                <Sparkles className="w-4 h-4 text-amber-600" />
-                <span>Mô phỏng quy trình đóng Học phí (Demo)</span>
-              </button>
-            )}
           </div>
         </div>
 
