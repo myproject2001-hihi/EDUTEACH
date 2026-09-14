@@ -1209,21 +1209,7 @@ export default function App() {
                   setActiveTab('assignments');
                 }}
               >
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={activeTab}
-                    initial={{ opacity: 0, x: 20, filter: 'blur(4px)' }}
-                    animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-                    exit={{ opacity: 0, x: -20, filter: 'blur(4px)' }}
-                    transition={{ 
-                      duration: 0.28, 
-                      ease: [0.16, 1, 0.3, 1] 
-                    }}
-                    className="w-full h-full"
-                  >
-                    {renderContent()}
-                  </motion.div>
-                </AnimatePresence>
+                {renderContent()}
               </Layout>
               <ClassSessionReminder user={currentUser} classes={classes} />
               <AssignmentReminder user={currentUser} assignments={assignments} submissions={submissions} />
