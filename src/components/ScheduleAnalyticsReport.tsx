@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ClassSession, User } from '../types';
 import { CustomSelect } from './CustomSelect';
+import { safeFormat, isValidDate } from '../utils/dateUtils';
 import { 
   format, 
   startOfMonth, 
@@ -328,7 +329,8 @@ export function ScheduleAnalyticsReport({
       const dur = Math.max(0, end - start);
       totalMs += isNaN(dur) ? 0 : dur;
 
-      uniqueDaysSet.add(format(new Date(s.startTime), 'yyyy-MM-dd'));
+      const dayStr = safeFormat(s.startTime, 'yyyy-MM-dd');
+      if (dayStr) uniqueDaysSet.add(dayStr);
 
       const isSessionOnline = s.isOnline !== undefined ? s.isOnline : (s.link && (s.link.startsWith('http') || s.link.startsWith('www')) ? true : false);
       if (isSessionOnline) onlineCount++;
@@ -387,7 +389,7 @@ export function ScheduleAnalyticsReport({
   const generateReportText = () => {
     const timeTitle = timeMode === 'month' 
       ? `THÁNG ${String(selectedMonth).padStart(2, '0')}/${selectedYear}`
-      : `TỪ NGÀY ${format(new Date(startDateStr), 'dd/MM/yyyy')} ĐẾN ${format(new Date(endDateStr), 'dd/MM/yyyy')}`;
+      : `TỪ NGÀY ${safeFormat(startDateStr, 'dd/MM/yyyy')} ĐẾN ${safeFormat(endDateStr, 'dd/MM/yyyy')}`;
 
     let text = `====================================================\n`;
     text += `[BÁO CÁO THỐNG KÊ THỜI GIAN DẠY & HỌC CHI TIẾT]\n`;
@@ -424,9 +426,9 @@ export function ScheduleAnalyticsReport({
 
     text += `DANH SÁCH CHI TIẾT CÁC BUỔI HỌC (${sortedSessions.length} buổi):\n`;
     sortedSessions.forEach((s, idx) => {
-      const dateStr = format(new Date(s.startTime), 'dd/MM/yyyy');
-      const startH = format(new Date(s.startTime), 'HH:mm');
-      const endH = format(new Date(s.endTime), 'HH:mm');
+      const dateStr = safeFormat(s.startTime, 'dd/MM/yyyy');
+      const startH = safeFormat(s.startTime, 'HH:mm', '--:--');
+      const endH = safeFormat(s.endTime, 'HH:mm', '--:--');
       const start = new Date(s.startTime).getTime();
       const end = new Date(s.endTime).getTime();
       const durHours = ((end - start) / (1000 * 60 * 60)).toFixed(1);
@@ -1211,10 +1213,10 @@ export function ScheduleAnalyticsReport({
 
                       <td className="p-3 align-middle">
                         <span className="font-extrabold text-slate-900 block">
-                          {format(new Date(session.startTime), 'dd/MM/yyyy')}
+                          {safeFormat(session.startTime, 'dd/MM/yyyy')}
                         </span>
                         <span className="text-[11px] text-slate-500 font-medium block">
-                          {format(new Date(session.startTime), 'HH:mm')} - {format(new Date(session.endTime), 'HH:mm')}
+                          {safeFormat(session.startTime, 'HH:mm', '--:--')} - {safeFormat(session.endTime, 'HH:mm', '--:--')}
                         </span>
                       </td>
 

@@ -30,6 +30,7 @@ import { calculateStudentTuitionStatus, StudentTuitionStatus, getTuitionSettingF
 import { isClassMatching } from '../utils/classFilter';
 import { ConfirmModal } from './ConfirmModal';
 import { CustomSelect } from './CustomSelect';
+import { safeFormat } from '../utils/dateUtils';
 import { ClassTuitionPreviewModal } from './ClassTuitionPreviewModal';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -555,7 +556,7 @@ export function TeacherTuitionManager({
 
               <div className="sm:col-span-4 text-slate-500 text-[11px] font-semibold flex items-center justify-end gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Lần gửi gần nhất: {autoReminderConfig.lastSentAt ? format(new Date(autoReminderConfig.lastSentAt), 'HH:mm dd/MM/yyyy') : 'Chưa gửi'}</span>
+                <span>Lần gửi gần nhất: {autoReminderConfig.lastSentAt ? safeFormat(autoReminderConfig.lastSentAt, 'HH:mm dd/MM/yyyy', 'Chưa gửi') : 'Chưa gửi'}</span>
               </div>
             </div>
           </div>
@@ -1259,7 +1260,7 @@ export function TeacherTuitionManager({
                         <div className="text-[10px] font-bold text-slate-400">Lớp: <span className="text-slate-700">{receipt.className}</span></div>
                         <div className="text-xs font-black text-indigo-600">{receipt.amount.toLocaleString('vi-VN')} VNĐ</div>
                         <div className="text-[9px] text-slate-400 font-bold">Số giờ học: <span className="text-slate-700">{receipt.hoursAtPayment?.toFixed(1) || 'N/A'} giờ</span></div>
-                        <div className="text-[9px] text-slate-400 font-bold">Nộp lúc: <span className="text-slate-700">{format(new Date(receipt.paidAt), 'HH:mm dd/MM/yyyy')}</span></div>
+                        <div className="text-[9px] text-slate-400 font-bold">Nộp lúc: <span className="text-slate-700">{safeFormat(receipt.paidAt, 'HH:mm dd/MM/yyyy', 'Đã nộp')}</span></div>
                       </div>
                     </div>
 

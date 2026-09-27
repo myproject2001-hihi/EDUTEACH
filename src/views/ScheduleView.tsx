@@ -27,6 +27,7 @@ import { TeacherTuitionManager } from '../components/TeacherTuitionManager';
 import { CustomSelect } from '../components/CustomSelect';
 import { calculateStudentTuitionStatus, StudentTuitionStatus, generateTransferContent } from '../utils/tuitionUtils';
 import { filterValidSessions } from '../utils/classFilter';
+import { safeFormat, isValidDate, safeDate } from '../utils/dateUtils';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
@@ -710,8 +711,8 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
   // Calculate unique teaching days (unique calendar dates)
   const uniqueTeachingDays = React.useMemo(() => {
     return Array.from(new Set(completedSessionsInMonth.map(s => {
-      return format(new Date(s.startTime), 'yyyy-MM-dd');
-    }))).length;
+      return safeFormat(s.startTime, 'yyyy-MM-dd');
+    }).filter(Boolean))).length;
   }, [completedSessionsInMonth]);
 
   // Calculate total duration (hours)
@@ -762,7 +763,8 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
     }>();
 
     completedSessionsInMonth.forEach(s => {
-      const d = format(new Date(s.startTime), 'yyyy-MM-dd');
+      const d = safeFormat(s.startTime, 'yyyy-MM-dd');
+      if (!d) return;
       if (!map.has(d)) {
         map.set(d, { date: d, sessions: [], personalNote: '' });
       }
@@ -1190,7 +1192,8 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
   };
 
   const handleOpenNotice = (session: ClassSession) => {
-    const msg = `[THÔNG BÁO LỊCH HỌC TRỰC TUYẾN]\nXin chào các em học sinh và Quý Phụ huynh,\nChuẩn bị diễn ra buổi học: "${session.title}".\nThời gian: ${format(new Date(session.startTime), 'HH:mm dd/MM/yyyy', { locale: vi })}\nLink phòng học Google Meet / Zoom: ${session.link}\nLưu ý: ${session.note || 'Vào phòng học đúng giờ trước 5 phút!'}`;
+    const timeDisplay = safeFormat(session.startTime, 'HH:mm dd/MM/yyyy', 'Thời gian chưa cập nhật', { locale: vi });
+    const msg = `[THÔNG BÁO LỊCH HỌC TRỰC TUYẾN]\nXin chào các em học sinh và Quý Phụ huynh,\nChuẩn bị diễn ra buổi học: "${session.title}".\nThời gian: ${timeDisplay}\nLink phòng học Google Meet / Zoom: ${session.link}\nLưu ý: ${session.note || 'Vào phòng học đúng giờ trước 5 phút!'}`;
     setNotifyMsg(msg);
     setNotifyModal(true);
     setCopied(false);
@@ -2112,12 +2115,12 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                         <div className="p-5 space-y-3 text-xs text-slate-600">
                           <div className="flex items-center gap-2 font-semibold text-slate-800">
                             <CalendarIcon className="w-4 h-4 text-indigo-600 shrink-0" />
-                            <span>{format(new Date(session.startTime), 'EEEE, dd/MM/yyyy', { locale: vi })}</span>
+                            <span>{safeFormat(session.startTime, 'EEEE, dd/MM/yyyy', 'Thời gian chưa cập nhật', { locale: vi })}</span>
                           </div>
 
                           <div className="flex items-center gap-2 font-semibold text-slate-800">
                             <Clock className="w-4 h-4 text-indigo-600 shrink-0" />
-                            <span>{format(new Date(session.startTime), 'HH:mm')} - {format(new Date(session.endTime), 'HH:mm')}</span>
+                            <span>{safeFormat(session.startTime, 'HH:mm', '--:--')} - {safeFormat(session.endTime, 'HH:mm', '--:--')}</span>
                           </div>
 
                           {session.note && !session.isCompleted && (
@@ -2148,7 +2151,9 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                               {studentAttendance ? (
                                 <span className="text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 flex items-center gap-1">
                                   <CheckCircle className="w-3.5 h-3.5" />
-                                  Em đã tham gia lúc {format(new Date(studentAttendance.clickedAt), 'HH:mm')}
+                                  {studentAttendance.clickedAt && !studentAttendance.clickedAt.includes('session_import') && isValidDate(studentAttendance.clickedAt)
+                                    ? `Em đã tham gia lúc ${safeFormat(studentAttendance.clickedAt, 'HH:mm')}`
+                                    : 'Em đã tham gia buổi học này'}
                                 </span>
                               ) : (
                                 <span className="text-rose-500 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 flex items-center gap-1">
@@ -2312,7 +2317,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                   return days.map((day, idx) => {
                     const formattedDayStr = format(day, 'yyyy-MM-dd');
                     const hasNote = !!userNotes[formattedDayStr];
-                    const hasSession = sessions.some(s => isSameDay(new Date(s.startTime), day));
+                    const hasSession = sessions.some(s => isValidDate(s.startTime) && isSameDay(new Date(s.startTime), day));
                     const isSelected = selectedDate === formattedDayStr;
                     const isCurrentMonth = isSameMonth(day, currentMonth);
 
@@ -2352,7 +2357,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-3">
               <div className="flex justify-between items-center pb-1 border-b border-slate-200">
                 <p className="text-xs font-bold text-slate-800">
-                  Ngày {format(new Date(selectedDate), 'dd/MM/yyyy')}
+                  Ngày {safeFormat(selectedDate, 'dd/MM/yyyy', selectedDate)}
                 </p>
                 {userNotes[selectedDate] && (
                   <button 
@@ -2371,7 +2376,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
 
               {/* Sessions scheduled for selected date */}
               {(() => {
-                const daySessions = sessions.filter(s => isSameDay(new Date(s.startTime), new Date(selectedDate)));
+                const daySessions = sessions.filter(s => isValidDate(s.startTime) && isValidDate(selectedDate) && isSameDay(new Date(s.startTime), new Date(selectedDate)));
                 if (daySessions.length > 0) {
                   return (
                     <div className="space-y-1.5">
@@ -2380,7 +2385,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                         <div key={s.id} className="bg-white p-2 py-1.5 rounded-xl border border-indigo-100 text-xs flex justify-between items-center">
                           <div className="min-w-0 flex-1 pr-1.5">
                             <p className="font-extrabold text-slate-800 text-[11px] truncate">{s.title}</p>
-                            <p className="text-[9px] text-slate-500 font-medium">{format(new Date(s.startTime), 'HH:mm')}</p>
+                            <p className="text-[9px] text-slate-500 font-medium">{safeFormat(s.startTime, 'HH:mm', '--:--')}</p>
                           </div>
                           {s.link ? (
                             <a 
@@ -2656,7 +2661,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
               <div>
                 <p className="text-[10px] uppercase font-bold text-slate-400">Buổi học:</p>
                 <p className="font-extrabold text-slate-800 text-sm">{completingSession.title}</p>
-                <p className="text-xs text-slate-500 font-semibold">{completingSession.subject} • {format(new Date(completingSession.startTime), 'HH:mm dd/MM/yyyy')}</p>
+                <p className="text-xs text-slate-500 font-semibold">{completingSession.subject} • {safeFormat(completingSession.startTime, 'HH:mm dd/MM/yyyy')}</p>
               </div>
 
               <div className="space-y-1.5">
@@ -2726,8 +2731,8 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                   </span>
                   <h4 className="font-extrabold text-slate-900 text-base mt-1.5">{viewingSessionDetails.title}</h4>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-500 font-medium pt-1">
-                    <p>📅 Ngày học: <strong>{format(new Date(viewingSessionDetails.startTime), 'dd/MM/yyyy')}</strong></p>
-                    <p>⏰ Thời gian: <strong>{format(new Date(viewingSessionDetails.startTime), 'HH:mm')} - {format(new Date(viewingSessionDetails.endTime), 'HH:mm')}</strong></p>
+                    <p>📅 Ngày học: <strong>{safeFormat(viewingSessionDetails.startTime, 'dd/MM/yyyy')}</strong></p>
+                    <p>⏰ Thời gian: <strong>{safeFormat(viewingSessionDetails.startTime, 'HH:mm', '--:--')} - {safeFormat(viewingSessionDetails.endTime, 'HH:mm', '--:--')}</strong></p>
                   </div>
                 </div>
 
@@ -2846,8 +2851,8 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                                 </div>
                                 {isAttended && (
                                   <span className="text-[9px] text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-lg font-bold">
-                                    {attendedObj?.clickedAt && attendedObj.clickedAt !== student.id && !attendedObj.clickedAt.includes('session_import')
-                                      ? `Có mặt (${format(new Date(attendedObj.clickedAt), 'HH:mm')})` 
+                                    {attendedObj?.clickedAt && attendedObj.clickedAt !== student.id && !attendedObj.clickedAt.includes('session_import') && isValidDate(attendedObj.clickedAt)
+                                      ? `Có mặt (${safeFormat(attendedObj.clickedAt, 'HH:mm')})` 
                                       : 'Có mặt'}
                                   </span>
                                 )}
@@ -2882,7 +2887,7 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
                               <span className="text-slate-800 font-extrabold">{student.studentName}</span>
                             </div>
                             <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg font-bold">
-                              Đã tham gia: {student.clickedAt && !student.clickedAt.includes('session_import') ? format(new Date(student.clickedAt), 'HH:mm, dd/MM') : 'Có mặt'}
+                              Đã tham gia: {student.clickedAt && !student.clickedAt.includes('session_import') && isValidDate(student.clickedAt) ? safeFormat(student.clickedAt, 'HH:mm, dd/MM') : 'Có mặt'}
                             </span>
                           </div>
                         ))
@@ -3181,7 +3186,7 @@ const StudentTuitionTabContent: React.FC<StudentTuitionTabContentProps> = ({
                         {receipt.amount.toLocaleString('vi-VN')} VNĐ
                       </div>
                       <div className="text-[10px] text-slate-400 font-bold">
-                        Đã nộp: {format(new Date(receipt.paidAt), 'HH:mm dd/MM/yyyy')}
+                        Đã nộp: {safeFormat(receipt.paidAt, 'HH:mm dd/MM/yyyy', 'Đã nộp')}
                       </div>
                     </div>
                   </div>

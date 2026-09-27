@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Assignment, Submission, User, QuizQuestion } from '../types';
 import { format } from 'date-fns';
+import { safeFormat } from '../utils/dateUtils';
 import { MarkdownMath } from './MarkdownMath';
 import { UserAvatar } from './UserAvatar';
 import { 
@@ -371,7 +372,7 @@ function StudentSubmissionDetailModalInner({
               <p className="text-xs text-slate-400 truncate flex items-center gap-1.5 mt-0.5">
                 <span className="text-slate-300 font-semibold">{assignment.title}</span>
                 <span>•</span>
-                <span>{format(new Date(submission.submittedAt), 'HH:mm dd/MM/yyyy')}</span>
+                <span>{safeFormat(submission.submittedAt, 'HH:mm dd/MM/yyyy', 'Thời gian chưa rõ')}</span>
               </p>
             </div>
           </div>
@@ -1074,7 +1075,7 @@ function StudentSubmissionDetailModalInner({
                                     )}
                                   </h5>
                                   <p className="text-[11px] text-slate-400">
-                                    Nộp lúc: {item.submittedAt ? format(new Date(item.submittedAt), 'HH:mm - dd/MM/yyyy') : 'Chưa rõ'}
+                                    Nộp lúc: {safeFormat(item.submittedAt, 'HH:mm - dd/MM/yyyy', 'Chưa rõ')}
                                   </p>
                                 </div>
                               </div>
@@ -1110,7 +1111,7 @@ function StudentSubmissionDetailModalInner({
 
                             {item.resetAt && (
                               <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                                🔄 Đã được kích hoạt cho làm lại vào {format(new Date(item.resetAt), 'HH:mm - dd/MM/yyyy')} {item.resetBy ? `bởi ${item.resetBy}` : ''}
+                                🔄 Đã được kích hoạt cho làm lại vào {safeFormat(item.resetAt, 'HH:mm - dd/MM/yyyy', 'Chưa rõ')} {item.resetBy ? `bởi ${item.resetBy}` : ''}
                               </div>
                             )}
                           </div>

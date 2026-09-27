@@ -5,6 +5,7 @@ import { db } from '../firebase';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { safeFormat } from '../utils/dateUtils';
 import { CustomSelect } from './CustomSelect';
 
 interface BatchEditAssignmentsModalProps {
@@ -451,7 +452,7 @@ export function BatchEditAssignmentsModal({
                         </span>
                         {assignment.createdAt && (
                           <span className="text-[10px] text-slate-400">
-                            {format(new Date(assignment.createdAt), 'dd/MM/yyyy')}
+                            {safeFormat(assignment.createdAt, 'dd/MM/yyyy')}
                           </span>
                         )}
                       </div>

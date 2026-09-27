@@ -27,13 +27,21 @@ export function AssignmentReminder({ user, assignments, submissions }: Assignmen
   const handleRequestReminder = async (assignmentId: string, title: string, dueDate: string) => {
     try {
       const id = `personal_remind_${user.id}_${assignmentId}`;
-      const dueDateStr = new Date(dueDate).toLocaleString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
+      let dueDateStr = 'thời gian quy định';
+      try {
+        const d = new Date(dueDate);
+        if (!isNaN(d.getTime())) {
+          dueDateStr = d.toLocaleString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+          });
+        }
+      } catch {
+        // fallback
+      }
       
       const newNotif = {
         id,

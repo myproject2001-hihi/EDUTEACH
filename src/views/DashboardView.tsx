@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, Assignment, Submission, ClassSession } from '../types';
+import { safeFormat, isValidDate } from '../utils/dateUtils';
 import { 
   format, 
   startOfMonth, 
@@ -516,14 +517,14 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
     };
 
     const relevantClasses = classes.filter(isMatchingClass);
-    const todayClasses = relevantClasses.filter(c => c.startTime && isToday(new Date(c.startTime)));
+    const todayClasses = relevantClasses.filter(c => isValidDate(c.startTime) && isToday(new Date(c.startTime)));
     const upcomingClasses = relevantClasses
-      .filter(c => c.startTime && new Date(c.startTime).getTime() >= now.getTime())
+      .filter(c => isValidDate(c.startTime) && new Date(c.startTime).getTime() >= now.getTime())
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
     if (todayClasses.length > 0) {
       const targetClass = todayClasses[0];
-      const timeStr = format(new Date(targetClass.startTime), 'HH:mm');
+      const timeStr = safeFormat(targetClass.startTime, 'HH:mm', '--:--');
       suggestions.push({
         id: 'sug_class_today',
         type: 'schedule',
@@ -537,7 +538,7 @@ export function DashboardView({ user, assignments: rawAssignments, submissions, 
       });
     } else if (upcomingClasses.length > 0) {
       const targetClass = upcomingClasses[0];
-      const timeStr = format(new Date(targetClass.startTime), 'HH:mm - dd/MM');
+      const timeStr = safeFormat(targetClass.startTime, 'HH:mm - dd/MM', '--:--');
       suggestions.push({
         id: 'sug_class_upcoming',
         type: 'schedule',
