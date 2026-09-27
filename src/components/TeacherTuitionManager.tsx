@@ -535,18 +535,22 @@ export function TeacherTuitionManager({
                 </span>
               </div>
 
-              <div className="sm:col-span-4 bg-white/80 p-2.5 rounded-2xl border border-indigo-100 flex items-center gap-2">
-                <span className="text-slate-500 font-bold shrink-0 text-[11px]">Tần suất:</span>
-                <select
-                  value={autoReminderConfig.frequency}
-                  onChange={(e) => saveAutoReminderConfig({ ...autoReminderConfig, frequency: e.target.value as any })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs font-bold text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500"
-                >
-                  <option value="on_due">Ngay khi học sinh chạm/vượt 20 giờ</option>
-                  <option value="weekly">Hàng tuần (Thứ 2 hàng tuần)</option>
-                  <option value="three_days">Mỗi 3 ngày nhắc 1 lần</option>
-                  <option value="monthly">Hàng tháng (Ngày 1 đầu tháng)</option>
-                </select>
+              <div className="sm:col-span-4 bg-white/80 p-2 rounded-2xl border border-indigo-100 flex items-center gap-2">
+                <span className="text-slate-500 font-bold shrink-0 text-[11px] whitespace-nowrap">Tần suất:</span>
+                <div className="flex-1 min-w-0">
+                  <CustomSelect
+                    value={autoReminderConfig.frequency}
+                    onChange={(val) => saveAutoReminderConfig({ ...autoReminderConfig, frequency: val as any })}
+                    options={[
+                      { value: 'on_due', label: 'Ngay khi học sinh chạm/vượt 20 giờ' },
+                      { value: 'weekly', label: 'Hàng tuần (Thứ 2 hàng tuần)' },
+                      { value: 'three_days', label: 'Mỗi 3 ngày nhắc 1 lần' },
+                      { value: 'monthly', label: 'Hàng tháng (Ngày 1 đầu tháng)' },
+                    ]}
+                    size="sm"
+                    className="w-full text-xs font-bold"
+                  />
+                </div>
               </div>
 
               <div className="sm:col-span-4 text-slate-500 text-[11px] font-semibold flex items-center justify-end gap-1.5">
@@ -570,26 +574,35 @@ export function TeacherTuitionManager({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <select
-                value={filterClass}
-                onChange={(e) => setFilterClass(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none"
-              >
-                <option value="all">Tất cả lớp học</option>
-                {distinctClasses.map(cls => (
-                  <option key={cls} value={cls}>Lớp {cls}</option>
-                ))}
-              </select>
+              <div className="w-44">
+                <CustomSelect
+                  value={filterClass}
+                  onChange={(val) => setFilterClass(val)}
+                  options={[
+                    { value: 'all', label: 'Tất cả lớp học' },
+                    ...distinctClasses.map(cls => ({
+                      value: cls,
+                      label: `Lớp ${cls}`
+                    }))
+                  ]}
+                  size="sm"
+                  className="w-full text-xs font-bold"
+                />
+              </div>
 
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as any)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none"
-              >
-                <option value="all">Tất cả trạng thái</option>
-                <option value="unpaid">🚨 Chưa thanh toán ({unpaidCount})</option>
-                <option value="accumulating">⏳ Đang tích lũy ({accumulatingCount})</option>
-              </select>
+              <div className="w-48">
+                <CustomSelect
+                  value={filterStatus}
+                  onChange={(val) => setFilterStatus(val as any)}
+                  options={[
+                    { value: 'all', label: 'Tất cả trạng thái' },
+                    { value: 'unpaid', label: `🚨 Chưa thanh toán (${unpaidCount})` },
+                    { value: 'accumulating', label: `⏳ Đang tích lũy (${accumulatingCount})` },
+                  ]}
+                  size="sm"
+                  className="w-full text-xs font-bold"
+                />
+              </div>
             </div>
           </div>
 

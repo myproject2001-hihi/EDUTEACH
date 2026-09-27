@@ -1095,7 +1095,7 @@ export default function App() {
           />
         );
       case 'schedule':
-        return <ScheduleView user={activeUser} classes={validClasses} allUsers={allUsers} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} />;
+        return <ScheduleView key={`schedule_${activeUser.role}`} user={activeUser} classes={validClasses} allUsers={allUsers} onAddClass={handleAddClass} onUpdateClass={handleUpdateClass} onDeleteClass={handleDeleteClass} />;
       case 'notifications-manager':
         return isTeacherOrAdmin ? (
           <NotificationsManagerView

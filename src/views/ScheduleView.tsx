@@ -82,8 +82,19 @@ export function ScheduleView({ user, classes: initialClasses, allUsers = [], onA
   const [sessions, setSessions] = useState<ClassSession[]>(filteredInitialClasses);
   const upcomingSessions = React.useMemo(() => sessions.filter(s => !s.isCompleted), [sessions]);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
-  const [scheduleTab, setScheduleTab] = useState<'upcoming' | 'completed' | 'report' | 'tuition'>('upcoming');
+  const [scheduleTab, setScheduleTab] = useState<'upcoming' | 'completed' | 'report' | 'tuition'>(() => {
+    return user.role === 'student' ? 'completed' : 'upcoming';
+  });
   const [showTuitionDemoModal, setShowTuitionDemoModal] = useState(false);
+
+  // Default to completed sessions for student (nhật ký dạy & học đã hoàn thành)
+  React.useEffect(() => {
+    if (user.role === 'student') {
+      setScheduleTab('completed');
+    } else {
+      setScheduleTab('upcoming');
+    }
+  }, [user.role]);
 
   // Notification Toast State
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);

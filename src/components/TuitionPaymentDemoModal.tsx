@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CustomSelect } from './CustomSelect';
 import { 
   CreditCard, 
   CheckCircle2, 
@@ -211,17 +212,21 @@ export const TuitionPaymentDemoModal: React.FC<TuitionPaymentDemoModalProps> = (
 
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 mb-1">Ngân hàng & Số tài khoản nhận tiền:</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={simulatedBank}
-                      onChange={e => setSimulatedBank(e.target.value)}
-                      className="px-2 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-700 text-xs"
-                    >
-                      <option value="MBBank">MB Bank</option>
-                      <option value="VietinBank">VietinBank</option>
-                      <option value="Vietcombank">Vietcombank</option>
-                      <option value="Techcombank">Techcombank</option>
-                    </select>
+                  <div className="flex gap-2 items-center">
+                    <div className="w-40 shrink-0">
+                      <CustomSelect
+                        value={simulatedBank}
+                        onChange={val => setSimulatedBank(val)}
+                        options={[
+                          { value: 'MBBank', label: 'MB Bank' },
+                          { value: 'VietinBank', label: 'VietinBank' },
+                          { value: 'Vietcombank', label: 'Vietcombank' },
+                          { value: 'Techcombank', label: 'Techcombank' },
+                        ]}
+                        size="sm"
+                        className="w-full text-xs font-bold"
+                      />
+                    </div>
                     <input
                       type="text"
                       value={simulatedAccountNo}

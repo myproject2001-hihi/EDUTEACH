@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ClassSession, User } from '../types';
+import { CustomSelect } from './CustomSelect';
 import { 
   format, 
   startOfMonth, 
@@ -576,33 +577,31 @@ export function ScheduleAnalyticsReport({
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-700">Chọn Tháng:</span>
-              <div className="relative inline-block">
-                <select
-                  value={selectedMonth}
-                  onChange={e => setSelectedMonth(Number(e.target.value))}
-                  className="appearance-none pl-4 pr-9 py-1.5 bg-white border border-slate-300 hover:border-slate-400 rounded-full text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all shadow-sm"
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                    <option key={m} value={m}>Tháng {m}</option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="w-28">
+                <CustomSelect
+                  value={String(selectedMonth)}
+                  onChange={val => setSelectedMonth(Number(val))}
+                  options={Array.from({ length: 12 }, (_, i) => i + 1).map(m => ({
+                    value: String(m),
+                    label: `Tháng ${m}`
+                  }))}
+                  size="sm"
+                />
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-700">Năm:</span>
-              <div className="relative inline-block">
-                <select
-                  value={selectedYear}
-                  onChange={e => setSelectedYear(Number(e.target.value))}
-                  className="appearance-none pl-4 pr-9 py-1.5 bg-white border border-slate-300 hover:border-slate-400 rounded-full text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-all shadow-sm"
-                >
-                  {[2024, 2025, 2026, 2027].map(y => (
-                    <option key={y} value={y}>Năm {y}</option>
-                  ))}
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="w-28">
+                <CustomSelect
+                  value={String(selectedYear)}
+                  onChange={val => setSelectedYear(Number(val))}
+                  options={[2024, 2025, 2026, 2027].map(y => ({
+                    value: String(y),
+                    label: `Năm ${y}`
+                  }))}
+                  size="sm"
+                />
               </div>
             </div>
 
@@ -814,59 +813,63 @@ export function ScheduleAnalyticsReport({
           {/* Class Dropdown */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1">Chọn Lớp học chi tiết:</label>
-            <select
+            <CustomSelect
               value={selectedClass}
-              onChange={e => setSelectedClass(e.target.value)}
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="all">Tất cả các lớp ({allAvailableClasses.length})</option>
-              {allAvailableClasses.map(cls => (
-                <option key={cls} value={cls}>{cls}</option>
-              ))}
-            </select>
+              onChange={val => setSelectedClass(val)}
+              options={[
+                { value: 'all', label: `Tất cả các lớp (${allAvailableClasses.length})` },
+                ...allAvailableClasses.map(cls => ({ value: cls, label: cls }))
+              ]}
+              size="sm"
+              className="w-full text-xs font-bold"
+            />
           </div>
 
           {/* Subject Dropdown */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1">Chọn Môn học chi tiết:</label>
-            <select
+            <CustomSelect
               value={selectedSubject}
-              onChange={e => setSelectedSubject(e.target.value)}
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="all">Tất cả môn học ({allAvailableSubjects.length})</option>
-              {allAvailableSubjects.map(sub => (
-                <option key={sub} value={sub}>{sub}</option>
-              ))}
-            </select>
+              onChange={val => setSelectedSubject(val)}
+              options={[
+                { value: 'all', label: `Tất cả môn học (${allAvailableSubjects.length})` },
+                ...allAvailableSubjects.map(sub => ({ value: sub, label: sub }))
+              ]}
+              size="sm"
+              className="w-full text-xs font-bold"
+            />
           </div>
 
           {/* Status Filter */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1">Trạng thái:</label>
-            <select
+            <CustomSelect
               value={selectedStatus}
-              onChange={e => setSelectedStatus(e.target.value as any)}
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="completed_only">Chỉ buổi Đã hoàn thành (Thực dạy)</option>
-              <option value="all">Tất cả các buổi (Bao gồm sắp tới)</option>
-              <option value="upcoming_only">Chỉ lịch học sắp tới</option>
-            </select>
+              onChange={val => setSelectedStatus(val as any)}
+              options={[
+                { value: 'completed_only', label: 'Chỉ buổi Đã hoàn thành' },
+                { value: 'all', label: 'Tất cả các buổi' },
+                { value: 'upcoming_only', label: 'Chỉ lịch sắp tới' },
+              ]}
+              size="sm"
+              className="w-full text-xs font-bold"
+            />
           </div>
 
           {/* Format Filter */}
           <div>
             <label className="block text-[11px] font-bold text-slate-500 mb-1">Hình thức:</label>
-            <select
+            <CustomSelect
               value={selectedFormat}
-              onChange={e => setSelectedFormat(e.target.value as any)}
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="all">Tất cả hình thức</option>
-              <option value="online">Trực tuyến (Meet/Zoom)</option>
-              <option value="offline">Trực tiếp / Dạy bổ trợ</option>
-            </select>
+              onChange={val => setSelectedFormat(val as any)}
+              options={[
+                { value: 'all', label: 'Tất cả hình thức' },
+                { value: 'online', label: 'Trực tuyến (Meet/Zoom)' },
+                { value: 'offline', label: 'Trực tiếp / Bổ trợ' },
+              ]}
+              size="sm"
+              className="w-full text-xs font-bold"
+            />
           </div>
 
           {/* Search Query */}
@@ -1159,15 +1162,19 @@ export function ScheduleAnalyticsReport({
           {/* Sort Control */}
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold text-slate-400">Sắp xếp:</span>
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as any)}
-              className="p-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="date_desc">Mới nhất trước</option>
-              <option value="date_asc">Cũ nhất trước</option>
-              <option value="duration_desc">Thời lượng dài nhất</option>
-            </select>
+            <div className="w-44">
+              <CustomSelect
+                value={sortBy}
+                onChange={val => setSortBy(val as any)}
+                options={[
+                  { value: 'date_desc', label: 'Mới nhất trước' },
+                  { value: 'date_asc', label: 'Cũ nhất trước' },
+                  { value: 'duration_desc', label: 'Thời lượng dài nhất' },
+                ]}
+                size="sm"
+                className="w-full text-xs font-bold"
+              />
+            </div>
           </div>
         </div>
 
